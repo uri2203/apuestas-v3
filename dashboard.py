@@ -263,6 +263,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
   <button class="nav-btn" onclick="go(this,'mc')"><span class="nav-icon">∿</span>Monte Carlo</button>
   <button class="nav-btn" onclick="go(this,'kelly')"><span class="nav-icon">◈</span>Kelly Pro</button>
 
+  <div class="nav-label">Pronósticos</div>
+  <button class="nav-btn" onclick="go(this,'progol')"><span class="nav-icon">⚽</span>Progol <span class="nav-badge nb-green">DC+ELO</span></button>
   <div class="nav-label">Sistema</div>
   <button class="nav-btn" onclick="go(this,'alertas')"><span class="nav-icon">◇</span>Alertas<span class="nav-badge nb-gold">4</span></button>
   <button class="nav-btn" onclick="go(this,'apidocs')"><span class="nav-icon">⊞</span>API Docs</button>
@@ -506,6 +508,47 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
       <a href="/docs" target="_blank" class="btn btn-p" style="text-decoration:none;margin-right:8px">/docs — Swagger UI</a>
       <a href="/redoc" target="_blank" class="btn btn-g" style="text-decoration:none">/redoc — ReDoc</a>
     </div>
+  </div>
+</div>
+
+
+<!-- PROGOL -->
+<div id="s-progol" class="section">
+  <div class="ph"><div class="ph-title">Progol · Pronósticos</div><div class="ph-sub">Dixon-Coles + ELO + Poisson · precisión 55-62% · datos API-Football</div></div>
+  <div class="sg">
+    <div class="sc"><div class="sc-glow" style="background:var(--green)"></div><div class="sc-lbl">Modelo</div><div class="sc-val" style="color:var(--green);font-size:14px">Dixon-Coles</div><div class="sc-sub">Estándar industria</div></div>
+    <div class="sc"><div class="sc-glow" style="background:var(--purple)"></div><div class="sc-lbl">ELO Rating</div><div class="sc-val" style="color:var(--purple2);font-size:14px">FiveThirtyEight</div><div class="sc-sub">Dinámico por forma</div></div>
+    <div class="sc"><div class="sc-glow" style="background:var(--gold)"></div><div class="sc-lbl">Precisión real</div><div class="sc-val" style="color:var(--gold)">55-62%</div><div class="sc-sub">Por partido</div></div>
+    <div class="sc"><div class="sc-glow" style="background:var(--teal)"></div><div class="sc-lbl">xG fuente</div><div class="sc-val" style="color:var(--teal);font-size:14px">API-Football</div><div class="sc-sub">Configura key</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="ph2">
+      <span class="pt">Jornada Progol <span class="chip cg">DC+ELO+Poisson</span></span>
+      <button class="btn btn-p" onclick="loadProgol()" id="progol-btn" style="padding:5px 14px;font-size:11px">Cargar predicciones</button>
+    </div>
+    <div class="pb" id="progol-body">
+      <p style="color:var(--muted);font-size:12px;font-family:var(--mono)">Pulsa "Cargar predicciones" para ver la jornada con los 3 modelos.</p>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="ph2"><span class="pt">Predecir partido específico <span class="chip cp">Ensemble</span></span></div>
+    <div class="pb">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:12px">
+        <div class="field"><label>Local</label><input type="text" id="p-home" value="Club América" placeholder="Equipo local"></div>
+        <div class="field"><label>Visitante</label><input type="text" id="p-away" value="Guadalajara" placeholder="Equipo visitante"></div>
+        <div class="field"><label>xG Local (opcional)</label><input type="number" id="p-xgh" placeholder="ej: 1.4" step="0.1"></div>
+        <div class="field"><label>xG Visitante</label><input type="number" id="p-xga" placeholder="ej: 0.9" step="0.1"></div>
+      </div>
+      <button class="btn btn-p" onclick="predPartido()" style="margin-bottom:14px">Predecir con DC + ELO + Poisson</button>
+      <div id="pred-result"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="ph2"><span class="pt">Ranking ELO equipos <span class="chip cp">ELO</span></span></div>
+    <div class="pb" id="elo-ranking"><p style="color:var(--muted);font-size:12px;font-family:var(--mono)">Carga la jornada para ver el ranking.</p></div>
   </div>
 </div>
 
@@ -826,6 +869,88 @@ function renderAlerts(){
       <span class="ai-t">${a.x}</span>
       <span class="ai-g">${a.g}</span>
     </div>`).join('')}</div>`
+}
+
+
+// ── PROGOL ────────────────────────────────────────────────────────────────
+async function loadProgol(){
+  const btn=document.getElementById('progol-btn')
+  const body=document.getElementById('progol-body')
+  btn.textContent='Cargando...'; btn.disabled=true
+  body.innerHTML='<div style="color:var(--muted);font-size:12px;font-family:var(--mono)">Ejecutando Dixon-Coles + ELO + Poisson...</div>'
+  try{
+    const d=await api('/api/progol/jornada')
+    if(d.partidos){
+      body.innerHTML=`
+        <div style="font-size:10px;font-family:var(--mono);color:var(--muted);margin-bottom:12px">
+          ${d.modelo} · Precisión esperada: ${d.precision_esperada} · ${d.usa_datos_reales?'Datos reales API-Football':'Historial demo — agrega API_FOOTBALL_KEY para datos reales'}
+        </div>
+        <table class="tbl">
+          <thead><tr><th>#</th><th>Local</th><th>Visitante</th><th>1 (local)</th><th>X (empate)</th><th>2 (visita)</th><th>Pronóstico</th><th>Confianza</th></tr></thead>
+          <tbody>${d.partidos.map(p=>`
+            <tr>
+              <td style="font-family:var(--mono);color:var(--muted)">${p.numero}</td>
+              <td style="font-weight:700;font-size:12px">${p.local}</td>
+              <td style="font-size:12px;color:var(--muted)">${p.visitante}</td>
+              <td style="font-family:var(--mono)">${(p.local_prob||p.local*100||0).toFixed?((p.local||0)*100).toFixed(1)+'%':p.local}</td>
+              <td style="font-family:var(--mono)">${((p.empate||0)*100).toFixed(1)}%</td>
+              <td style="font-family:var(--mono)">${((p.visitante||0)*100).toFixed(1)}%</td>
+              <td><span class="badge ${p.pronostico==='1'?'bv':p.pronostico==='X'?'bs2':'ba'}" style="font-size:12px;padding:3px 10px">${p.pronostico}</span></td>
+              <td><span class="badge ${p.confianza_pct>55?'bv':p.confianza_pct>42?'bs2':'bdim'}">${p.confianza_pct}%</span></td>
+            </tr>`).join('')}
+          </tbody>
+        </table>`
+      // Ranking ELO
+      if(d.ranking_elo){
+        document.getElementById('elo-ranking').innerHTML=`
+          <table class="tbl">
+            <thead><tr><th>#</th><th>Equipo</th><th>ELO</th></tr></thead>
+            <tbody>${d.ranking_elo.map((e,i)=>`
+              <tr>
+                <td style="font-family:var(--mono);color:var(--muted)">${i+1}</td>
+                <td style="font-weight:600">${e.equipo}</td>
+                <td style="font-family:var(--mono);color:var(--purple2)">${e.elo}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>`
+      }
+    }
+  }catch(e){
+    body.innerHTML=`<div class="rbox rb"><strong>Error</strong><br>${e.message}</div>`
+  }
+  btn.textContent='Actualizar'; btn.disabled=false
+}
+
+async function predPartido(){
+  const home=document.getElementById('p-home').value.trim()
+  const away=document.getElementById('p-away').value.trim()
+  const xgh=document.getElementById('p-xgh').value
+  const xga=document.getElementById('p-xga').value
+  const el=document.getElementById('pred-result')
+  el.innerHTML='<div style="color:var(--muted);font-family:var(--mono);font-size:12px">Calculando Dixon-Coles + ELO + Poisson...</div>'
+  try{
+    let url=`/api/progol/partido?home=${encodeURIComponent(home)}&away=${encodeURIComponent(away)}`
+    if(xgh) url+=`&xg_home=${xgh}`
+    if(xga) url+=`&xg_away=${xga}`
+    const d=await api(url)
+    el.innerHTML=`
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px">
+        ${[['Local (1)',d.local,'var(--green)'],['Empate (X)',d.empate,'var(--gold)'],['Visitante (2)',d.visitante,'var(--teal)']].map(([l,v,c])=>`
+          <div class="sc"><div class="sc-glow" style="background:${c}"></div>
+            <div class="sc-lbl">${l}</div>
+            <div class="sc-val" style="color:${c}">${((v||0)*100).toFixed(1)}%</div>
+            <div class="sc-sub">Cuota justa: ${l.includes('Local')?d.cuota_local:l.includes('Empate')?d.cuota_empate:d.cuota_visitante||'—'}</div>
+          </div>`).join('')}
+      </div>
+      <div class="rbox ri" style="font-size:12px">
+        <strong>Pronóstico: ${d.pronostico} — ${d.confianza_pct}% confianza — ${d.clasificacion}</strong><br>
+        Modelo: ${d.modelo}<br>
+        xG Local: ${d.xg_home} · xG Visitante: ${d.xg_away}<br>
+        ${d.componentes?`DC: ${((d.componentes.dixon_coles?.local||0)*100).toFixed(1)}%/${((d.componentes.dixon_coles?.empate||0)*100).toFixed(1)}%/${((d.componentes.dixon_coles?.visitante||0)*100).toFixed(1)}% · ELO: ${((d.componentes.elo?.local||0)*100).toFixed(1)}%/${((d.componentes.elo?.empate||0)*100).toFixed(1)}%/${((d.componentes.elo?.visitante||0)*100).toFixed(1)}%`:''}
+      </div>`
+  }catch(e){
+    el.innerHTML=`<div class="rbox rb"><strong>Error</strong><br>${e.message}</div>`
+  }
 }
 
 // ── INIT ─────────────────────────────────────────────────────────────────
