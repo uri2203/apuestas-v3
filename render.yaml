@@ -7,3 +7,5 @@ services:
     envVars:
       - key: ODDS_API_KEY
         sync: false
+      - key: API_FOOTBALL_KEY
+        sync: false
