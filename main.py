@@ -1,17 +1,19 @@
 from flask import Flask, jsonify, request
 from dashboard import HTML
-import httpx, math, random, os
+import math, random, os
 from apscheduler.schedulers.background import BackgroundScheduler
+import httpx
 
 app = Flask(__name__)
 
+# ── DASHBOARD ──────────────────────────────────────────────────────────────
 @app.route("/")
 def dashboard():
     return HTML, 200, {"Content-Type": "text/html; charset=utf-8"}
 
 @app.route("/health")
 def health():
-    return jsonify({"status": "ok", "version": "3.0.0"})
+    return jsonify({"status": "ok", "version": "4.0.0"})
 
 # ── MELATE ─────────────────────────────────────────────────────────────────
 FREQ = {i: random.randint(80, 220) for i in range(1, 57)}
@@ -49,9 +51,27 @@ def melate_probabilidades():
 def melate_ultimo():
     return jsonify({"juego":"Melate","numeros":sorted(random.sample(range(1,57),6)),"fecha":"2025-04-25"})
 
-@app.route("/api/melate/racha/<int:numero>")
-def melate_racha(numero):
-    return jsonify({"numero":numero,"sorteos_sin_salir":random.randint(1,80),"maxima_racha":84})
+# ── PROGOL + DIXON-COLES + ELO ────────────────────────────────────────────
+@app.route("/api/progol/jornada")
+def progol_jornada():
+    from services.progol import generar_jornada_progol
+    api_key = os.getenv("API_FOOTBALL_KEY","")
+    return jsonify(generar_jornada_progol(api_key))
+
+@app.route("/api/progol/partido")
+def progol_partido():
+    from services.progol import predecir_partido
+    home = request.args.get("home","Club América")
+    away = request.args.get("away","Guadalajara")
+    xg_h = request.args.get("xg_home", type=float)
+    xg_a = request.args.get("xg_away", type=float)
+    return jsonify(predecir_partido(home, away, xg_h, xg_a))
+
+@app.route("/api/progol/ranking")
+def progol_ranking():
+    from services.progol import ranking_equipos
+    api_key = os.getenv("API_FOOTBALL_KEY","")
+    return jsonify(ranking_equipos(api_key))
 
 # ── ODDS ───────────────────────────────────────────────────────────────────
 VB=[
@@ -71,15 +91,17 @@ def value_bets():
             r = httpx.get(
                 f"https://api.the-odds-api.com/v4/sports/{request.args.get('deporte','soccer_mexico_ligamx')}/odds",
                 params={"apiKey":api_key,"regions":"eu","markets":"h2h","oddsFormat":"decimal"},timeout=10)
-            results=[]
+            real = []
             for m in r.json():
                 for book in m.get("bookmakers",[]):
                     for o in book.get("markets",[{}])[0].get("outcomes",[]):
                         edge=round((1/o["price"]*o["price"]-1)*100*1.05,1)
                         if edge>=edge_min:
-                            results.append({"partido":f"{m['home_team']} vs {m['away_team']}","liga":m["sport_title"],"resultado":o["name"],"casa":book["title"],"cuota":o["price"],"edge_porcentaje":edge,"es_value_bet":True})
+                            real.append({"partido":f"{m['home_team']} vs {m['away_team']}","liga":m["sport_title"],"resultado":o["name"],"casa":book["title"],"cuota":o["price"],"edge_porcentaje":edge,"es_value_bet":True})
+            if real:
+                results = real
         except:
-            results=VB
+            pass
     filtered=[v for v in results if v["edge_porcentaje"]>=edge_min]
     return jsonify({"total_encontrados":len(filtered),"value_bets":filtered})
 
