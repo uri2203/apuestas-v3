@@ -265,6 +265,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
 
   <div class="nav-label">Pronósticos</div>
   <button class="nav-btn" onclick="go(this,'progol')"><span class="nav-icon">⚽</span>Progol <span class="nav-badge nb-green">DC+ELO</span></button>
+  <div class="nav-label">Sharp Money</div>
+  <button class="nav-btn" onclick="go(this,'sharp')"><span class="nav-icon">⚡</span>Sharp Detector <span class="nav-badge nb-gold">PRO</span></button>
   <div class="nav-label">Sistema</div>
   <button class="nav-btn" onclick="go(this,'alertas')"><span class="nav-icon">◇</span>Alertas<span class="nav-badge nb-gold">4</span></button>
   <button class="nav-btn" onclick="go(this,'apidocs')"><span class="nav-icon">⊞</span>API Docs</button>
@@ -549,6 +551,55 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
   <div class="panel">
     <div class="ph2"><span class="pt">Ranking ELO equipos <span class="chip cp">ELO</span></span></div>
     <div class="pb" id="elo-ranking"><p style="color:var(--muted);font-size:12px;font-family:var(--mono)">Carga la jornada para ver el ranking.</p></div>
+  </div>
+</div>
+
+
+<!-- SHARP MONEY -->
+<div id="s-sharp" class="section">
+  <div class="ph"><div class="ph-title">Sharp Money Detector</div><div class="ph-sub">RLM · Steam · Bet/Money Split · Line Freeze · Sharp Book Consensus</div></div>
+  <div class="sg">
+    <div class="sc"><div class="sc-glow" style="background:var(--gold)"></div><div class="sc-lbl">Precisión RLM</div><div class="sc-val" style="color:var(--gold)">58-63%</div><div class="sc-sub">vs 50% aleatorio</div></div>
+    <div class="sc"><div class="sc-glow" style="background:var(--purple)"></div><div class="sc-lbl">Steam window</div><div class="sc-val" style="color:var(--purple2)">30-120s</div><div class="sc-sub">Para apostar en línea vieja</div></div>
+    <div class="sc"><div class="sc-glow" style="background:var(--green)"></div><div class="sc-lbl">Score máximo</div><div class="sc-val" style="color:var(--green)">99/100</div><div class="sc-sub">Múltiples señales</div></div>
+    <div class="sc"><div class="sc-glow" style="background:var(--teal)"></div><div class="sc-lbl">Indicadores</div><div class="sc-val" style="color:var(--teal)">6</div><div class="sc-sub">RLM+Steam+Split+Freeze+Timing+Consensus</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="ph2"><span class="pt">Analizador de partido <span class="chip cy">Sharp Score</span></span></div>
+    <div class="pb">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div class="field"><label>Partido</label><input type="text" id="sh-partido" value="Club América vs Guadalajara"></div>
+        <div class="field"><label>Días antes del partido</label><input type="number" id="sh-dias" value="2" min="0" max="7"></div>
+        <div class="field"><label>Línea apertura</label><input type="number" id="sh-lap" value="2.20" step="0.01"></div>
+        <div class="field"><label>Línea actual</label><input type="number" id="sh-lact" value="1.95" step="0.01"></div>
+        <div class="field"><label>% boletos en Local</label><input type="number" id="sh-bol" value="28" min="0" max="100"></div>
+        <div class="field"><label>% dinero en Local</label><input type="number" id="sh-din" value="64" min="0" max="100"></div>
+      </div>
+      <div style="margin-bottom:10px">
+        <div style="font-size:10px;font-family:var(--mono);color:var(--muted);margin-bottom:4px">Líneas por casa (JSON opcional) — {"Pinnacle":1.95,"Bet365":2.15}</div>
+        <input type="text" id="sh-casas" placeholder='{"Pinnacle":1.95,"Bookmaker":1.98,"Bet365":2.15,"Codere":2.18}' style="width:100%;padding:8px 11px;border-radius:7px;background:rgba(255,255,255,.04);border:1px solid var(--border2);color:var(--text);font-size:12px;font-family:var(--mono)">
+      </div>
+      <button class="btn btn-p" onclick="analizarSharp()" style="margin-bottom:14px">Detectar dinero sharp ⚡</button>
+      <div id="sharp-result"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="ph2"><span class="pt">Guía de indicadores <span class="chip cp">PRO</span></span></div>
+    <div class="pb">
+      <table class="tbl">
+        <thead><tr><th>Indicador</th><th>Qué significa</th><th>Confianza</th></tr></thead>
+        <tbody>
+          <tr><td style="font-weight:600;color:var(--gold)">RLM</td><td style="font-size:11px">La línea se mueve CONTRA el lado que tiene más apuestas públicas → sharps en el otro lado</td><td><span class="badge bv">65-85%</span></td></tr>
+          <tr><td style="font-weight:600;color:var(--green)">Bet/Money Split</td><td style="font-size:11px">80% de boletos en un lado pero solo 35% del dinero → dinero grande de sharps en el otro</td><td><span class="badge bv">60-90%</span></td></tr>
+          <tr><td style="font-weight:600;color:var(--red)">Steam Move</td><td style="font-size:11px">4+ casas cambian la línea en minutos sin noticia → sindicato apostando. Ventana: 30-120s</td><td><span class="badge bs2">78-92%</span></td></tr>
+          <tr><td style="font-weight:600;color:var(--teal)">Line Freeze</td><td style="font-size:11px">70%+ del público en un lado pero la línea no se mueve → el libro protege a los sharps del otro lado</td><td><span class="badge bsh">80%</span></td></tr>
+          <tr><td style="font-weight:600;color:var(--purple2)">Sharp Consensus</td><td style="font-size:11px">Pinnacle tiene línea diferente a Bet365/Codere → el mercado no incorporó info sharp aún</td><td><span class="badge bs2">70-88%</span></td></tr>
+          <tr><td style="font-weight:600;color:var(--muted)">Timing</td><td style="font-size:11px">Movimiento lunes-martes = sharp. Viernes-domingo = público. Tarde = público acumulado</td><td><span class="badge bdim">75%</span></td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
 
@@ -950,6 +1001,51 @@ async function predPartido(){
       </div>`
   }catch(e){
     el.innerHTML=`<div class="rbox rb"><strong>Error</strong><br>${e.message}</div>`
+  }
+}
+
+
+// ── SHARP MONEY ───────────────────────────────────────────────────────────
+async function analizarSharp(){
+  const partido  = document.getElementById('sh-partido').value.trim()
+  const lap      = document.getElementById('sh-lap').value
+  const lact     = document.getElementById('sh-lact').value
+  const bol      = document.getElementById('sh-bol').value
+  const din      = document.getElementById('sh-din').value
+  const dias     = document.getElementById('sh-dias').value
+  const casasStr = document.getElementById('sh-casas').value.trim()
+  const el       = document.getElementById('sharp-result')
+  el.innerHTML = '<div style="color:var(--muted);font-family:var(--mono);font-size:12px">Analizando indicadores sharp...</div>'
+  try{
+    let url = `/api/sharp/analizar?partido=${encodeURIComponent(partido)}&linea_apertura=${lap}&linea_actual=${lact}&pct_boletos_local=${bol}&pct_dinero_local=${din}&dias_antes=${dias}`
+    if(casasStr) url += `&lineas_casas=${encodeURIComponent(casasStr)}`
+    const d = await api(url)
+    const sc = d.score_sharp
+    const scoreColor = sc.score>=85?'var(--green)':sc.score>=70?'var(--gold)':sc.score>=55?'var(--accent2)':'var(--red)'
+    el.innerHTML = `
+      <div style="display:grid;grid-template-columns:120px 1fr;gap:16px;margin-bottom:14px;align-items:center">
+        <div style="text-align:center">
+          <div style="font-size:52px;font-weight:800;color:${scoreColor};letter-spacing:-2px;line-height:1">${sc.score}</div>
+          <div style="font-size:10px;font-family:var(--mono);color:var(--muted)">/ 100 sharp score</div>
+        </div>
+        <div>
+          <div style="font-size:14px;font-weight:700;color:${scoreColor};margin-bottom:4px">${sc.clasificacion}</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:8px">${sc.recomendacion}</div>
+          <div style="font-size:11px;font-family:var(--mono);color:var(--muted)">${sc.n_señales_detectadas} de ${sc.n_señales_totales} indicadores activos</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${sc.señales_activas.map(s=>`
+          <div style="padding:9px 12px;background:rgba(255,255,255,.02);border-radius:7px;border-left:2px solid ${s.confianza>=80?'var(--green)':s.confianza>=65?'var(--gold)':'var(--muted)'}">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+              <span style="font-size:11px;font-weight:600;color:var(--text)">${s.tipo}</span>
+              <span class="badge ${s.confianza>=80?'bv':s.confianza>=65?'bs2':'bdim'}">${s.confianza}% conf.</span>
+            </div>
+            <div style="font-size:11px;font-family:var(--mono);color:var(--muted)">${s.señal}</div>
+          </div>`).join('')}
+      </div>`
+  }catch(e){
+    el.innerHTML = `<div class="rbox rb"><strong>Error</strong><br>${e.message}</div>`
   }
 }
 
