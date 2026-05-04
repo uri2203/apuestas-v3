@@ -8,6 +8,7 @@ import os
 from models.ensemble import EnsembleModel
 from models.dixon_coles import DixonColesModel
 from models.elo import ELOModel
+from services.features import construir_features_completo
 from services.api_football import (
     get_fixtures_liga, get_upcoming_fixtures,
     get_standings, LIGAS
@@ -65,12 +66,52 @@ def _get_modelo(partidos=None):
     return _modelo
 
 
-def predecir_partido(home, away, xg_home=None, xg_away=None, historial=None):
+def predecir_partido(home, away, xg_home=None, xg_away=None, historial=None,
+                     lesiones_local=None, lesiones_visitante=None,
+                     arbitro=None, ciudad=None, pos_local=9, pos_visitante=9,
+                     jornada=None, es_liguilla=False, api_key_clima=""):
     """
-    Predicción completa de un partido con los 3 modelos.
+    Predicción completa con todos los features:
+    DC + ELO + Poisson + Lesiones + H2H + Forma + Árbitro + Clima + Importancia
     """
-    modelo = _get_modelo(historial)
-    pred   = modelo.predict(home, away, xg_home=xg_home, xg_away=xg_away)
+    hist   = historial or HISTORIAL_DEMO
+    modelo = _get_modelo(hist)
+    
+    # Construir features avanzados
+    features = construir_features_completo(
+        home, away, hist,
+        lesiones_local=lesiones_local or [],
+        lesiones_visitante=lesiones_visitante or [],
+        arbitro=arbitro,
+        ciudad_estadio=ciudad,
+        api_key_clima=api_key_clima,
+        pos_local=pos_local, pos_visitante=pos_visitante,
+        jornada=jornada, es_liguilla=es_liguilla,
+    )
+    
+    # Ajustar xG con los factores calculados
+    ff = features["factores_finales"]
+    xg_h_adj = (xg_home or 1.4) * ff["lambda_local"]
+    xg_a_adj = (xg_away or 1.1) * ff["lambda_visitante"]
+    
+    pred = modelo.predict(home, away, xg_home=xg_h_adj, xg_away=xg_a_adj)
+    
+    # Aplicar boost de empate (clásicos, finales)
+    if ff["empate_boost"] != 1.0:
+        p_emp = pred["empate"] * ff["empate_boost"]
+        excess = (p_emp - pred["empate"]) / 2
+        p_loc = max(0.05, pred["local"] - excess)
+        p_vis = max(0.05, pred["visitante"] - excess)
+        total = p_loc + p_emp + p_vis
+        pred["local"]     = round(p_loc / total, 4)
+        pred["empate"]    = round(p_emp / total, 4)
+        pred["visitante"] = round(p_vis / total, 4)
+        pred["cuota_justa_local"]     = round(1/pred["local"],3) if pred["local"]>0 else 99
+        pred["cuota_justa_empate"]    = round(1/pred["empate"],3) if pred["empate"]>0 else 99
+        pred["cuota_justa_visitante"] = round(1/pred["visitante"],3) if pred["visitante"]>0 else 99
+    
+    # Agregar features al resultado
+    pred["features"] = features
 
     # Señal de apuesta
     probs = [pred["local"], pred["empate"], pred["visitante"]]
