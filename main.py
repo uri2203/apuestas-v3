@@ -67,6 +67,39 @@ def progol_partido():
     xg_a = request.args.get("xg_away", type=float)
     return jsonify(predecir_partido(home, away, xg_h, xg_a))
 
+
+@app.route("/api/progol/partido-completo")
+def progol_partido_completo():
+    from services.progol import predecir_partido
+    import json
+    home      = request.args.get("home", "Club América")
+    away      = request.args.get("away", "Guadalajara")
+    arbitro   = request.args.get("arbitro")
+    ciudad    = request.args.get("ciudad")
+    pos_local = int(request.args.get("pos_local", 9))
+    pos_visit = int(request.args.get("pos_visitante", 9))
+    jornada   = request.args.get("jornada", type=int)
+    # Lesiones como JSON string opcional
+    les_local_str  = request.args.get("lesiones_local", "[]")
+    les_visit_str  = request.args.get("lesiones_visitante", "[]")
+    try:
+        les_local  = json.loads(les_local_str)
+        les_visita = json.loads(les_visit_str)
+    except Exception:
+        les_local = les_visita = []
+    clima_key = os.getenv("OPENWEATHER_KEY", "")
+    return jsonify(predecir_partido(
+        home, away,
+        lesiones_local=les_local,
+        lesiones_visitante=les_visita,
+        arbitro=arbitro,
+        ciudad=ciudad,
+        pos_local=pos_local,
+        pos_visitante=pos_visit,
+        jornada=jornada,
+        api_key_clima=clima_key,
+    ))
+
 @app.route("/api/progol/ranking")
 def progol_ranking():
     from services.progol import ranking_equipos
