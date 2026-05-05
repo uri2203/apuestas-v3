@@ -1,236 +1,104 @@
-from flask import Flask, jsonify, request
-from dashboard import HTML
-import math, random, os
-from apscheduler.schedulers.background import BackgroundScheduler
-import httpx
+import uvicorn
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from typing import List, Dict
+import logging
 
-app = Flask(__name__)
+# Importación de Silos Internos
+from routers import avanzado, kelly, odds, melate
+from services import motor_avanzado, scheduler
 
-# ── DASHBOARD ──────────────────────────────────────────────────────────────
-@app.route("/")
-def dashboard():
-    return HTML, 200, {"Content-Type": "text/html; charset=utf-8"}
+# Configuración de Logs Estricta
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("CorporateTech-Backend")
 
-@app.route("/health")
-def health():
-    return jsonify({"status": "ok", "version": "4.0.0"})
+app = FastAPI(
+    title="PRO-BET V3 API",
+    description="Motor de Ingeniería para Predicciones de Alto Impacto",
+    version="3.0.0"
+)
 
-# ── MELATE ─────────────────────────────────────────────────────────────────
-FREQ = {i: random.randint(80, 220) for i in range(1, 57)}
-FREQ[38]=312; FREQ[23]=290; FREQ[22]=278; FREQ[15]=265
-FREQ[7]=95;   FREQ[14]=88;  FREQ[3]=91;   FREQ[51]=97
+# REGLA CORPORATE TECH: Habilitar CORS para comunicación con Dashboard
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-@app.route("/api/melate/frecuencias")
-def melate_frecuencias():
-    sf = sorted(FREQ.items(), key=lambda x: x[1], reverse=True)
-    return jsonify({
-        "sorteos_analizados": 3847,
-        "frecuencias": {str(n): {"frecuencia_abs": f} for n,f in FREQ.items()},
-        "calientes": [{"numero":n,"frecuencia_abs":f} for n,f in sf[:10]],
-        "frios":     [{"numero":n,"frecuencia_abs":f} for n,f in sf[-10:]],
-    })
+# REGISTRO DE RUTAS (Routers)
+app.include_router(avanzado.router, prefix="/api/v1/avanzado", tags=["Predicciones"])
+app.include_router(kelly.router, prefix="/api/v1/kelly", tags=["Gestión de Riesgo"])
+app.include_router(odds.router, prefix="/api/v1/odds", tags=["Cuotas"])
+app.include_router(melate.router, prefix="/api/v1/melate", tags=["Lotería"])
 
-@app.route("/api/melate/generar")
-def melate_generar():
-    modo = request.args.get("modo","balanced")
-    cantidad = int(request.args.get("cantidad",5))
-    sf = sorted(FREQ.items(), key=lambda x: x[1], reverse=True)
-    hot=[n for n,_ in sf[:20]]; cold=[n for n,_ in sf[-20:]]
-    pool = hot if modo=="hot" else cold if modo=="cold" else list(range(1,57))
-    return jsonify({"combinaciones":[
-        {"combinacion":i+1,"numeros":sorted(random.sample(pool,min(6,len(pool)))),"modo":modo}
-        for i in range(cantidad)
-    ]})
+@app.on_event("startup")
+async def startup_event():
+    """
+    Inicia los servicios en segundo plano al arrancar el servidor.
+    Garantiza que los datos estén frescos para el Dashboard.
+    """
+    logger.info("Iniciando Scheduler de Scrapers y API Football...")
+    scheduler.start_background_tasks()
 
-@app.route("/api/melate/probabilidades")
-def melate_probabilidades():
-    t = math.comb(56,6)
-    return jsonify({"total_combinaciones":t,"prob_1_en":t})
+@app.get("/")
+async def root():
+    return {
+        "status": "online",
+        "system": "PRO-BET V3",
+        "engine": "Corporate Tech Modular"
+    }
 
-@app.route("/api/melate/ultimo-resultado")
-def melate_ultimo():
-    return jsonify({"juego":"Melate","numeros":sorted(random.sample(range(1,57),6)),"fecha":"2025-04-25"})
+# --- ENDPOINT DE AGREGACIÓN PARA DASHBOARD (TIEMPO REAL) ---
 
-# ── PROGOL + DIXON-COLES + ELO ────────────────────────────────────────────
-@app.route("/api/progol/jornada")
-def progol_jornada():
-    from services.progol import generar_jornada_progol
-    api_key = os.getenv("API_FOOTBALL_KEY","")
-    return jsonify(generar_jornada_progol(api_key))
-
-@app.route("/api/progol/partido")
-def progol_partido():
-    from services.progol import predecir_partido
-    home = request.args.get("home","Club América")
-    away = request.args.get("away","Guadalajara")
-    xg_h = request.args.get("xg_home", type=float)
-    xg_a = request.args.get("xg_away", type=float)
-    return jsonify(predecir_partido(home, away, xg_h, xg_a))
-
-
-@app.route("/api/progol/partido-completo")
-def progol_partido_completo():
-    from services.progol import predecir_partido
-    import json
-    home      = request.args.get("home", "Club América")
-    away      = request.args.get("away", "Guadalajara")
-    arbitro   = request.args.get("arbitro")
-    ciudad    = request.args.get("ciudad")
-    pos_local = int(request.args.get("pos_local", 9))
-    pos_visit = int(request.args.get("pos_visitante", 9))
-    jornada   = request.args.get("jornada", type=int)
-    # Lesiones como JSON string opcional
-    les_local_str  = request.args.get("lesiones_local", "[]")
-    les_visit_str  = request.args.get("lesiones_visitante", "[]")
+@app.get("/api/v1/dashboard/full-stream", tags=["Dashboard"])
+async def get_dashboard_data():
+    """
+    Endpoint Maestro: Agrega datos de múltiples silos en un solo stream.
+    Resuelve el problema de falta de datos en el dashboard.
+    """
     try:
-        les_local  = json.loads(les_local_str)
-        les_visita = json.loads(les_visit_str)
-    except Exception:
-        les_local = les_visita = []
-    clima_key = os.getenv("OPENWEATHER_KEY", "")
-    return jsonify(predecir_partido(
-        home, away,
-        lesiones_local=les_local,
-        lesiones_visitante=les_visita,
-        arbitro=arbitro,
-        ciudad=ciudad,
-        pos_local=pos_local,
-        pos_visitante=pos_visit,
-        jornada=jornada,
-        api_key_clima=clima_key,
-    ))
+        # 1. Obtener predicciones base (Elo + Dixon Coles)
+        predicciones = motor_avanzado.obtener_todas_las_predicciones()
+        
+        if not predicciones:
+            logger.warning("No se encontraron predicciones en el motor.")
+            return []
 
-@app.route("/api/progol/ranking")
-def progol_ranking():
-    from services.progol import ranking_equipos
-    api_key = os.getenv("API_FOOTBALL_KEY","")
-    return jsonify(ranking_equipos(api_key))
+        # 2. El motor_avanzado ya debe devolver el objeto enriquecido.
+        # Si el motor solo da datos base, aquí se asegura la integridad:
+        dashboard_payload = []
+        for p in predicciones:
+            # Asegurar presencia de todos los campos que el Dashboard requiere
+            entry = {
+                "hora": p.get("hora", "N/A"),
+                "liga": p.get("liga", "Unknown"),
+                "local": p.get("local", "N/A"),
+                "visitante": p.get("visitante", "N/A"),
+                "cuota_local": p.get("cuota_local", 0.0),
+                "cuota_empate": p.get("cuota_empate", 0.0),
+                "cuota_visitante": p.get("cuota_visitante", 0.0),
+                "prob_elo": p.get("prob_elo", 0.0),
+                "prob_dixon": p.get("prob_dixon", 0.0),
+                "prob_ensemble": p.get("prob_ensemble", 0.0),
+                "kelly_fraction": p.get("kelly_fraction", 0.0),
+                "ev": p.get("ev", 0.0)
+            }
+            dashboard_payload.append(entry)
 
-# ── ODDS ───────────────────────────────────────────────────────────────────
-VB=[
-    {"partido":"Chivas vs América","liga":"Liga MX","resultado":"Local","casa":"Bet365","cuota":2.10,"edge_porcentaje":8.4,"es_value_bet":True},
-    {"partido":"Toluca vs Santos","liga":"Liga MX","resultado":"Local","casa":"Codere","cuota":2.00,"edge_porcentaje":10.0,"es_value_bet":True},
-    {"partido":"Cruz Azul vs Pumas","liga":"Liga MX","resultado":"Local","casa":"1xBet","cuota":1.85,"edge_porcentaje":7.3,"es_value_bet":True},
-    {"partido":"Tigres vs Monterrey","liga":"Liga MX","resultado":"Empate","casa":"Bet365","cuota":3.10,"edge_porcentaje":3.1,"es_value_bet":True},
-]
+        return dashboard_payload
 
-@app.route("/api/odds/value-bets")
-def value_bets():
-    edge_min = float(request.args.get("edge_minimo",2))
-    api_key  = os.getenv("ODDS_API_KEY","")
-    results  = VB
-    if api_key:
-        try:
-            r = httpx.get(
-                f"https://api.the-odds-api.com/v4/sports/{request.args.get('deporte','soccer_mexico_ligamx')}/odds",
-                params={"apiKey":api_key,"regions":"eu","markets":"h2h","oddsFormat":"decimal"},timeout=10)
-            real = []
-            for m in r.json():
-                for book in m.get("bookmakers",[]):
-                    for o in book.get("markets",[{}])[0].get("outcomes",[]):
-                        edge=round((1/o["price"]*o["price"]-1)*100*1.05,1)
-                        if edge>=edge_min:
-                            real.append({"partido":f"{m['home_team']} vs {m['away_team']}","liga":m["sport_title"],"resultado":o["name"],"casa":book["title"],"cuota":o["price"],"edge_porcentaje":edge,"es_value_bet":True})
-            if real:
-                results = real
-        except:
-            pass
-    filtered=[v for v in results if v["edge_porcentaje"]>=edge_min]
-    return jsonify({"total_encontrados":len(filtered),"value_bets":filtered})
+    except Exception as e:
+        logger.error(f"Error en Agregación de Dashboard: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error interno del motor de datos")
 
-# ── KELLY ──────────────────────────────────────────────────────────────────
-@app.route("/api/kelly/calcular", methods=["POST"])
-def kelly_calcular():
-    d=request.get_json()
-    bank=float(d.get("bankroll",5000)); odds=float(d.get("cuota_decimal",2.10))
-    prob=float(d.get("probabilidad_estimada_pct",55))/100; frac=float(d.get("fraccion",0.5))
-    b=odds-1; q=1-prob
-    kp=(b*prob-q)/b if b>0 else 0
-    ka=kp*frac; bet=max(0,bank*ka)
-    return jsonify({"kelly_puro_pct":round(kp*100,2),"kelly_ajustado_pct":round(ka*100,2),
-        "apuesta_sugerida":round(bet,2),"hay_valor":kp>0,
-        "roi_esperado_pct":round((b*prob-q)*100,2),
-        "recomendacion":"Apostar" if kp>0 else "NO apostar"})
-
-# ── CLV ────────────────────────────────────────────────────────────────────
-@app.route("/api/pro/clv/calcular")
-def clv_calcular():
-    mi=float(request.args.get("cuota_apostada",2.10))
-    cl=float(request.args.get("cuota_cierre",1.85))
-    pct=round((mi/cl-1)*100,2)
-    return jsonify({"clv_pct":pct,"es_positivo":pct>0,
-        "prob_implicita_apostada_pct":round(1/mi*100,2),
-        "prob_implicita_cierre_pct":round(1/cl*100,2),
-        "calidad":"positivo" if pct>0 else "negativo"})
-
-# ── MONTE CARLO ────────────────────────────────────────────────────────────
-@app.route("/api/pro/montecarlo/partido")
-def montecarlo():
-    lL=float(request.args.get("lambda_local",1.5))
-    lV=float(request.args.get("lambda_visitante",1.1))
-    N=min(int(request.args.get("simulaciones",10000)),50000)
-    def poisson(l):
-        k,p,q=0,math.exp(-l),1.0
-        while q>p: k+=1; q*=random.random()
-        return k-1
-    h=d=a=0; gols=[]
-    for _ in range(N):
-        gl,gv=poisson(lL),poisson(lV); gols.append(gl+gv)
-        if gl>gv: h+=1
-        elif gl==gv: d+=1
-        else: a+=1
-    pL,pD,pV=h/N*100,d/N*100,a/N*100
-    avg=sum(gols)/N
-    return jsonify({
-        "simulaciones":N,
-        "probabilidades":{"local_pct":round(pL,1),"empate_pct":round(pD,1),"visitante_pct":round(pV,1)},
-        "cuotas_justas_sin_vig":{"local":round(100/pL,2) if pL>0 else 99,"empate":round(100/pD,2) if pD>0 else 99,"visitante":round(100/pV,2) if pV>0 else 99},
-        "mercados_adicionales":{"avg_goles_totales":round(avg,2),"prob_over_2_5_pct":round(sum(1 for g in gols if g>2.5)/N*100,1),"prob_over_1_5_pct":round(sum(1 for g in gols if g>1.5)/N*100,1)},
-    })
-
-
-@app.route("/api/sharp/analizar")
-def sharp_analizar():
-    from services.sharp_money import analizar_partido_sharp
-    import json
-    partido       = request.args.get("partido", "Local vs Visitante")
-    linea_ap      = float(request.args.get("linea_apertura", 2.10))
-    linea_act     = float(request.args.get("linea_actual",   1.95))
-    pct_boletos   = float(request.args.get("pct_boletos_local", 30))
-    pct_dinero    = float(request.args.get("pct_dinero_local",  60))
-    dias          = int(request.args.get("dias_antes", 2))
-    casas_raw     = request.args.get("lineas_casas", "{}")
-    try:
-        casas = json.loads(casas_raw)
-    except Exception:
-        casas = {}
-    return jsonify(analizar_partido_sharp(
-        partido, linea_ap, linea_act, pct_boletos, pct_dinero,
-        lineas_por_casa=casas if casas else None,
-        dias_antes=dias,
-    ))
-
-@app.route("/api/sharp/steam")
-def sharp_steam():
-    from services.sharp_money import detectar_steam
-    import json
-    movs_raw = request.args.get("movimientos", "[]")
-    try:
-        movs = json.loads(movs_raw)
-    except Exception:
-        movs = []
-    if not movs:
-        movs = [
-            {"casa":"Pinnacle","linea_antes":2.10,"linea_ahora":1.85},
-            {"casa":"Bet365",  "linea_antes":2.15,"linea_ahora":1.90},
-            {"casa":"Codere",  "linea_antes":2.18,"linea_ahora":1.92},
-        ]
-    return jsonify(detectar_steam(movs))
-
-# ── SCHEDULER ──────────────────────────────────────────────────────────────
-scheduler = BackgroundScheduler()
-scheduler.add_job(lambda: print("tick"), "interval", hours=1)
-scheduler.start()
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "timestamp": uvicorn.main.time.time()}
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT",8000)))
+    # Configuración de puerto para despliegue en Render
+    import os
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
