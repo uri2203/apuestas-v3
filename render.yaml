@@ -1,10 +1,11 @@
 services:
   - type: web
-    name: apuestas-v3
-    env: python
-    plan: free
-    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
-    startCommand: gunicorn main:app --bind 0.0.0.0:$PORT --workers 2 --worker-class uvicorn.workers.UvicornWorker
+    name: apuestaspro
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn main:app --bind 0.0.0.0:$PORT --workers 2
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.8
+      - key: ODDS_API_KEY
+        sync: false
+      - key: API_FOOTBALL_KEY
+        sync: false
