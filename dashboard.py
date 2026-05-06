@@ -408,17 +408,31 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
     <div class="sc"><div class="sc-glow" style="background:var(--green)"></div><div class="sc-lbl">Value bets activos</div><div class="sc-val" style="color:var(--green)" id="vb-count">—</div><div class="sc-sub" id="vb-edge">cargando...</div></div>
     <div class="sc"><div class="sc-glow" style="background:var(--gold)"></div><div class="sc-lbl">Mejor edge</div><div class="sc-val" style="color:var(--gold)" id="vb-best">—</div><div class="sc-sub">Detectado hoy</div></div>
     <div class="sc"><div class="sc-glow" style="background:var(--teal)"></div><div class="sc-lbl">Arbitrajes</div><div class="sc-val" style="color:var(--teal)">2</div><div class="sc-sub">Garantizados</div></div>
-    <div class="sc"><div class="sc-glow" style="background:var(--purple)"></div><div class="sc-lbl">Casas monitoreadas</div><div class="sc-val" style="color:var(--purple2)">12</div><div class="sc-sub">Liga MX + int.</div></div>
+    <div class="sc"><div class="sc-glow" style="background:var(--purple)"></div><div class="sc-lbl">Casas monitoreadas</div><div class="sc-val" style="color:var(--purple2)">12</div><div class="sc-sub">Mercados multi-deporte</div></div>
   </div>
   <div class="panel">
     <div class="ph2">
       <span class="pt">Detector en vivo <span class="chip cg">LIVE</span></span>
       <div style="display:flex;gap:8px;align-items:center">
         <select id="sp-sel" style="padding:5px 8px;border-radius:6px;background:rgba(255,255,255,.04);border:1px solid var(--border2);color:var(--text);font-size:12px">
-          <option value="soccer_mexico_ligamx">Liga MX</option>
-          <option value="basketball_nba">NBA</option>
-          <option value="soccer_uefa_champs_league">Champions League</option>
-          <option value="americanfootball_nfl">NFL</option>
+          <optgroup label="Fútbol" style="background:#111">
+            <option value="soccer_mexico_ligamx">Liga MX</option>
+            <option value="soccer_uefa_champs_league">Champions League</option>
+          </optgroup>
+          <optgroup label="Deportes Americanos" style="background:#111">
+            <option value="americanfootball_nfl">NFL</option>
+            <option value="basketball_nba">NBA</option>
+            <option value="baseball_mlb">Béisbol (MLB)</option>
+            <option value="basketball_ncaab">NCAAB (Baloncesto Universitario)</option>
+          </optgroup>
+          <optgroup label="Deportes Binarios" style="background:#111">
+            <option value="tennis_atp">Tenis Profesional (ATP)</option>
+            <option value="tennis_wta">Tenis Femenil (WTA)</option>
+          </optgroup>
+          <optgroup label="Esports" style="background:#111">
+            <option value="esports_csgo">CS:GO</option>
+            <option value="esports_league_of_legends">League of Legends</option>
+          </optgroup>
         </select>
         <button class="btn btn-p" onclick="loadVB()" style="padding:5px 12px;font-size:11px">Actualizar</button>
       </div>
