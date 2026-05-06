@@ -1,6 +1,6 @@
 from flask import Flask, jsonify, request
 from dashboard import HTML
-import math, random, os
+import math, random, os, json
 from apscheduler.schedulers.background import BackgroundScheduler
 import httpx
 
@@ -13,7 +13,7 @@ def dashboard():
 
 @app.route("/health")
 def health():
-    return jsonify({"status": "ok", "version": "4.0.0"})
+    return jsonify({"status": "ok", "version": "4.1.0"})
 
 # ── MELATE ─────────────────────────────────────────────────────────────────
 FREQ = {i: random.randint(80, 220) for i in range(1, 57)}
@@ -51,6 +51,10 @@ def melate_probabilidades():
 def melate_ultimo():
     return jsonify({"juego":"Melate","numeros":sorted(random.sample(range(1,57),6)),"fecha":"2025-04-25"})
 
+@app.route("/api/melate/racha/<int:numero>")
+def melate_racha(numero):
+    return jsonify({"numero":numero,"sorteos_sin_salir":random.randint(1,80),"maxima_racha":84})
+
 # ── PROGOL + DIXON-COLES + ELO ────────────────────────────────────────────
 @app.route("/api/progol/jornada")
 def progol_jornada():
@@ -67,37 +71,31 @@ def progol_partido():
     xg_a = request.args.get("xg_away", type=float)
     return jsonify(predecir_partido(home, away, xg_h, xg_a))
 
-
 @app.route("/api/progol/partido-completo")
 def progol_partido_completo():
     from services.progol import predecir_partido
-    import json
-    home      = request.args.get("home", "Club América")
-    away      = request.args.get("away", "Guadalajara")
+    home      = request.args.get("home","Club América")
+    away      = request.args.get("away","Guadalajara")
     arbitro   = request.args.get("arbitro")
     ciudad    = request.args.get("ciudad")
-    pos_local = int(request.args.get("pos_local", 9))
-    pos_visit = int(request.args.get("pos_visitante", 9))
-    jornada   = request.args.get("jornada", type=int)
-    # Lesiones como JSON string opcional
-    les_local_str  = request.args.get("lesiones_local", "[]")
-    les_visit_str  = request.args.get("lesiones_visitante", "[]")
+    pos_local = int(request.args.get("pos_local",9))
+    pos_visit = int(request.args.get("pos_visitante",9))
+    jornada   = request.args.get("jornada",type=int)
+    les_local_str = request.args.get("lesiones_local","[]")
+    les_visit_str = request.args.get("lesiones_visitante","[]")
     try:
         les_local  = json.loads(les_local_str)
         les_visita = json.loads(les_visit_str)
     except Exception:
         les_local = les_visita = []
-    clima_key = os.getenv("OPENWEATHER_KEY", "")
+    clima_key = os.getenv("OPENWEATHER_KEY","")
     return jsonify(predecir_partido(
         home, away,
         lesiones_local=les_local,
         lesiones_visitante=les_visita,
-        arbitro=arbitro,
-        ciudad=ciudad,
-        pos_local=pos_local,
-        pos_visitante=pos_visit,
-        jornada=jornada,
-        api_key_clima=clima_key,
+        arbitro=arbitro, ciudad=ciudad,
+        pos_local=pos_local, pos_visitante=pos_visit,
+        jornada=jornada, api_key_clima=clima_key,
     ))
 
 @app.route("/api/progol/ranking")
@@ -131,10 +129,8 @@ def value_bets():
                         edge=round((1/o["price"]*o["price"]-1)*100*1.05,1)
                         if edge>=edge_min:
                             real.append({"partido":f"{m['home_team']} vs {m['away_team']}","liga":m["sport_title"],"resultado":o["name"],"casa":book["title"],"cuota":o["price"],"edge_porcentaje":edge,"es_value_bet":True})
-            if real:
-                results = real
-        except:
-            pass
+            if real: results = real
+        except: pass
     filtered=[v for v in results if v["edge_porcentaje"]>=edge_min]
     return jsonify({"total_encontrados":len(filtered),"value_bets":filtered})
 
@@ -188,18 +184,17 @@ def montecarlo():
         "mercados_adicionales":{"avg_goles_totales":round(avg,2),"prob_over_2_5_pct":round(sum(1 for g in gols if g>2.5)/N*100,1),"prob_over_1_5_pct":round(sum(1 for g in gols if g>1.5)/N*100,1)},
     })
 
-
+# ── SHARP MONEY ────────────────────────────────────────────────────────────
 @app.route("/api/sharp/analizar")
 def sharp_analizar():
     from services.sharp_money import analizar_partido_sharp
-    import json
-    partido       = request.args.get("partido", "Local vs Visitante")
-    linea_ap      = float(request.args.get("linea_apertura", 2.10))
-    linea_act     = float(request.args.get("linea_actual",   1.95))
-    pct_boletos   = float(request.args.get("pct_boletos_local", 30))
-    pct_dinero    = float(request.args.get("pct_dinero_local",  60))
-    dias          = int(request.args.get("dias_antes", 2))
-    casas_raw     = request.args.get("lineas_casas", "{}")
+    partido     = request.args.get("partido","Local vs Visitante")
+    linea_ap    = float(request.args.get("linea_apertura",2.10))
+    linea_act   = float(request.args.get("linea_actual",1.95))
+    pct_boletos = float(request.args.get("pct_boletos_local",30))
+    pct_dinero  = float(request.args.get("pct_dinero_local",60))
+    dias        = int(request.args.get("dias_antes",2))
+    casas_raw   = request.args.get("lineas_casas","{}")
     try:
         casas = json.loads(casas_raw)
     except Exception:
@@ -213,8 +208,7 @@ def sharp_analizar():
 @app.route("/api/sharp/steam")
 def sharp_steam():
     from services.sharp_money import detectar_steam
-    import json
-    movs_raw = request.args.get("movimientos", "[]")
+    movs_raw = request.args.get("movimientos","[]")
     try:
         movs = json.loads(movs_raw)
     except Exception:
@@ -222,14 +216,41 @@ def sharp_steam():
     if not movs:
         movs = [
             {"casa":"Pinnacle","linea_antes":2.10,"linea_ahora":1.85},
-            {"casa":"Bet365",  "linea_antes":2.15,"linea_ahora":1.90},
-            {"casa":"Codere",  "linea_antes":2.18,"linea_ahora":1.92},
+            {"casa":"Bet365","linea_antes":2.15,"linea_ahora":1.90},
+            {"casa":"Codere","linea_antes":2.18,"linea_ahora":1.92},
         ]
     return jsonify(detectar_steam(movs))
 
+# ── NLP SENTIMIENTO ────────────────────────────────────────────────────────
+@app.route("/api/nlp/scan")
+def nlp_scan():
+    from services.nlp_sentiment import scan_completo
+    home = request.args.get("home","Club América")
+    away = request.args.get("away","Guadalajara")
+    return jsonify(scan_completo(home, away))
+
+@app.route("/api/nlp/noticias")
+def nlp_noticias():
+    from services.nlp_sentiment import fetch_noticias, detectar_lesiones
+    noticias = fetch_noticias(20)
+    for n in noticias:
+        n["alertas"] = detectar_lesiones(n["titulo"]+" "+n["desc"])
+    return jsonify({"noticias":noticias,"total":len(noticias)})
+
+# ── BACKTESTING ────────────────────────────────────────────────────────────
+@app.route("/api/backtest")
+def backtest_run():
+    from services.progol import HISTORIAL_DEMO
+    from services.backtesting import backtest, backtest_por_modelo
+    ventana = int(request.args.get("ventana",20))
+    modo    = request.args.get("modo","ensemble")
+    if modo == "comparar":
+        return jsonify(backtest_por_modelo(HISTORIAL_DEMO, ventana))
+    return jsonify(backtest(HISTORIAL_DEMO, ventana))
+
 # ── SCHEDULER ──────────────────────────────────────────────────────────────
 scheduler = BackgroundScheduler()
-scheduler.add_job(lambda: print("tick"), "interval", hours=1)
+scheduler.add_job(lambda: print("ApuestasPro tick"), "interval", hours=1)
 scheduler.start()
 
 if __name__ == "__main__":
