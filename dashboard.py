@@ -216,6 +216,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
 <body>
 <div class="shell">
 
+<!-- TOPBAR -->
 <header class="topbar">
   <div class="logo">Apuestas<em>Pro</em><small>v4.1</small></div>
   <div class="topbar-right">
@@ -225,6 +226,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
   </div>
 </header>
 
+<!-- SIDEBAR -->
 <aside class="sidebar">
   <div class="nav-label">General</div>
   <button class="nav-btn on" onclick="go(this,'dashboard')"><span class="nav-icon">◈</span>Dashboard</button>
@@ -251,8 +253,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
   <button class="nav-btn" onclick="go(this,'alertas')"><span class="nav-icon">◇</span>Alertas <span class="nb nb-gold">4</span></button>
 </aside>
 
+<!-- MAIN -->
 <main class="main">
 
+<!-- ═══ DASHBOARD ═══════════════════════════════════════════════════════ -->
 <div id="s-dashboard" class="section on">
   <div class="ph"><div class="ph-title">Dashboard</div><div class="ph-sub" id="dash-sub">cargando datos en tiempo real...</div></div>
   <div class="sg">
@@ -288,6 +292,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
   </div>
 </div>
 
+<!-- ═══ MELATE ═══════════════════════════════════════════════════════════ -->
 <div id="s-melate" class="section">
   <div class="ph"><div class="ph-title">Melate · Loterías</div><div class="ph-sub">análisis estadístico · histórico 3,847 sorteos · frecuencias en tiempo real via API</div></div>
   <div class="sg">
@@ -336,6 +341,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
   </div>
 </div>
 
+<!-- ═══ PROGOL ════════════════════════════════════════════════════════════ -->
 <div id="s-progol" class="section">
   <div class="ph"><div class="ph-title">Progol · Jornada</div><div class="ph-sub">Dixon-Coles 50% + ELO 30% + Poisson 20% · precisión 55-62% · datos API-Football</div></div>
   <div class="sg">
@@ -363,6 +369,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
   </div>
 </div>
 
+<!-- ═══ PARTIDO COMPLETO ══════════════════════════════════════════════════ -->
 <div id="s-partido" class="section">
   <div class="ph"><div class="ph-title">Partido Completo</div><div class="ph-sub">DC + ELO + Poisson + Lesiones + H2H + Árbitro + Clima + Importancia</div></div>
   <div class="panel">
@@ -394,6 +401,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
   </div>
 </div>
 
+<!-- ═══ VALUE BETS ════════════════════════════════════════════════════════ -->
 <div id="s-odds" class="section">
   <div class="ph"><div class="ph-title">Value Bets</div><div class="ph-sub">detección automática · configura ODDS_API_KEY en Render para datos en tiempo real</div></div>
   <div class="sg">
@@ -410,6 +418,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
           <option value="soccer_mexico_ligamx">Liga MX</option>
           <option value="basketball_nba">NBA</option>
           <option value="soccer_uefa_champs_league">Champions League</option>
+          <option value="americanfootball_nfl">NFL</option>
         </select>
         <button class="btn btn-p" onclick="loadVB()" style="padding:5px 12px;font-size:11px">Actualizar</button>
       </div>
@@ -430,6 +439,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
   </div>
 </div>
 
+<!-- ═══ SHARP MONEY ═══════════════════════════════════════════════════════ -->
 <div id="s-sharp" class="section">
   <div class="ph"><div class="ph-title">Sharp Money Detector</div><div class="ph-sub">RLM · Steam Move · Bet/Money Split · Line Freeze · Sharp Book Consensus · Timing</div></div>
   <div class="sg">
@@ -475,6 +485,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
   </div>
 </div>
 
+<!-- ═══ CLV ═══════════════════════════════════════════════════════════════ -->
 <div id="s-clv" class="section">
   <div class="ph"><div class="ph-title">CLV Tracker</div><div class="ph-sub">closing line value · métrica #1 de apostadores profesionales · benchmark sharp ≥55%</div></div>
   <div class="sg">
@@ -510,6 +521,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
   </div>
 </div>
 
+<!-- ═══ KELLY ══════════════════════════════════════════════════════════════ -->
 <div id="s-kelly" class="section">
   <div class="ph"><div class="ph-title">Kelly Pro</div><div class="ph-sub">criterio de kelly · gestión óptima del bankroll · riesgo de ruina</div></div>
   <div class="g2">
@@ -539,6 +551,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
   </div>
 </div>
 
+<!-- ═══ MONTE CARLO ════════════════════════════════════════════════════════ -->
 <div id="s-mc" class="section">
   <div class="ph"><div class="ph-title">Monte Carlo</div><div class="ph-sub">simulación Poisson · cuotas justas sin vig · distribución de goles</div></div>
   <div class="panel">
@@ -563,6 +576,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
   </div>
 </div>
 
+<!-- ═══ NLP ═══════════════════════════════════════════════════════════════ -->
 <div id="s-nlp" class="section">
   <div class="ph"><div class="ph-title">NLP · Lesiones</div><div class="ph-sub">escaneo RSS en tiempo real · edge 15-45 min antes que las casas ajusten líneas</div></div>
   <div class="sg">
@@ -591,6 +605,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
   </div>
 </div>
 
+<!-- ═══ BACKTEST ═══════════════════════════════════════════════════════════ -->
 <div id="s-backtest" class="section">
   <div class="ph"><div class="ph-title">Backtesting</div><div class="ph-sub">validación walk-forward · accuracy real del sistema · ROI simulado · Brier Score</div></div>
   <div class="panel">
@@ -608,6 +623,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
   </div>
 </div>
 
+<!-- ═══ ALERTAS ════════════════════════════════════════════════════════════ -->
 <div id="s-alertas" class="section">
   <div class="ph"><div class="ph-title">Alertas</div><div class="ph-sub">value bets · sharp money · lesiones · rachas · sorteos — en tiempo real</div></div>
   <div class="sg">
