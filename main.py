@@ -1,6 +1,6 @@
 from flask import Flask, jsonify, request
 from dashboard import HTML
-import math, random, os, json
+import math, random, os, json, logging
 from apscheduler.schedulers.background import BackgroundScheduler
 import httpx
 
@@ -74,6 +74,7 @@ def progol_partido():
 @app.route("/api/progol/partido-completo")
 def progol_partido_completo():
     from services.progol import predecir_partido
+    
     home      = request.args.get("home","Club América")
     away      = request.args.get("away","Guadalajara")
     arbitro   = request.args.get("arbitro")
@@ -81,13 +82,25 @@ def progol_partido_completo():
     pos_local = int(request.args.get("pos_local",9))
     pos_visit = int(request.args.get("pos_visitante",9))
     jornada   = request.args.get("jornada",type=int)
+    
+    # 1. Extracción de cadenas crudas
     les_local_str = request.args.get("lesiones_local","[]")
     les_visit_str = request.args.get("lesiones_visitante","[]")
+    
+    # 2. Parseo aislado con sanitización de comillas
     try:
-        les_local  = json.loads(les_local_str)
-        les_visita = json.loads(les_visit_str)
-    except Exception:
-        les_local = les_visita = []
+        les_local = json.loads(les_local_str.replace("'", '"'))
+    except Exception as e:
+        logging.error(f"Fallo en parser JSON Local: {les_local_str} | Error: {e}")
+        les_local = []
+        
+    try:
+        les_visita = json.loads(les_visit_str.replace("'", '"'))
+    except Exception as e:
+        logging.error(f"Fallo en parser JSON Visitante: {les_visit_str} | Error: {e}")
+        les_visita = []
+
+    # 3. Inyección al modelo
     clima_key = os.getenv("OPENWEATHER_KEY","")
     return jsonify(predecir_partido(
         home, away,
