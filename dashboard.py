@@ -901,7 +901,11 @@ async function predPartidoCompleto() {
   const posL    = document.getElementById('p-pos-l').value
   const posV    = document.getElementById('p-pos-v').value
   const jornada = document.getElementById('p-jornada').value
-  const lesL    = document.getElementById('p-les-l').value.trim()
+  
+  // PARCHE DE EXTRACCIÓN: Forzar lectura del placeholder si el valor está vacío
+  const lesL_el = document.getElementById('p-les-l')
+  const lesL    = lesL_el.value.trim() !== '' ? lesL_el.value.trim() : lesL_el.placeholder
+  
   const el      = document.getElementById('pred-result')
 
   el.innerHTML = '<div class="loading"><div class="dot"></div><div class="dot"></div><div class="dot"></div>Calculando DC + ELO + Lesiones + H2H + Árbitro + Clima...</div>'
@@ -910,7 +914,11 @@ async function predPartidoCompleto() {
     if(arb)    url += `&arbitro=${encodeURIComponent(arb)}`
     if(ciudad) url += `&ciudad=${encodeURIComponent(ciudad)}`
     url += `&pos_local=${posL}&pos_visitante=${posV}&jornada=${jornada}`
-    if(lesL)   url += `&lesiones_local=${encodeURIComponent(lesL)}`
+    
+    // Inyección obligatoria de las variables en la URL
+    url += `&lesiones_local=${encodeURIComponent(lesL || '[]')}`
+    url += `&lesiones_visitante=${encodeURIComponent('[]')}`
+    
     const d = await api(url)
     const f = d.features || {}
     const ff = f.factores_finales || {}
