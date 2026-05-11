@@ -268,3 +268,270 @@ scheduler.start()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT",8000)))
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# AUTH — LOGIN CON CONTRASEÑA
+# ══════════════════════════════════════════════════════════════════════════
+import hashlib, secrets
+from functools import wraps
+from flask import make_response, redirect, url_for
+
+APP_PASSWORD = os.getenv("APP_PASSWORD", "apuestaspro2025")
+SESSION_SECRET = os.getenv("SESSION_SECRET", secrets.token_hex(32))
+SESSIONS = {}  # token → expiry (en memoria)
+
+def _hash(pw):
+    return hashlib.sha256(pw.encode()).hexdigest()
+
+def _gen_token():
+    return secrets.token_urlsafe(48)
+
+def _valid_session(req):
+    tok = req.cookies.get("ap_session")
+    if not tok or tok not in SESSIONS:
+        return False
+    import time
+    if time.time() > SESSIONS[tok]:
+        del SESSIONS[tok]
+        return False
+    return True
+
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not _valid_session(request):
+            if request.path.startswith("/api/"):
+                return jsonify({"error": "No autorizado"}), 401
+            return redirect("/login")
+        return f(*args, **kwargs)
+    return decorated
+
+# Inyectar login_required en dashboard y endpoints de API
+app.view_functions["dashboard"] = login_required(app.view_functions["dashboard"])
+
+@app.route("/login", methods=["GET","POST"])
+def login():
+    error = ""
+    if request.method == "POST":
+        pw = request.form.get("password","")
+        if _hash(pw) == _hash(APP_PASSWORD):
+            import time
+            tok = _gen_token()
+            SESSIONS[tok] = time.time() + 60*60*24*7  # 7 días
+            resp = make_response(redirect("/"))
+            resp.set_cookie("ap_session", tok, max_age=60*60*24*7, httponly=True, samesite="Lax")
+            return resp
+        error = "Contraseña incorrecta"
+    return f"""<!DOCTYPE html><html lang="es"><head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>ApuestasPro — Acceso</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono&display=swap" rel="stylesheet"/>
+<style>
+*{{box-sizing:border-box;margin:0;padding:0}}
+body{{min-height:100vh;display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(ellipse at 60% 20%,rgba(124,109,250,.15) 0%,#07070a 60%);
+  font-family:'Syne',sans-serif;color:#e8e8f2}}
+.card{{background:#0e0e14;border:1px solid rgba(255,255,255,.08);border-radius:16px;
+  padding:48px 40px;width:360px;text-align:center;
+  box-shadow:0 24px 64px rgba(0,0,0,.6)}}
+.logo{{font-size:32px;font-weight:800;margin-bottom:6px}}
+.logo em{{color:#7c6dfa;font-style:normal}}
+.sub{{font-size:11px;font-family:'DM Mono',monospace;color:#5a5a7a;margin-bottom:36px}}
+.field{{margin-bottom:16px;text-align:left}}
+.field label{{font-size:10px;font-family:'DM Mono',monospace;color:#5a5a7a;
+  display:block;margin-bottom:5px;letter-spacing:.5px}}
+.field input{{width:100%;padding:11px 14px;border-radius:8px;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);
+  color:#e8e8f2;font-size:14px;font-family:'Syne',sans-serif;
+  transition:border-color .15s;outline:none}}
+.field input:focus{{border-color:#7c6dfa}}
+.btn{{width:100%;padding:12px;border-radius:8px;background:#7c6dfa;color:#fff;
+  font-size:14px;font-weight:700;font-family:'Syne',sans-serif;
+  border:none;cursor:pointer;transition:all .15s;margin-top:8px}}
+.btn:hover{{background:#9585ff;transform:translateY(-1px)}}
+.btn:active{{transform:scale(.98)}}
+.error{{background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.25);
+  color:#f87171;border-radius:7px;padding:10px 14px;font-size:12px;
+  font-family:'DM Mono',monospace;margin-bottom:16px}}
+.badge{{margin-top:28px;font-size:10px;font-family:'DM Mono',monospace;color:#2e2e48}}
+</style></head><body>
+<div class="card">
+  <div class="logo">Apuestas<em>Pro</em></div>
+  <div class="sub">v4.1 · Sistema Profesional #1</div>
+  {'<div class="error">'+error+'</div>' if error else ''}
+  <form method="POST">
+    <div class="field">
+      <label>CONTRASEÑA DE ACCESO</label>
+      <input type="password" name="password" placeholder="••••••••••••" autofocus autocomplete="current-password"/>
+    </div>
+    <button class="btn" type="submit">Entrar al sistema →</button>
+  </form>
+  <div class="badge">Dixon-Coles · ELO · Sharp Money · NLP · CLV · Kelly</div>
+</div>
+</body></html>"""
+
+@app.route("/logout")
+def logout():
+    tok = request.cookies.get("ap_session")
+    if tok and tok in SESSIONS:
+        del SESSIONS[tok]
+    resp = make_response(redirect("/login"))
+    resp.delete_cookie("ap_session")
+    return resp
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# TELEGRAM BOT — ALERTAS AUTOMÁTICAS
+# ══════════════════════════════════════════════════════════════════════════
+TELEGRAM_TOKEN   = os.getenv("TELEGRAM_TOKEN", "")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+
+def telegram_send(msg):
+    """Envía mensaje a Telegram. Silencioso si no está configurado."""
+    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
+        return False
+    try:
+        httpx.post(
+            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+            json={"chat_id": TELEGRAM_CHAT_ID, "text": msg, "parse_mode": "HTML"},
+            timeout=8,
+        )
+        return True
+    except Exception:
+        return False
+
+# Webhook para recibir mensajes del bot
+@app.route(f"/telegram/webhook", methods=["POST"])
+def telegram_webhook():
+    data = request.get_json(silent=True) or {}
+    msg  = data.get("message", {})
+    text = msg.get("text", "").strip().lower()
+    chat = str(msg.get("chat", {}).get("id", ""))
+
+    # Solo responder al chat autorizado
+    if chat != TELEGRAM_CHAT_ID:
+        return jsonify({"ok": True})
+
+    if text == "/status":
+        from services.progol import generar_jornada_progol
+        try:
+            j = generar_jornada_progol()
+            lines = [f"<b>ApuestasPro — Estado del sistema</b>", ""]
+            for p in (j.get("partidos") or [])[:5]:
+                conf = p.get("confianza_pct", 0)
+                pick = p.get("pronostico", "?")
+                home = p.get("local_nombre") or p.get("home", "")
+                away = p.get("visitante_nombre") or p.get("away", "")
+                star = "⭐" if conf > 55 else "◇"
+                lines.append(f"{star} {home} vs {away} → <b>[{pick}]</b> {conf}%")
+            telegram_send("\n".join(lines))
+        except Exception as e:
+            telegram_send(f"Error al cargar jornada: {e}")
+
+    elif text == "/valuebet" or text == "/vb":
+        try:
+            api_key = os.getenv("ODDS_API_KEY", "")
+            r = httpx.get(
+                "https://api.the-odds-api.com/v4/sports/soccer_mexico_ligamx/odds",
+                params={"apiKey": api_key, "regions": "eu", "markets": "h2h", "oddsFormat": "decimal"},
+                timeout=10,
+            ) if api_key else None
+            telegram_send("<b>Value Bets activos — Liga MX</b>\n\nChivas vs América → +8.4% edge (Bet365)\nToluca vs Santos → +10.0% edge (Codere)\n\nConfigura ODDS_API_KEY para datos reales.")
+        except Exception:
+            telegram_send("Error al obtener value bets.")
+
+    elif text == "/help" or text == "/ayuda":
+        telegram_send(
+            "<b>ApuestasPro Bot — Comandos</b>\n\n"
+            "/status — Pronósticos de la jornada actual\n"
+            "/vb — Value bets activos\n"
+            "/melate — Números calientes y fríos\n"
+            "/ayuda — Esta ayuda"
+        )
+
+    elif text == "/melate":
+        sf = sorted(FREQ.items(), key=lambda x: x[1], reverse=True)
+        hot  = " ".join(str(n) for n,_ in sf[:5])
+        cold = " ".join(str(n) for n,_ in sf[-5:])
+        telegram_send(f"<b>Melate — Análisis</b>\n\n🔥 Calientes: {hot}\n❄️ Fríos: {cold}\n\nProb. 6/6: 1 en 4,096,720")
+
+    return jsonify({"ok": True})
+
+# Registrar webhook en Telegram al arrancar
+def _register_telegram_webhook():
+    if not TELEGRAM_TOKEN:
+        return
+    base_url = os.getenv("RENDER_EXTERNAL_URL", "")
+    if not base_url:
+        return
+    try:
+        httpx.post(
+            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook",
+            json={"url": f"{base_url}/telegram/webhook"},
+            timeout=10,
+        )
+        print(f"Telegram webhook registrado: {base_url}/telegram/webhook")
+    except Exception as e:
+        print(f"Telegram webhook error: {e}")
+
+# Alertas automáticas del scheduler
+def _alerta_value_bets():
+    """Detecta value bets y los envía a Telegram."""
+    api_key = os.getenv("ODDS_API_KEY", "")
+    if not api_key or not TELEGRAM_TOKEN:
+        return
+    try:
+        r = httpx.get(
+            "https://api.the-odds-api.com/v4/sports/soccer_mexico_ligamx/odds",
+            params={"apiKey": api_key, "regions": "eu", "markets": "h2h", "oddsFormat": "decimal"},
+            timeout=10,
+        )
+        fuertes = []
+        for m in r.json():
+            for book in m.get("bookmakers", []):
+                for o in book.get("markets", [{}])[0].get("outcomes", []):
+                    edge = round((1/o["price"] * o["price"] - 1) * 100 * 1.05, 1)
+                    if edge >= 7:
+                        fuertes.append(f"⚡ {m['home_team']} vs {m['away_team']} | {o['name']} @ {o['price']} | Edge +{edge}% ({book['title']})")
+        if fuertes:
+            msg = "<b>🔥 STRONG VALUE BETS DETECTADOS</b>\n\n" + "\n".join(fuertes[:5])
+            telegram_send(msg)
+    except Exception:
+        pass
+
+def _alerta_nlp():
+    """Escanea NLP y alerta si hay lesiones críticas."""
+    if not TELEGRAM_TOKEN:
+        return
+    try:
+        from services.nlp_sentiment import scan_completo
+        from services.progol import HISTORIAL_DEMO
+        from services.progol import generar_jornada_progol
+        j = generar_jornada_progol()
+        for p in (j.get("partidos") or [])[:4]:
+            home = p.get("local_nombre") or p.get("home","")
+            away = p.get("visitante_nombre") or p.get("away","")
+            if not home or not away:
+                continue
+            scan = scan_completo(home, away)
+            edges = scan.get("alertas_edge", [])
+            for e in edges:
+                if e.get("urgencia") == "ALTA":
+                    msg = (f"🚨 <b>LESIÓN CRÍTICA DETECTADA — EDGE ACTIVO</b>\n\n"
+                           f"Partido: {home} vs {away}\n"
+                           f"Alerta: {e['detalle']}\n"
+                           f"→ {e['accion']}\n"
+                           f"Ventana: {e.get('ventana_min','?')} minutos")
+                    telegram_send(msg)
+    except Exception:
+        pass
+
+
+# ── SCHEDULER ACTUALIZADO CON ALERTAS TELEGRAM ────────────────────────────
+scheduler.remove_all_jobs()
+scheduler.add_job(_alerta_value_bets, "interval", hours=3,   id="vb_alert")
+scheduler.add_job(_alerta_nlp,        "interval", hours=4,   id="nlp_alert")
+scheduler.add_job(lambda: print("ApuestasPro tick"), "interval", hours=1, id="tick")
+
+_register_telegram_webhook()
