@@ -219,6 +219,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
 <header class="topbar">
   <div class="logo">Apuestas<em>Pro</em><small>v4.1</small></div>
   <div class="topbar-right">
+    <a href="/logout" style="font-size:10px;font-family:var(--mono);color:var(--muted);text-decoration:none;padding:3px 9px;border:1px solid var(--border2);border-radius:4px;transition:all .15s" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">Salir</a>
     <span id="api-badge" class="api-badge api-ok">API OK</span>
     <span class="live-pill"><span class="live-dot"></span>LIVE</span>
     <span class="clock" id="clock">--:--:--</span>
