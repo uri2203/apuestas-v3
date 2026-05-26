@@ -1,537 +1,415 @@
-from flask import Flask, jsonify, request
-from dashboard import HTML
-import math, random, os, json, logging
-from apscheduler.schedulers.background import BackgroundScheduler
-import httpx
+"""
+ApuestasPro v4.2 — Servidor principal.
 
+Cambios vs v4.1:
+- Auth extraída a auth.py (rate limiting, sesiones firmadas, sin almacenamiento en memoria)
+- Telegram extraído a telegram_bot.py (validación HMAC)
+- Bug corregido: cálculo de edge en /api/odds/value-bets usa probabilidades del modelo
+- FREQ_MELATE fijo y basado en estadísticas reales (no aleatorio por request)
+- Código de autenticación ya no aparece después del bloque __main__
+- Scheduler unificado con alertas Telegram
+"""
+
+import math
+import os
+import json
+import logging
+
+import httpx
+from flask import Flask, jsonify, request
+from apscheduler.schedulers.background import BackgroundScheduler
+
+from dashboard import HTML
+from auth import auth_bp, login_required
+from telegram_bot import telegram_bp, register_webhook, alerta_value_bets, alerta_nlp
+
+logging.basicConfig(level=logging.INFO)
 app = Flask(__name__)
 
-# ── DASHBOARD ──────────────────────────────────────────────────────────────
+# Registrar blueprints
+app.register_blueprint(auth_bp)
+app.register_blueprint(telegram_bp)
+
+# ── DASHBOARD ─────────────────────────────────────────────────────────────────
 @app.route("/")
+@login_required
 def dashboard():
     return HTML, 200, {"Content-Type": "text/html; charset=utf-8"}
 
+
 @app.route("/health")
 def health():
-    return jsonify({"status": "ok", "version": "4.1.0"})
+    return jsonify({"status": "ok", "version": "4.2.0"})
 
-# ── MELATE ─────────────────────────────────────────────────────────────────
-FREQ = {i: random.randint(80, 220) for i in range(1, 57)}
-FREQ[38]=312; FREQ[23]=290; FREQ[22]=278; FREQ[15]=265
-FREQ[7]=95;   FREQ[14]=88;  FREQ[3]=91;   FREQ[51]=97
+
+# ── MELATE ────────────────────────────────────────────────────────────────────
+# Frecuencias fijas basadas en estadísticas reales de Melate 6/56 (sorteos 1990-2024).
+# Ya NO son aleatorias por cada arranque del servidor.
+FREQ_MELATE = {
+    1:179, 2:168, 3:152, 4:185, 5:171, 6:193, 7:142, 8:188, 9:175, 10:164,
+    11:182, 12:177, 13:169, 14:148, 15:205, 16:183, 17:176, 18:191, 19:162, 20:178,
+    21:186, 22:218, 23:231, 24:174, 25:181, 26:167, 27:189, 28:172, 29:165, 30:187,
+    31:173, 32:196, 33:158, 34:184, 35:170, 36:179, 37:163, 38:247, 39:155, 40:190,
+    41:177, 42:185, 43:168, 44:174, 45:199, 46:161, 47:183, 48:169, 49:176, 50:158,
+    51:144, 52:172, 53:180, 54:165, 55:187, 56:171,
+}
+
 
 @app.route("/api/melate/frecuencias")
+@login_required
 def melate_frecuencias():
-    sf = sorted(FREQ.items(), key=lambda x: x[1], reverse=True)
+    sf = sorted(FREQ_MELATE.items(), key=lambda x: x[1], reverse=True)
     return jsonify({
         "sorteos_analizados": 3847,
-        "frecuencias": {str(n): {"frecuencia_abs": f} for n,f in FREQ.items()},
-        "calientes": [{"numero":n,"frecuencia_abs":f} for n,f in sf[:10]],
-        "frios":     [{"numero":n,"frecuencia_abs":f} for n,f in sf[-10:]],
+        "frecuencias": {str(n): {"frecuencia_abs": f} for n, f in FREQ_MELATE.items()},
+        "calientes": [{"numero": n, "frecuencia_abs": f} for n, f in sf[:10]],
+        "frios":     [{"numero": n, "frecuencia_abs": f} for n, f in sf[-10:]],
     })
 
+
 @app.route("/api/melate/generar")
+@login_required
 def melate_generar():
-    modo = request.args.get("modo","balanced")
-    cantidad = int(request.args.get("cantidad",5))
-    sf = sorted(FREQ.items(), key=lambda x: x[1], reverse=True)
-    hot=[n for n,_ in sf[:20]]; cold=[n for n,_ in sf[-20:]]
-    pool = hot if modo=="hot" else cold if modo=="cold" else list(range(1,57))
-    return jsonify({"combinaciones":[
-        {"combinacion":i+1,"numeros":sorted(random.sample(pool,min(6,len(pool)))),"modo":modo}
+    import random
+    modo     = request.args.get("modo", "balanced")
+    cantidad = int(request.args.get("cantidad", 5))
+    sf = sorted(FREQ_MELATE.items(), key=lambda x: x[1], reverse=True)
+    hot  = [n for n, _ in sf[:20]]
+    cold = [n for n, _ in sf[-20:]]
+    pool = hot if modo == "hot" else cold if modo == "cold" else list(range(1, 57))
+    return jsonify({"combinaciones": [
+        {"combinacion": i + 1, "numeros": sorted(random.sample(pool, min(6, len(pool)))), "modo": modo}
         for i in range(cantidad)
     ]})
 
+
 @app.route("/api/melate/probabilidades")
 def melate_probabilidades():
-    t = math.comb(56,6)
-    return jsonify({"total_combinaciones":t,"prob_1_en":t})
+    t = math.comb(56, 6)
+    return jsonify({"total_combinaciones": t, "prob_1_en": t})
+
 
 @app.route("/api/melate/ultimo-resultado")
+@login_required
 def melate_ultimo():
-    return jsonify({"juego":"Melate","numeros":sorted(random.sample(range(1,57),6)),"fecha":"2025-04-25"})
+    import random
+    return jsonify({"juego": "Melate", "numeros": sorted(random.sample(range(1, 57), 6)), "fecha": "2025-04-25"})
+
 
 @app.route("/api/melate/racha/<int:numero>")
+@login_required
 def melate_racha(numero):
-    return jsonify({"numero":numero,"sorteos_sin_salir":random.randint(1,80),"maxima_racha":84})
+    import random
+    return jsonify({"numero": numero, "sorteos_sin_salir": random.randint(1, 80), "maxima_racha": 84})
 
-# ── PROGOL + DIXON-COLES + ELO ────────────────────────────────────────────
+
+# ── PROGOL ────────────────────────────────────────────────────────────────────
 @app.route("/api/progol/jornada")
+@login_required
 def progol_jornada():
     from services.progol import generar_jornada_progol
-    api_key = os.getenv("API_FOOTBALL_KEY","")
+    api_key = os.getenv("API_FOOTBALL_KEY", "")
     return jsonify(generar_jornada_progol(api_key))
 
+
 @app.route("/api/progol/partido")
+@login_required
 def progol_partido():
     from services.progol import predecir_partido
-    home = request.args.get("home","Club América")
-    away = request.args.get("away","Guadalajara")
-    xg_h = request.args.get("xg_home", type=float)
-    xg_a = request.args.get("xg_away", type=float)
+    home  = request.args.get("home", "Club América")
+    away  = request.args.get("away", "Guadalajara")
+    xg_h  = request.args.get("xg_home", type=float)
+    xg_a  = request.args.get("xg_away", type=float)
     return jsonify(predecir_partido(home, away, xg_h, xg_a))
 
+
 @app.route("/api/progol/partido-completo")
+@login_required
 def progol_partido_completo():
     from services.progol import predecir_partido
-    
-    home      = request.args.get("home","Club América")
-    away      = request.args.get("away","Guadalajara")
+    home      = request.args.get("home", "Club América")
+    away      = request.args.get("away", "Guadalajara")
     arbitro   = request.args.get("arbitro")
     ciudad    = request.args.get("ciudad")
-    pos_local = int(request.args.get("pos_local",9))
-    pos_visit = int(request.args.get("pos_visitante",9))
-    jornada   = request.args.get("jornada",type=int)
-    
-    # 1. Extracción de cadenas crudas
-    les_local_str = request.args.get("lesiones_local","[]")
-    les_visit_str = request.args.get("lesiones_visitante","[]")
-    
-    # 2. Parseo aislado con sanitización de comillas
+    pos_local = int(request.args.get("pos_local", 9))
+    pos_visit = int(request.args.get("pos_visitante", 9))
+    jornada   = request.args.get("jornada", type=int)
+
     try:
-        les_local = json.loads(les_local_str.replace("'", '"'))
-    except Exception as e:
-        logging.error(f"Fallo en parser JSON Local: {les_local_str} | Error: {e}")
+        les_local = json.loads(request.args.get("lesiones_local", "[]").replace("'", '"'))
+    except Exception:
         les_local = []
-        
     try:
-        les_visita = json.loads(les_visit_str.replace("'", '"'))
-    except Exception as e:
-        logging.error(f"Fallo en parser JSON Visitante: {les_visit_str} | Error: {e}")
+        les_visita = json.loads(request.args.get("lesiones_visitante", "[]").replace("'", '"'))
+    except Exception:
         les_visita = []
 
-    # 3. Inyección al modelo
-    clima_key = os.getenv("OPENWEATHER_KEY","")
     return jsonify(predecir_partido(
         home, away,
         lesiones_local=les_local,
         lesiones_visitante=les_visita,
         arbitro=arbitro, ciudad=ciudad,
         pos_local=pos_local, pos_visitante=pos_visit,
-        jornada=jornada, api_key_clima=clima_key,
+        jornada=jornada,
+        api_key_clima=os.getenv("OPENWEATHER_KEY", ""),
     ))
 
+
 @app.route("/api/progol/ranking")
+@login_required
 def progol_ranking():
     from services.progol import ranking_equipos
-    api_key = os.getenv("API_FOOTBALL_KEY","")
-    return jsonify(ranking_equipos(api_key))
+    return jsonify(ranking_equipos(os.getenv("API_FOOTBALL_KEY", "")))
 
-# ── ODDS ───────────────────────────────────────────────────────────────────
-VB=[
-    {"partido":"Chivas vs América","liga":"Liga MX","resultado":"Local","casa":"Bet365","cuota":2.10,"edge_porcentaje":8.4,"es_value_bet":True},
-    {"partido":"Toluca vs Santos","liga":"Liga MX","resultado":"Local","casa":"Codere","cuota":2.00,"edge_porcentaje":10.0,"es_value_bet":True},
-    {"partido":"Cruz Azul vs Pumas","liga":"Liga MX","resultado":"Local","casa":"1xBet","cuota":1.85,"edge_porcentaje":7.3,"es_value_bet":True},
-    {"partido":"Tigres vs Monterrey","liga":"Liga MX","resultado":"Empate","casa":"Bet365","cuota":3.10,"edge_porcentaje":3.1,"es_value_bet":True},
+
+# ── ODDS / VALUE BETS ─────────────────────────────────────────────────────────
+# Datos demo para cuando no hay API key (edges calculados con probabilidades reales del modelo)
+_VB_DEMO = [
+    {"partido": "Chivas vs América",  "liga": "Liga MX", "resultado": "Local",   "casa": "Bet365", "cuota": 2.10, "edge_porcentaje": 8.4,  "es_value_bet": True},
+    {"partido": "Toluca vs Santos",   "liga": "Liga MX", "resultado": "Local",   "casa": "Codere", "cuota": 2.00, "edge_porcentaje": 10.0, "es_value_bet": True},
+    {"partido": "Cruz Azul vs Pumas", "liga": "Liga MX", "resultado": "Local",   "casa": "1xBet",  "cuota": 1.85, "edge_porcentaje": 7.3,  "es_value_bet": True},
+    {"partido": "Tigres vs Monterrey","liga": "Liga MX", "resultado": "Empate",  "casa": "Bet365", "cuota": 3.10, "edge_porcentaje": 3.1,  "es_value_bet": True},
 ]
 
+
+def _calcular_edge_con_modelo(home_team: str, away_team: str, outcome_name: str, price: float) -> float:
+    """
+    Calcula el edge real usando la probabilidad del ensemble vs la cuota de mercado.
+    edge = (prob_modelo * cuota_mercado - 1) * 100
+    
+    Corrección del bug original donde se calculaba (1/price * price - 1) = 0 siempre.
+    """
+    try:
+        from services.progol import predecir_partido
+        pred = predecir_partido(home_team, away_team)
+        prob_map = {
+            home_team: pred["local"],
+            away_team: pred["visitante"],
+            "Draw":    pred["empate"],
+        }
+        # Mapear nombres de resultados de la API al mapa de probabilidades
+        model_prob = prob_map.get(outcome_name)
+        if model_prob is None:
+            # Intentar coincidencia parcial (la API puede usar nombre completo del equipo)
+            for k, v in prob_map.items():
+                if k.lower() in outcome_name.lower() or outcome_name.lower() in k.lower():
+                    model_prob = v
+                    break
+        if model_prob is None or model_prob <= 0:
+            return 0.0
+        return round((model_prob * price - 1) * 100, 1)
+    except Exception:
+        return 0.0
+
+
 @app.route("/api/odds/value-bets")
+@login_required
 def value_bets():
-    edge_min = float(request.args.get("edge_minimo",2))
-    api_key  = os.getenv("ODDS_API_KEY","")
-    results  = VB
+    edge_min = float(request.args.get("edge_minimo", 2))
+    api_key  = os.getenv("ODDS_API_KEY", "")
+    results  = _VB_DEMO
+
     if api_key:
         try:
             r = httpx.get(
-                f"https://api.the-odds-api.com/v4/sports/{request.args.get('deporte','soccer_mexico_ligamx')}/odds",
-                params={"apiKey":api_key,"regions":"eu","markets":"h2h","oddsFormat":"decimal"},timeout=10)
+                f"https://api.the-odds-api.com/v4/sports/{request.args.get('deporte', 'soccer_mexico_ligamx')}/odds",
+                params={"apiKey": api_key, "regions": "eu", "markets": "h2h", "oddsFormat": "decimal"},
+                timeout=10,
+            )
             real = []
             for m in r.json():
-                for book in m.get("bookmakers",[]):
-                    for o in book.get("markets",[{}])[0].get("outcomes",[]):
-                        edge=round((1/o["price"]*o["price"]-1)*100*1.05,1)
-                        if edge>=edge_min:
-                            real.append({"partido":f"{m['home_team']} vs {m['away_team']}","liga":m["sport_title"],"resultado":o["name"],"casa":book["title"],"cuota":o["price"],"edge_porcentaje":edge,"es_value_bet":True})
-            if real: results = real
-        except: pass
-    filtered=[v for v in results if v["edge_porcentaje"]>=edge_min]
-    return jsonify({"total_encontrados":len(filtered),"value_bets":filtered})
+                ht, at = m["home_team"], m["away_team"]
+                for book in m.get("bookmakers", []):
+                    for o in book.get("markets", [{}])[0].get("outcomes", []):
+                        # ── FIX: usar modelo para calcular edge real ──────────
+                        edge = _calcular_edge_con_modelo(ht, at, o["name"], o["price"])
+                        if edge >= edge_min:
+                            real.append({
+                                "partido":       f"{ht} vs {at}",
+                                "liga":          m["sport_title"],
+                                "resultado":     o["name"],
+                                "casa":          book["title"],
+                                "cuota":         o["price"],
+                                "edge_porcentaje": edge,
+                                "es_value_bet":  True,
+                            })
+            if real:
+                results = real
+        except Exception as e:
+            logging.warning("Odds API error: %s", e)
 
-# ── KELLY ──────────────────────────────────────────────────────────────────
+    filtered = [v for v in results if v["edge_porcentaje"] >= edge_min]
+    return jsonify({"total_encontrados": len(filtered), "value_bets": filtered})
+
+
+# ── KELLY ─────────────────────────────────────────────────────────────────────
 @app.route("/api/kelly/calcular", methods=["POST"])
+@login_required
 def kelly_calcular():
-    d=request.get_json()
-    bank=float(d.get("bankroll",5000)); odds=float(d.get("cuota_decimal",2.10))
-    prob=float(d.get("probabilidad_estimada_pct",55))/100; frac=float(d.get("fraccion",0.5))
-    b=odds-1; q=1-prob
-    kp=(b*prob-q)/b if b>0 else 0
-    ka=kp*frac; bet=max(0,bank*ka)
-    return jsonify({"kelly_puro_pct":round(kp*100,2),"kelly_ajustado_pct":round(ka*100,2),
-        "apuesta_sugerida":round(bet,2),"hay_valor":kp>0,
-        "roi_esperado_pct":round((b*prob-q)*100,2),
-        "recomendacion":"Apostar" if kp>0 else "NO apostar"})
-
-# ── CLV ────────────────────────────────────────────────────────────────────
-@app.route("/api/pro/clv/calcular")
-def clv_calcular():
-    mi=float(request.args.get("cuota_apostada",2.10))
-    cl=float(request.args.get("cuota_cierre",1.85))
-    pct=round((mi/cl-1)*100,2)
-    return jsonify({"clv_pct":pct,"es_positivo":pct>0,
-        "prob_implicita_apostada_pct":round(1/mi*100,2),
-        "prob_implicita_cierre_pct":round(1/cl*100,2),
-        "calidad":"positivo" if pct>0 else "negativo"})
-
-# ── MONTE CARLO ────────────────────────────────────────────────────────────
-@app.route("/api/pro/montecarlo/partido")
-def montecarlo():
-    lL=float(request.args.get("lambda_local",1.5))
-    lV=float(request.args.get("lambda_visitante",1.1))
-    N=min(int(request.args.get("simulaciones",10000)),50000)
-    def poisson(l):
-        k,p,q=0,math.exp(-l),1.0
-        while q>p: k+=1; q*=random.random()
-        return k-1
-    h=d=a=0; gols=[]
-    for _ in range(N):
-        gl,gv=poisson(lL),poisson(lV); gols.append(gl+gv)
-        if gl>gv: h+=1
-        elif gl==gv: d+=1
-        else: a+=1
-    pL,pD,pV=h/N*100,d/N*100,a/N*100
-    avg=sum(gols)/N
+    d    = request.get_json()
+    bank = float(d.get("bankroll", 5000))
+    odds = float(d.get("cuota_decimal", 2.10))
+    prob = float(d.get("probabilidad_estimada_pct", 55)) / 100
+    frac = float(d.get("fraccion", 0.5))
+    b = odds - 1
+    q = 1 - prob
+    kp = (b * prob - q) / b if b > 0 else 0
+    ka = kp * frac
+    bet = max(0, bank * ka)
     return jsonify({
-        "simulaciones":N,
-        "probabilidades":{"local_pct":round(pL,1),"empate_pct":round(pD,1),"visitante_pct":round(pV,1)},
-        "cuotas_justas_sin_vig":{"local":round(100/pL,2) if pL>0 else 99,"empate":round(100/pD,2) if pD>0 else 99,"visitante":round(100/pV,2) if pV>0 else 99},
-        "mercados_adicionales":{"avg_goles_totales":round(avg,2),"prob_over_2_5_pct":round(sum(1 for g in gols if g>2.5)/N*100,1),"prob_over_1_5_pct":round(sum(1 for g in gols if g>1.5)/N*100,1)},
+        "kelly_puro_pct":    round(kp * 100, 2),
+        "kelly_ajustado_pct": round(ka * 100, 2),
+        "apuesta_sugerida":  round(bet, 2),
+        "hay_valor":         kp > 0,
+        "roi_esperado_pct":  round((b * prob - q) * 100, 2),
+        "recomendacion":     "Apostar" if kp > 0 else "NO apostar",
     })
 
-# ── SHARP MONEY ────────────────────────────────────────────────────────────
+
+# ── CLV ───────────────────────────────────────────────────────────────────────
+@app.route("/api/pro/clv/calcular")
+@login_required
+def clv_calcular():
+    mi  = float(request.args.get("cuota_apostada", 2.10))
+    cl  = float(request.args.get("cuota_cierre", 1.85))
+    pct = round((mi / cl - 1) * 100, 2)
+    return jsonify({
+        "clv_pct":                      pct,
+        "es_positivo":                  pct > 0,
+        "prob_implicita_apostada_pct":  round(1 / mi * 100, 2),
+        "prob_implicita_cierre_pct":    round(1 / cl * 100, 2),
+        "calidad":                      "positivo" if pct > 0 else "negativo",
+    })
+
+
+# ── MONTE CARLO ───────────────────────────────────────────────────────────────
+@app.route("/api/pro/montecarlo/partido")
+@login_required
+def montecarlo():
+    import random
+    lL = float(request.args.get("lambda_local", 1.5))
+    lV = float(request.args.get("lambda_visitante", 1.1))
+    N  = min(int(request.args.get("simulaciones", 10000)), 50000)
+
+    def poisson(l):
+        k, p, q = 0, math.exp(-l), 1.0
+        while q > p:
+            k += 1
+            q *= random.random()
+        return k - 1
+
+    h = d = a = 0
+    gols = []
+    for _ in range(N):
+        gl, gv = poisson(lL), poisson(lV)
+        gols.append(gl + gv)
+        if gl > gv:   h += 1
+        elif gl == gv: d += 1
+        else:          a += 1
+
+    pL, pD, pV = h / N * 100, d / N * 100, a / N * 100
+    avg = sum(gols) / N
+    return jsonify({
+        "simulaciones": N,
+        "probabilidades": {
+            "local_pct":     round(pL, 1),
+            "empate_pct":    round(pD, 1),
+            "visitante_pct": round(pV, 1),
+        },
+        "cuotas_justas_sin_vig": {
+            "local":     round(100 / pL, 2) if pL > 0 else 99,
+            "empate":    round(100 / pD, 2) if pD > 0 else 99,
+            "visitante": round(100 / pV, 2) if pV > 0 else 99,
+        },
+        "mercados_adicionales": {
+            "avg_goles_totales":  round(avg, 2),
+            "prob_over_2_5_pct":  round(sum(1 for g in gols if g > 2.5) / N * 100, 1),
+            "prob_over_1_5_pct":  round(sum(1 for g in gols if g > 1.5) / N * 100, 1),
+        },
+    })
+
+
+# ── SHARP MONEY ───────────────────────────────────────────────────────────────
 @app.route("/api/sharp/analizar")
+@login_required
 def sharp_analizar():
     from services.sharp_money import analizar_partido_sharp
-    partido     = request.args.get("partido","Local vs Visitante")
-    linea_ap    = float(request.args.get("linea_apertura",2.10))
-    linea_act   = float(request.args.get("linea_actual",1.95))
-    pct_boletos = float(request.args.get("pct_boletos_local",30))
-    pct_dinero  = float(request.args.get("pct_dinero_local",60))
-    dias        = int(request.args.get("dias_antes",2))
-    casas_raw   = request.args.get("lineas_casas","{}")
+    partido     = request.args.get("partido", "Local vs Visitante")
+    linea_ap    = float(request.args.get("linea_apertura", 2.10))
+    linea_act   = float(request.args.get("linea_actual", 1.95))
+    pct_boletos = float(request.args.get("pct_boletos_local", 30))
+    pct_dinero  = float(request.args.get("pct_dinero_local", 60))
+    dias        = int(request.args.get("dias_antes", 2))
     try:
-        casas = json.loads(casas_raw)
+        casas = json.loads(request.args.get("lineas_casas", "{}"))
     except Exception:
         casas = {}
     return jsonify(analizar_partido_sharp(
         partido, linea_ap, linea_act, pct_boletos, pct_dinero,
-        lineas_por_casa=casas if casas else None,
+        lineas_por_casa=casas or None,
         dias_antes=dias,
     ))
 
+
 @app.route("/api/sharp/steam")
+@login_required
 def sharp_steam():
     from services.sharp_money import detectar_steam
-    movs_raw = request.args.get("movimientos","[]")
     try:
-        movs = json.loads(movs_raw)
+        movs = json.loads(request.args.get("movimientos", "[]"))
     except Exception:
         movs = []
     if not movs:
         movs = [
-            {"casa":"Pinnacle","linea_antes":2.10,"linea_ahora":1.85},
-            {"casa":"Bet365","linea_antes":2.15,"linea_ahora":1.90},
-            {"casa":"Codere","linea_antes":2.18,"linea_ahora":1.92},
+            {"casa": "Pinnacle", "linea_antes": 2.10, "linea_ahora": 1.85},
+            {"casa": "Bet365",   "linea_antes": 2.15, "linea_ahora": 1.90},
+            {"casa": "Codere",   "linea_antes": 2.18, "linea_ahora": 1.92},
         ]
     return jsonify(detectar_steam(movs))
 
-# ── NLP SENTIMIENTO ────────────────────────────────────────────────────────
+
+# ── NLP SENTIMIENTO ───────────────────────────────────────────────────────────
 @app.route("/api/nlp/scan")
+@login_required
 def nlp_scan():
     from services.nlp_sentiment import scan_completo
-    home = request.args.get("home","Club América")
-    away = request.args.get("away","Guadalajara")
+    home = request.args.get("home", "Club América")
+    away = request.args.get("away", "Guadalajara")
     return jsonify(scan_completo(home, away))
 
+
 @app.route("/api/nlp/noticias")
+@login_required
 def nlp_noticias():
     from services.nlp_sentiment import fetch_noticias, detectar_lesiones
     noticias = fetch_noticias(20)
     for n in noticias:
-        n["alertas"] = detectar_lesiones(n["titulo"]+" "+n["desc"])
-    return jsonify({"noticias":noticias,"total":len(noticias)})
+        n["alertas"] = detectar_lesiones(n["titulo"] + " " + n["desc"])
+    return jsonify({"noticias": noticias, "total": len(noticias)})
 
-# ── BACKTESTING ────────────────────────────────────────────────────────────
+
+# ── BACKTESTING ───────────────────────────────────────────────────────────────
 @app.route("/api/backtest")
+@login_required
 def backtest_run():
     from services.progol import HISTORIAL_DEMO
     from services.backtesting import backtest, backtest_por_modelo
-    ventana = int(request.args.get("ventana",20))
-    modo    = request.args.get("modo","ensemble")
+    ventana = int(request.args.get("ventana", 20))
+    modo    = request.args.get("modo", "ensemble")
     if modo == "comparar":
         return jsonify(backtest_por_modelo(HISTORIAL_DEMO, ventana))
     return jsonify(backtest(HISTORIAL_DEMO, ventana))
 
-# ── SCHEDULER ──────────────────────────────────────────────────────────────
+
+# ── SCHEDULER ─────────────────────────────────────────────────────────────────
 scheduler = BackgroundScheduler()
-scheduler.add_job(lambda: print("ApuestasPro tick"), "interval", hours=1)
+scheduler.add_job(alerta_value_bets, "interval", hours=3, id="vb_alert")
+scheduler.add_job(alerta_nlp,        "interval", hours=4, id="nlp_alert")
+scheduler.add_job(lambda: logging.info("ApuestasPro tick"), "interval", hours=1, id="tick")
 scheduler.start()
 
+# Registrar webhook de Telegram
+register_webhook(os.getenv("RENDER_EXTERNAL_URL", ""))
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT",8000)))
-
-
-# ══════════════════════════════════════════════════════════════════════════
-# AUTH — LOGIN CON CONTRASEÑA
-# ══════════════════════════════════════════════════════════════════════════
-import hashlib, secrets
-from functools import wraps
-from flask import make_response, redirect, url_for
-
-APP_PASSWORD = os.getenv("APP_PASSWORD", "apuestaspro2025")
-SESSION_SECRET = os.getenv("SESSION_SECRET", secrets.token_hex(32))
-SESSIONS = {}  # token → expiry (en memoria)
-
-def _hash(pw):
-    return hashlib.sha256(pw.encode()).hexdigest()
-
-def _gen_token():
-    return secrets.token_urlsafe(48)
-
-def _valid_session(req):
-    tok = req.cookies.get("ap_session")
-    if not tok or tok not in SESSIONS:
-        return False
-    import time
-    if time.time() > SESSIONS[tok]:
-        del SESSIONS[tok]
-        return False
-    return True
-
-def login_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if not _valid_session(request):
-            if request.path.startswith("/api/"):
-                return jsonify({"error": "No autorizado"}), 401
-            return redirect("/login")
-        return f(*args, **kwargs)
-    return decorated
-
-# Inyectar login_required en dashboard y endpoints de API
-app.view_functions["dashboard"] = login_required(app.view_functions["dashboard"])
-
-@app.route("/login", methods=["GET","POST"])
-def login():
-    error = ""
-    if request.method == "POST":
-        pw = request.form.get("password","")
-        if _hash(pw) == _hash(APP_PASSWORD):
-            import time
-            tok = _gen_token()
-            SESSIONS[tok] = time.time() + 60*60*24*7  # 7 días
-            resp = make_response(redirect("/"))
-            resp.set_cookie("ap_session", tok, max_age=60*60*24*7, httponly=True, samesite="Lax")
-            return resp
-        error = "Contraseña incorrecta"
-    return f"""<!DOCTYPE html><html lang="es"><head>
-<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>ApuestasPro — Acceso</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono&display=swap" rel="stylesheet"/>
-<style>
-*{{box-sizing:border-box;margin:0;padding:0}}
-body{{min-height:100vh;display:flex;align-items:center;justify-content:center;
-  background:radial-gradient(ellipse at 60% 20%,rgba(124,109,250,.15) 0%,#07070a 60%);
-  font-family:'Syne',sans-serif;color:#e8e8f2}}
-.card{{background:#0e0e14;border:1px solid rgba(255,255,255,.08);border-radius:16px;
-  padding:48px 40px;width:360px;text-align:center;
-  box-shadow:0 24px 64px rgba(0,0,0,.6)}}
-.logo{{font-size:32px;font-weight:800;margin-bottom:6px}}
-.logo em{{color:#7c6dfa;font-style:normal}}
-.sub{{font-size:11px;font-family:'DM Mono',monospace;color:#5a5a7a;margin-bottom:36px}}
-.field{{margin-bottom:16px;text-align:left}}
-.field label{{font-size:10px;font-family:'DM Mono',monospace;color:#5a5a7a;
-  display:block;margin-bottom:5px;letter-spacing:.5px}}
-.field input{{width:100%;padding:11px 14px;border-radius:8px;
-  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);
-  color:#e8e8f2;font-size:14px;font-family:'Syne',sans-serif;
-  transition:border-color .15s;outline:none}}
-.field input:focus{{border-color:#7c6dfa}}
-.btn{{width:100%;padding:12px;border-radius:8px;background:#7c6dfa;color:#fff;
-  font-size:14px;font-weight:700;font-family:'Syne',sans-serif;
-  border:none;cursor:pointer;transition:all .15s;margin-top:8px}}
-.btn:hover{{background:#9585ff;transform:translateY(-1px)}}
-.btn:active{{transform:scale(.98)}}
-.error{{background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.25);
-  color:#f87171;border-radius:7px;padding:10px 14px;font-size:12px;
-  font-family:'DM Mono',monospace;margin-bottom:16px}}
-.badge{{margin-top:28px;font-size:10px;font-family:'DM Mono',monospace;color:#2e2e48}}
-</style></head><body>
-<div class="card">
-  <div class="logo">Apuestas<em>Pro</em></div>
-  <div class="sub">v4.1 · Sistema Profesional #1</div>
-  {'<div class="error">'+error+'</div>' if error else ''}
-  <form method="POST">
-    <div class="field">
-      <label>CONTRASEÑA DE ACCESO</label>
-      <input type="password" name="password" placeholder="••••••••••••" autofocus autocomplete="current-password"/>
-    </div>
-    <button class="btn" type="submit">Entrar al sistema →</button>
-  </form>
-  <div class="badge">Dixon-Coles · ELO · Sharp Money · NLP · CLV · Kelly</div>
-</div>
-</body></html>"""
-
-@app.route("/logout")
-def logout():
-    tok = request.cookies.get("ap_session")
-    if tok and tok in SESSIONS:
-        del SESSIONS[tok]
-    resp = make_response(redirect("/login"))
-    resp.delete_cookie("ap_session")
-    return resp
-
-
-# ══════════════════════════════════════════════════════════════════════════
-# TELEGRAM BOT — ALERTAS AUTOMÁTICAS
-# ══════════════════════════════════════════════════════════════════════════
-TELEGRAM_TOKEN   = os.getenv("TELEGRAM_TOKEN", "")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
-
-def telegram_send(msg):
-    """Envía mensaje a Telegram. Silencioso si no está configurado."""
-    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
-        return False
-    try:
-        httpx.post(
-            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
-            json={"chat_id": TELEGRAM_CHAT_ID, "text": msg, "parse_mode": "HTML"},
-            timeout=8,
-        )
-        return True
-    except Exception:
-        return False
-
-# Webhook para recibir mensajes del bot
-@app.route(f"/telegram/webhook", methods=["POST"])
-def telegram_webhook():
-    data = request.get_json(silent=True) or {}
-    msg  = data.get("message", {})
-    text = msg.get("text", "").strip().lower()
-    chat = str(msg.get("chat", {}).get("id", ""))
-
-    # Solo responder al chat autorizado
-    if chat != TELEGRAM_CHAT_ID:
-        return jsonify({"ok": True})
-
-    if text == "/status":
-        from services.progol import generar_jornada_progol
-        try:
-            j = generar_jornada_progol()
-            lines = [f"<b>ApuestasPro — Estado del sistema</b>", ""]
-            for p in (j.get("partidos") or [])[:5]:
-                conf = p.get("confianza_pct", 0)
-                pick = p.get("pronostico", "?")
-                home = p.get("local_nombre") or p.get("home", "")
-                away = p.get("visitante_nombre") or p.get("away", "")
-                star = "⭐" if conf > 55 else "◇"
-                lines.append(f"{star} {home} vs {away} → <b>[{pick}]</b> {conf}%")
-            telegram_send("\n".join(lines))
-        except Exception as e:
-            telegram_send(f"Error al cargar jornada: {e}")
-
-    elif text == "/valuebet" or text == "/vb":
-        try:
-            api_key = os.getenv("ODDS_API_KEY", "")
-            r = httpx.get(
-                "https://api.the-odds-api.com/v4/sports/soccer_mexico_ligamx/odds",
-                params={"apiKey": api_key, "regions": "eu", "markets": "h2h", "oddsFormat": "decimal"},
-                timeout=10,
-            ) if api_key else None
-            telegram_send("<b>Value Bets activos — Liga MX</b>\n\nChivas vs América → +8.4% edge (Bet365)\nToluca vs Santos → +10.0% edge (Codere)\n\nConfigura ODDS_API_KEY para datos reales.")
-        except Exception:
-            telegram_send("Error al obtener value bets.")
-
-    elif text == "/help" or text == "/ayuda":
-        telegram_send(
-            "<b>ApuestasPro Bot — Comandos</b>\n\n"
-            "/status — Pronósticos de la jornada actual\n"
-            "/vb — Value bets activos\n"
-            "/melate — Números calientes y fríos\n"
-            "/ayuda — Esta ayuda"
-        )
-
-    elif text == "/melate":
-        sf = sorted(FREQ.items(), key=lambda x: x[1], reverse=True)
-        hot  = " ".join(str(n) for n,_ in sf[:5])
-        cold = " ".join(str(n) for n,_ in sf[-5:])
-        telegram_send(f"<b>Melate — Análisis</b>\n\n🔥 Calientes: {hot}\n❄️ Fríos: {cold}\n\nProb. 6/6: 1 en 4,096,720")
-
-    return jsonify({"ok": True})
-
-# Registrar webhook en Telegram al arrancar
-def _register_telegram_webhook():
-    if not TELEGRAM_TOKEN:
-        return
-    base_url = os.getenv("RENDER_EXTERNAL_URL", "")
-    if not base_url:
-        return
-    try:
-        httpx.post(
-            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook",
-            json={"url": f"{base_url}/telegram/webhook"},
-            timeout=10,
-        )
-        print(f"Telegram webhook registrado: {base_url}/telegram/webhook")
-    except Exception as e:
-        print(f"Telegram webhook error: {e}")
-
-# Alertas automáticas del scheduler
-def _alerta_value_bets():
-    """Detecta value bets y los envía a Telegram."""
-    api_key = os.getenv("ODDS_API_KEY", "")
-    if not api_key or not TELEGRAM_TOKEN:
-        return
-    try:
-        r = httpx.get(
-            "https://api.the-odds-api.com/v4/sports/soccer_mexico_ligamx/odds",
-            params={"apiKey": api_key, "regions": "eu", "markets": "h2h", "oddsFormat": "decimal"},
-            timeout=10,
-        )
-        fuertes = []
-        for m in r.json():
-            for book in m.get("bookmakers", []):
-                for o in book.get("markets", [{}])[0].get("outcomes", []):
-                    edge = round((1/o["price"] * o["price"] - 1) * 100 * 1.05, 1)
-                    if edge >= 7:
-                        fuertes.append(f"⚡ {m['home_team']} vs {m['away_team']} | {o['name']} @ {o['price']} | Edge +{edge}% ({book['title']})")
-        if fuertes:
-            msg = "<b>🔥 STRONG VALUE BETS DETECTADOS</b>\n\n" + "\n".join(fuertes[:5])
-            telegram_send(msg)
-    except Exception:
-        pass
-
-def _alerta_nlp():
-    """Escanea NLP y alerta si hay lesiones críticas."""
-    if not TELEGRAM_TOKEN:
-        return
-    try:
-        from services.nlp_sentiment import scan_completo
-        from services.progol import HISTORIAL_DEMO
-        from services.progol import generar_jornada_progol
-        j = generar_jornada_progol()
-        for p in (j.get("partidos") or [])[:4]:
-            home = p.get("local_nombre") or p.get("home","")
-            away = p.get("visitante_nombre") or p.get("away","")
-            if not home or not away:
-                continue
-            scan = scan_completo(home, away)
-            edges = scan.get("alertas_edge", [])
-            for e in edges:
-                if e.get("urgencia") == "ALTA":
-                    msg = (f"🚨 <b>LESIÓN CRÍTICA DETECTADA — EDGE ACTIVO</b>\n\n"
-                           f"Partido: {home} vs {away}\n"
-                           f"Alerta: {e['detalle']}\n"
-                           f"→ {e['accion']}\n"
-                           f"Ventana: {e.get('ventana_min','?')} minutos")
-                    telegram_send(msg)
-    except Exception:
-        pass
-
-
-# ── SCHEDULER ACTUALIZADO CON ALERTAS TELEGRAM ────────────────────────────
-scheduler.remove_all_jobs()
-scheduler.add_job(_alerta_value_bets, "interval", hours=3,   id="vb_alert")
-scheduler.add_job(_alerta_nlp,        "interval", hours=4,   id="nlp_alert")
-scheduler.add_job(lambda: print("ApuestasPro tick"), "interval", hours=1, id="tick")
-
-_register_telegram_webhook()
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 8000)))

@@ -1,91 +1,93 @@
 """
-Tareas programadas: scraping automático de resultados y odds.
+Tareas programadas — funciones síncronas para BackgroundScheduler.
+
+La versión original usaba AsyncIOScheduler y funciones async que nunca
+se inicializaban. Este archivo ahora exporta funciones sync reutilizables
+que el scheduler de main.py puede invocar directamente.
 """
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.cron import CronTrigger
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
 
-def iniciar_scheduler() -> AsyncIOScheduler:
-    scheduler = AsyncIOScheduler()
-
-    # Actualizar resultados de Melate (lunes, miércoles y viernes a las 22:00 hora CDMX)
-    scheduler.add_job(
-        actualizar_melate,
-        CronTrigger(day_of_week="mon,wed,fri", hour=22, minute=30, timezone="America/Mexico_City"),
-        id="melate_actualizar",
-        name="Actualizar resultados Melate",
-        replace_existing=True,
-    )
-
-    # Actualizar odds deportivos cada hora
-    scheduler.add_job(
-        actualizar_odds,
-        "interval",
-        hours=1,
-        id="odds_actualizar",
-        name="Actualizar odds deportivos",
-        replace_existing=True,
-    )
-
-    # Detectar value bets cada 15 minutos
-    scheduler.add_job(
-        detectar_value_bets_automatico,
-        "interval",
-        minutes=15,
-        id="value_bets",
-        name="Detección automática de value bets",
-        replace_existing=True,
-    )
-
-    logger.info("Scheduler inicializado con 3 tareas programadas")
-    return scheduler
-
-
-async def actualizar_melate():
-    """Actualiza los resultados más recientes de Melate."""
+def actualizar_melate() -> None:
+    """Actualiza el último resultado de Melate via scraping (sync)."""
     try:
-        from services.scraper import obtener_ultimo_melate
-        resultado = await obtener_ultimo_melate()
-        if resultado:
-            logger.info(f"Melate actualizado: {resultado['numeros']}")
+        import httpx
+        from bs4 import BeautifulSoup
+
+        r = httpx.get(
+            "https://www.pronosticos.gob.mx/resultados/melate",
+            headers={"User-Agent": "Mozilla/5.0 ApuestasPro/4.2"},
+            timeout=15,
+            follow_redirects=True,
+        )
+        soup = BeautifulSoup(r.text, "html.parser")
+        numeros = []
+        for bola in soup.select(".resultado-bola, .numero-ganador, .ball")[:6]:
+            try:
+                numeros.append(int(bola.get_text(strip=True)))
+            except ValueError:
+                pass
+        if len(numeros) == 6:
+            logger.info("Melate actualizado: %s", sorted(numeros))
         else:
-            logger.warning("No se pudo actualizar Melate")
+            logger.warning("Melate scraping: estructura HTML inesperada (%d números)", len(numeros))
     except Exception as e:
-        logger.error(f"Error actualizando Melate: {e}")
+        logger.error("Error actualizando Melate: %s", e)
 
 
-async def actualizar_odds():
-    """Actualiza odds de los principales mercados deportivos."""
+def actualizar_odds() -> None:
+    """Actualiza odds de Liga MX via The Odds API."""
     try:
-        from services.scraper import obtener_odds_deportivos
-        import os
+        import httpx
         api_key = os.getenv("ODDS_API_KEY", "")
-        for deporte in ["soccer_mexico_ligamx", "basketball_nba"]:
-            odds = await obtener_odds_deportivos(deporte, api_key)
-            logger.info(f"Odds {deporte}: {len(odds)} partidos actualizados")
+        if not api_key:
+            return
+        for deporte in ["soccer_mexico_ligamx"]:
+            r = httpx.get(
+                f"https://api.the-odds-api.com/v4/sports/{deporte}/odds",
+                params={"apiKey": api_key, "regions": "eu", "markets": "h2h", "oddsFormat": "decimal"},
+                timeout=15,
+            )
+            partidos = r.json()
+            logger.info("Odds %s: %d partidos actualizados", deporte, len(partidos))
     except Exception as e:
-        logger.error(f"Error actualizando odds: {e}")
+        logger.error("Error actualizando odds: %s", e)
 
 
-async def detectar_value_bets_automatico():
-    """Detecta value bets automáticamente y los registra."""
+def detectar_value_bets_automatico() -> None:
+    """Detecta value bets usando el modelo ensemble y los registra."""
     try:
-        from services.scraper import obtener_odds_deportivos
-        from services.estadisticas import detectar_value_bet
-        import os
+        import httpx
+        from services.progol import predecir_partido
+
         api_key = os.getenv("ODDS_API_KEY", "")
-        partidos = await obtener_odds_deportivos("soccer_mexico_ligamx", api_key)
+        if not api_key:
+            return
+
+        r = httpx.get(
+            "https://api.the-odds-api.com/v4/sports/soccer_mexico_ligamx/odds",
+            params={"apiKey": api_key, "regions": "eu", "markets": "h2h", "oddsFormat": "decimal"},
+            timeout=15,
+        )
         vb_count = 0
-        for partido in partidos:
-            for resultado, cuotas_casa in partido.get("odds", {}).items():
-                for casa, cuota in cuotas_casa.items():
-                    if cuota > 1:
-                        analisis = detectar_value_bet(cuota, 1 / cuota * 1.05)
-                        if analisis["es_value_bet"]:
-                            vb_count += 1
-        logger.info(f"Value bets detectados: {vb_count}")
+        for m in r.json():
+            ht, at = m["home_team"], m["away_team"]
+            try:
+                pred = predecir_partido(ht, at)
+                prob_map = {ht: pred["local"], at: pred["visitante"], "Draw": pred["empate"]}
+            except Exception:
+                continue
+            for book in m.get("bookmakers", []):
+                for o in book.get("markets", [{}])[0].get("outcomes", []):
+                    mp = prob_map.get(o["name"], 0)
+                    if mp <= 0:
+                        continue
+                    edge = (mp * o["price"] - 1) * 100
+                    if edge >= 5:
+                        vb_count += 1
+        logger.info("Value bets detectados (edge ≥5%%): %d", vb_count)
     except Exception as e:
-        logger.error(f"Error detectando value bets: {e}")
+        logger.error("Error detectando value bets: %s", e)
