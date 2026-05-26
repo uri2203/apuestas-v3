@@ -248,6 +248,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
   <button class="nav-btn" onclick="go(this,'nlp')"><span class="nav-icon">📡</span>NLP · Lesiones <span class="nb nb-red">EDGE</span></button>
   <button class="nav-btn" onclick="go(this,'backtest')"><span class="nav-icon">📊</span>Backtesting</button>
 
+  <div class="nav-label">Nuevas funciones</div>
+  <button class="nav-btn" onclick="go(this,'bankroll')"><span class="nav-icon">💰</span>Bankroll Tracker <span class="nb nb-green">NEW</span></button>
+  <button class="nav-btn" onclick="go(this,'mercados')"><span class="nav-icon">📈</span>Mercados Extra <span class="nb nb-green">NEW</span></button>
+  <button class="nav-btn" onclick="go(this,'hedge')"><span class="nav-icon">🛡</span>Hedge · Arb <span class="nb nb-gold">NEW</span></button>
+  <button class="nav-btn" onclick="go(this,'progolopt')"><span class="nav-icon">🎯</span>Optimizador Progol <span class="nb nb-gold">NEW</span></button>
+  <button class="nav-btn" onclick="go(this,'mlmodel')"><span class="nav-icon">🤖</span>ML Model <span class="nb nb-green">NEW</span></button>
+  <button class="nav-btn" onclick="go(this,'ligas')"><span class="nav-icon">🌍</span>Multi-Liga <span class="nb nb-green">NEW</span></button>
+
   <div class="nav-label">Sistema</div>
   <button class="nav-btn" onclick="go(this,'alertas')"><span class="nav-icon">◇</span>Alertas <span class="nb nb-gold">4</span></button>
 </aside>
@@ -641,6 +649,182 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
   </div>
 </div>
 
+
+<!-- ══════════════════════════════════════════════════ -->
+<!-- BANKROLL TRACKER -->
+<!-- ══════════════════════════════════════════════════ -->
+<div id="s-bankroll" class="section">
+  <div class="ph"><div class="ph-title">💰 Bankroll Tracker</div><div class="ph-sub">Registra apuestas · ROI real · Curva de crecimiento</div></div>
+  <div class="sg" id="bk-stats">
+    <div class="sc"><div class="sc-glow" style="background:var(--green)"></div><div class="sc-lbl">Bankroll Actual</div><div class="sc-val" style="color:var(--green)" id="bk-actual">$—</div><div class="sc-sub" id="bk-crec">Cargando...</div></div>
+    <div class="sc"><div class="sc-glow" style="background:var(--gold)"></div><div class="sc-lbl">ROI Total</div><div class="sc-val" style="color:var(--gold)" id="bk-roi">—%</div><div class="sc-sub" id="bk-profit">Profit neto</div></div>
+    <div class="sc"><div class="sc-glow" style="background:var(--purple)"></div><div class="sc-lbl">Win Rate</div><div class="sc-val" style="color:var(--purple2)" id="bk-wr">—%</div><div class="sc-sub" id="bk-wl">W/L</div></div>
+    <div class="sc"><div class="sc-glow" style="background:var(--teal)"></div><div class="sc-lbl">Apuestas</div><div class="sc-val" style="color:var(--teal)" id="bk-total">—</div><div class="sc-sub" id="bk-pend">pendientes</div></div>
+  </div>
+
+  <div class="sg2">
+    <div class="panel">
+      <div class="ph2"><span class="pt">📝 Registrar Apuesta</span></div>
+      <div class="pb" style="display:flex;flex-direction:column;gap:10px">
+        <input id="bk-partido" placeholder="Partido (ej: América vs Chivas)" style="width:100%;padding:9px 12px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--ui);font-size:12px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <input id="bk-seleccion" placeholder="Selección (ej: Local)" style="padding:9px 12px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--ui);font-size:12px">
+          <input id="bk-cuota" type="number" step="0.01" placeholder="Cuota (ej: 2.10)" style="padding:9px 12px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--ui);font-size:12px">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <input id="bk-monto" type="number" placeholder="Monto ($)" style="padding:9px 12px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--ui);font-size:12px">
+          <select id="bk-mercado" style="padding:9px 12px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--ui);font-size:12px">
+            <option>1X2</option><option>Over/Under</option><option>BTTS</option><option>Handicap</option>
+          </select>
+        </div>
+        <button class="btn" onclick="registrarApuesta()" style="width:100%;padding:10px;background:var(--purple);border:none;border-radius:8px;color:#fff;font-weight:700;cursor:pointer;font-family:var(--ui)">Registrar Apuesta</button>
+        <div id="bk-msg" style="font-size:11px;font-family:var(--mono);color:var(--green);text-align:center;min-height:16px"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="ph2"><span class="pt">⚙️ Inicializar Bankroll</span></div>
+      <div class="pb" style="display:flex;flex-direction:column;gap:10px">
+        <p style="font-size:11px;color:var(--muted);font-family:var(--mono)">Define tu bankroll inicial para empezar el tracking de ROI.</p>
+        <input id="bk-inicial" type="number" placeholder="Bankroll inicial ($)" style="width:100%;padding:9px 12px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--ui);font-size:12px">
+        <button class="btn" onclick="inicializarBankroll()" style="width:100%;padding:10px;background:var(--teal);border:none;border-radius:8px;color:#000;font-weight:700;cursor:pointer;font-family:var(--ui)">Establecer Bankroll</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="ph2"><span class="pt">📋 Apuestas Recientes</span>
+      <button class="btn btn-g" onclick="loadBankroll()" style="padding:5px 12px;font-size:11px;background:var(--bg4);border:1px solid var(--border2);border-radius:6px;color:var(--text);cursor:pointer">Actualizar</button>
+    </div>
+    <div class="pb" id="bk-lista" style="font-family:var(--mono);font-size:11px;color:var(--muted)">Cargando...</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════ -->
+<!-- MERCADOS EXTRA -->
+<!-- ══════════════════════════════════════════════════ -->
+<div id="s-mercados" class="section">
+  <div class="ph"><div class="ph-title">📈 Mercados Extra</div><div class="ph-sub">Over/Under · BTTS · Asian Handicap · Marcadores exactos</div></div>
+  <div class="panel">
+    <div class="ph2"><span class="pt">🔍 Analizar Partido</span></div>
+    <div class="pb" style="display:flex;gap:10px;align-items:flex-end">
+      <input id="m-home" placeholder="Local (ej: Club América)" value="Club América" style="flex:1;padding:9px 12px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--ui);font-size:12px">
+      <input id="m-away" placeholder="Visitante (ej: Guadalajara)" value="Guadalajara" style="flex:1;padding:9px 12px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--ui);font-size:12px">
+      <button onclick="loadMercados()" style="padding:9px 18px;background:var(--purple);border:none;border-radius:8px;color:#fff;font-weight:700;cursor:pointer;font-family:var(--ui);white-space:nowrap">Calcular</button>
+    </div>
+  </div>
+  <div id="m-resultado" style="display:none">
+    <div class="sg3">
+      <div class="panel"><div class="ph2"><span class="pt">Over/Under</span></div><div class="pb" id="m-ou" style="font-family:var(--mono);font-size:11px"></div></div>
+      <div class="panel"><div class="ph2"><span class="pt">BTTS · Ambos Anotan</span></div><div class="pb" id="m-btts"></div></div>
+      <div class="panel"><div class="ph2"><span class="pt">Marcadores Exactos</span></div><div class="pb" id="m-scores" style="font-family:var(--mono);font-size:11px"></div></div>
+    </div>
+    <div class="panel"><div class="ph2"><span class="pt">Asian Handicap</span></div><div class="pb" id="m-ah" style="font-family:var(--mono);font-size:11px;display:grid;grid-template-columns:repeat(3,1fr);gap:6px"></div></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════ -->
+<!-- HEDGE & ARBITRAJE -->
+<!-- ══════════════════════════════════════════════════ -->
+<div id="s-hedge" class="section">
+  <div class="ph"><div class="ph-title">🛡 Hedge · Arbitraje · Dutching</div><div class="ph-sub">Asegura ganancias · Detecta arbitrajes · Distribuye stake</div></div>
+  <div class="sg3">
+    <div class="panel">
+      <div class="ph2"><span class="pt">Hedge Garantizado</span></div>
+      <div class="pb" style="display:flex;flex-direction:column;gap:8px">
+        <input id="h-stake" type="number" placeholder="Stake original ($)" value="100" style="width:100%;padding:8px 12px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--ui);font-size:12px">
+        <input id="h-corig" type="number" step="0.01" placeholder="Cuota original" value="2.50" style="width:100%;padding:8px 12px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--ui);font-size:12px">
+        <input id="h-chedge" type="number" step="0.01" placeholder="Cuota hedge" value="2.10" style="width:100%;padding:8px 12px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--ui);font-size:12px">
+        <button onclick="calcHedge()" style="padding:9px;background:var(--purple);border:none;border-radius:8px;color:#fff;font-weight:700;cursor:pointer;font-family:var(--ui)">Calcular Hedge</button>
+        <div id="h-res" style="font-family:var(--mono);font-size:11px;line-height:1.8;color:var(--muted)"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="ph2"><span class="pt">Detector de Arbitraje</span></div>
+      <div class="pb" style="display:flex;flex-direction:column;gap:8px">
+        <p style="font-size:10px;font-family:var(--mono);color:var(--muted)">Cuotas del mismo partido en distintas casas:</p>
+        <input id="arb-1" type="number" step="0.01" placeholder='Cuota "1" (Local)' value="2.10" style="width:100%;padding:8px 12px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--ui);font-size:12px">
+        <input id="arb-x" type="number" step="0.01" placeholder='Cuota "X" (Empate)' value="3.40" style="width:100%;padding:8px 12px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--ui);font-size:12px">
+        <input id="arb-2" type="number" step="0.01" placeholder='Cuota "2" (Visitante)' value="3.80" style="width:100%;padding:8px 12px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--ui);font-size:12px">
+        <input id="arb-bank" type="number" placeholder="Bankroll ($)" value="1000" style="width:100%;padding:8px 12px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--ui);font-size:12px">
+        <button onclick="calcArbitraje()" style="padding:9px;background:var(--green);border:none;border-radius:8px;color:#000;font-weight:700;cursor:pointer;font-family:var(--ui)">Detectar Arbitraje</button>
+        <div id="arb-res" style="font-family:var(--mono);font-size:11px;line-height:1.8;color:var(--muted)"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="ph2"><span class="pt">Resultado del Análisis</span></div>
+      <div class="pb" id="hedge-detail" style="font-family:var(--mono);font-size:11px;color:var(--muted);line-height:1.8">Ingresa los datos y calcula.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════ -->
+<!-- OPTIMIZADOR PROGOL -->
+<!-- ══════════════════════════════════════════════════ -->
+<div id="s-progolopt" class="section">
+  <div class="ph"><div class="ph-title">🎯 Optimizador de Progol</div><div class="ph-sub">Quiniela simple · Diversificada · Máxima cobertura</div></div>
+  <div class="panel">
+    <div class="ph2"><span class="pt">Estrategia</span>
+      <div style="display:flex;gap:8px">
+        <button onclick="loadProgolOpt('simple')" style="padding:5px 14px;background:var(--purple);border:none;border-radius:6px;color:#fff;font-size:11px;cursor:pointer;font-family:var(--ui)">Simple</button>
+        <button onclick="loadProgolOpt('diversificada')" style="padding:5px 14px;background:var(--bg4);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:11px;cursor:pointer;font-family:var(--ui)">Diversificada</button>
+        <button onclick="loadProgolOpt('cobertura')" style="padding:5px 14px;background:var(--gold);border:none;border-radius:6px;color:#000;font-size:11px;cursor:pointer;font-family:var(--ui)">Máx Cobertura</button>
+      </div>
+    </div>
+    <div class="pb" id="progolopt-res" style="font-family:var(--mono);font-size:12px;color:var(--muted)">Selecciona una estrategia...</div>
+  </div>
+  <div class="panel" id="progolopt-analisis" style="display:none">
+    <div class="ph2"><span class="pt">Análisis de Jornada</span></div>
+    <div class="pb" id="progolopt-jornada" style="font-family:var(--mono);font-size:11px"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════ -->
+<!-- ML MODEL -->
+<!-- ══════════════════════════════════════════════════ -->
+<div id="s-mlmodel" class="section">
+  <div class="ph"><div class="ph-title">🤖 Modelo ML</div><div class="ph-sub">Gradient Boosting · 16 features · Comparativa vs Ensemble estadístico</div></div>
+  <div class="panel">
+    <div class="ph2"><span class="pt">Predicción ML vs Ensemble</span></div>
+    <div class="pb" style="display:flex;gap:10px;align-items:flex-end">
+      <input id="ml-home" placeholder="Local" value="Club América" style="flex:1;padding:9px 12px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--ui);font-size:12px">
+      <input id="ml-away" placeholder="Visitante" value="Guadalajara" style="flex:1;padding:9px 12px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--ui);font-size:12px">
+      <button onclick="loadML()" style="padding:9px 18px;background:var(--purple);border:none;border-radius:8px;color:#fff;font-weight:700;cursor:pointer;font-family:var(--ui)">Predecir</button>
+    </div>
+  </div>
+  <div id="ml-resultado" style="display:none">
+    <div class="sg3">
+      <div class="panel"><div class="ph2"><span class="pt">Ensemble (DC+ELO+Poisson)</span></div><div class="pb" id="ml-ens" style="font-family:var(--mono);font-size:12px;line-height:2"></div></div>
+      <div class="panel"><div class="ph2"><span class="pt">ML (Gradient Boosting)</span></div><div class="pb" id="ml-gb" style="font-family:var(--mono);font-size:12px;line-height:2"></div></div>
+      <div class="panel"><div class="ph2"><span class="pt">Combinado (65%+35%)</span></div><div class="pb" id="ml-comb" style="font-family:var(--mono);font-size:12px;line-height:2"></div></div>
+    </div>
+    <div class="panel"><div class="ph2"><span class="pt">Feature Importance</span></div><div class="pb" id="ml-feat" style="font-family:var(--mono);font-size:11px;display:grid;grid-template-columns:repeat(2,1fr);gap:4px"></div></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════ -->
+<!-- MULTI-LIGA -->
+<!-- ══════════════════════════════════════════════════ -->
+<div id="s-ligas" class="section">
+  <div class="ph"><div class="ph-title">🌍 Multi-Liga</div><div class="ph-sub">Premier · La Liga · Serie A · Bundesliga · Champions · MLS · Liga MX</div></div>
+  <div class="panel">
+    <div class="ph2"><span class="pt">Seleccionar Liga</span></div>
+    <div class="pb" style="display:flex;gap:8px;flex-wrap:wrap">
+      <button onclick="loadLiga('liga_mx')" class="liga-btn" style="padding:7px 14px;background:var(--purple);border:none;border-radius:7px;color:#fff;font-size:12px;cursor:pointer;font-family:var(--ui)">🇲🇽 Liga MX</button>
+      <button onclick="loadLiga('premier_league')" class="liga-btn" style="padding:7px 14px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-size:12px;cursor:pointer;font-family:var(--ui)">🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier</button>
+      <button onclick="loadLiga('la_liga')" class="liga-btn" style="padding:7px 14px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-size:12px;cursor:pointer;font-family:var(--ui)">🇪🇸 La Liga</button>
+      <button onclick="loadLiga('serie_a')" class="liga-btn" style="padding:7px 14px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-size:12px;cursor:pointer;font-family:var(--ui)">🇮🇹 Serie A</button>
+      <button onclick="loadLiga('bundesliga')" class="liga-btn" style="padding:7px 14px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-size:12px;cursor:pointer;font-family:var(--ui)">🇩🇪 Bundesliga</button>
+      <button onclick="loadLiga('champions_league')" class="liga-btn" style="padding:7px 14px;background:var(--gold);border:none;border-radius:7px;color:#000;font-size:12px;cursor:pointer;font-family:var(--ui)">⭐ Champions</button>
+    </div>
+  </div>
+  <div class="panel" id="ligas-panel" style="display:none">
+    <div class="ph2"><span class="pt" id="ligas-title">Predicciones</span>
+      <span class="chip cp" id="ligas-badge"></span>
+    </div>
+    <div class="pb" id="ligas-res" style="font-family:var(--mono);font-size:11px"></div>
+  </div>
+</div>
+
 </main>
 </div>
 
@@ -707,7 +891,291 @@ const MAXF = SRT[0].f, MINF = SRT[SRT.length-1].f
 // ═══════════════════════════════════════════════════════════════════════════
 // DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════
-async function initDashboard() {
+async function 
+// ═══════════════════════════════════════════════════════════════════════
+// BANKROLL TRACKER
+// ═══════════════════════════════════════════════════════════════════════
+async function loadBankroll() {
+  try {
+    const d = await api('/api/bankroll/estadisticas')
+    if (d.error) { document.getElementById('bk-lista').innerHTML = '<span style="color:var(--muted)">'+d.error+'</span>'; return }
+    const b = d.bankroll || {}
+    const a = d.apuestas || {}
+    const r = d.rendimiento || {}
+    document.getElementById('bk-actual').textContent = '$'+(b.actual||0).toLocaleString('es-MX',{minimumFractionDigits:2})
+    document.getElementById('bk-crec').textContent = (b.crecimiento_pct>=0?'+':'')+b.crecimiento_pct+'% vs inicial'
+    document.getElementById('bk-roi').textContent = (r.roi_pct>=0?'+':'')+r.roi_pct+'%'
+    document.getElementById('bk-profit').textContent = 'Profit: $'+(r.profit_neto||0).toLocaleString('es-MX',{minimumFractionDigits:2})
+    document.getElementById('bk-wr').textContent = (a.win_rate_pct||0)+'%'
+    document.getElementById('bk-wl').textContent = (a.ganadas||0)+'W / '+(a.perdidas||0)+'L'
+    document.getElementById('bk-total').textContent = a.total||0
+    document.getElementById('bk-pend').textContent = (a.pendientes||0)+' pendientes'
+    const lista = await api('/api/bankroll/apuestas?limite=10')
+    if (!lista.length) { document.getElementById('bk-lista').innerHTML = '<span style="color:var(--muted)">Sin apuestas registradas</span>'; return }
+    document.getElementById('bk-lista').innerHTML = lista.map(b => {
+      const color = b.resultado==='ganada'?'var(--green)':b.resultado==='perdida'?'var(--red)':'var(--gold)'
+      const gn = (b.ganancia_neta||0)>=0?'+'+b.ganancia_neta:b.ganancia_neta
+      return `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)">
+        <span><span style="color:var(--text)">${b.partido}</span> <span style="color:var(--muted)">${b.seleccion} @${b.cuota}</span></span>
+        <span><span style="color:${color}">${b.resultado}</span> <span style="color:${color}">${b.resultado!=='pendiente'?'$'+gn:''}</span></span>
+      </div>`
+    }).join('')
+  } catch(e) { document.getElementById('bk-lista').innerHTML = '<span style="color:var(--red)">Error: '+e+'</span>' }
+}
+
+async function registrarApuesta() {
+  const partido = document.getElementById('bk-partido').value
+  const seleccion = document.getElementById('bk-seleccion').value
+  const cuota = parseFloat(document.getElementById('bk-cuota').value)
+  const monto = parseFloat(document.getElementById('bk-monto').value)
+  const mercado = document.getElementById('bk-mercado').value
+  if (!partido||!seleccion||!cuota||!monto) { document.getElementById('bk-msg').textContent='Completa todos los campos'; return }
+  try {
+    const r = await fetch('/api/bankroll/registrar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({partido,seleccion,cuota,monto,mercado})})
+    const d = await r.json()
+    document.getElementById('bk-msg').textContent = d.error ? '❌ '+d.error : '✅ Apuesta #'+d.id+' registrada'
+    document.getElementById('bk-msg').style.color = d.error?'var(--red)':'var(--green)'
+    if (!d.error) loadBankroll()
+  } catch(e) { document.getElementById('bk-msg').textContent='❌ '+e }
+}
+
+async function inicializarBankroll() {
+  const monto = parseFloat(document.getElementById('bk-inicial').value)
+  if (!monto||monto<=0) return
+  try {
+    const r = await fetch('/api/bankroll/inicializar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({monto})})
+    const d = await r.json()
+    alert(d.error || '✅ Bankroll de $'+monto+' establecido')
+    loadBankroll()
+  } catch(e) { alert('Error: '+e) }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// MERCADOS EXTRA
+// ═══════════════════════════════════════════════════════════════════════
+async function loadMercados() {
+  const home = document.getElementById('m-home').value
+  const away = document.getElementById('m-away').value
+  try {
+    const d = await api('/api/mercados/partido?home='+encodeURIComponent(home)+'&away='+encodeURIComponent(away))
+    document.getElementById('m-resultado').style.display='block'
+    // Over/Under
+    const ou = d.over_under||{}
+    document.getElementById('m-ou').innerHTML = Object.entries(ou).map(([l,v])=>
+      `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)">
+        <span style="color:var(--text)">O/U ${l}</span>
+        <span><span style="color:var(--green)">Over ${v.over_pct}%</span> · <span style="color:var(--red)">Under ${v.under_pct}%</span></span>
+      </div>`).join('')
+    // BTTS
+    const btts = d.btts||{}
+    document.getElementById('m-btts').innerHTML = `
+      <div style="text-align:center;padding:10px 0">
+        <div style="font-size:28px;font-weight:800;color:var(--green)">${btts.si_pct}%</div>
+        <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">Ambos anotan</div>
+        <div style="margin-top:8px;font-size:11px;font-family:var(--mono)">Cuota Si: <span style="color:var(--text)">${btts.cuota_si}</span></div>
+        <div style="font-size:11px;font-family:var(--mono)">No anotan: <span style="color:var(--text)">${btts.no_pct}% @ ${btts.cuota_no}</span></div>
+        <div style="font-size:11px;font-family:var(--mono);color:var(--muted);margin-top:4px">Goles esp: ${(d.goles_esperados||{}).total||'—'}</div>
+      </div>`
+    // Marcadores exactos
+    const ms = d.marcadores_exactos||[]
+    document.getElementById('m-scores').innerHTML = ms.map(m=>
+      `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border)">
+        <span style="color:var(--text)">${m.marcador}</span>
+        <span><span style="color:var(--gold)">${m.prob_pct}%</span> <span style="color:var(--muted)">@${m.cuota_justa}</span></span>
+      </div>`).join('')
+    // Asian Handicap
+    const ah = d.asian_handicap||{}
+    document.getElementById('m-ah').innerHTML = Object.entries(ah).slice(0,9).map(([h,v])=>
+      `<div style="background:var(--bg4);border:1px solid var(--border);border-radius:6px;padding:6px 8px">
+        <div style="color:var(--muted);font-size:10px">AH ${h}</div>
+        <div style="color:var(--green);font-size:11px">L: ${v.p_local_pct}%</div>
+        <div style="color:var(--red);font-size:11px">V: ${v.p_visitante_pct}%</div>
+      </div>`).join('')
+  } catch(e) { document.getElementById('m-resultado').style.display='none'; alert('Error: '+e) }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// HEDGE & ARBITRAJE
+// ═══════════════════════════════════════════════════════════════════════
+async function calcHedge() {
+  const stake = document.getElementById('h-stake').value
+  const corig = document.getElementById('h-corig').value
+  const chedge = document.getElementById('h-chedge').value
+  try {
+    const d = await api(`/api/mercados/hedge/garantizado?stake=${stake}&cuota_original=${corig}&cuota_hedge=${chedge}`)
+    const color = d.conviene?'var(--green)':'var(--red)'
+    document.getElementById('h-res').innerHTML = `
+      <div style="color:${color};font-size:13px;font-weight:700;margin-bottom:6px">${d.conviene?'✅ Hedge recomendado':'⚠️ No asegura ganancia'}</div>
+      Apostar hedge: <span style="color:var(--text)">$${d.stake_hedge}</span><br>
+      Si original gana: <span style="color:var(--green)">+$${d.ganancia_si_original_gana}</span><br>
+      Si hedge gana: <span style="color:var(--green)">+$${d.ganancia_si_hedge_gana}</span><br>
+      Ganancia garantizada: <span style="color:${color};font-weight:700">$${d.ganancia_garantizada} (${d.roi_garantizado_pct}%)</span>`
+    document.getElementById('hedge-detail').innerHTML = d.recomendacion
+  } catch(e) { document.getElementById('h-res').innerHTML='<span style="color:var(--red)">Error: '+e+'</span>' }
+}
+
+async function calcArbitraje() {
+  const c1 = document.getElementById('arb-1').value
+  const cx = document.getElementById('arb-x').value
+  const c2 = document.getElementById('arb-2').value
+  const bank = document.getElementById('arb-bank').value
+  const cuotas = {'1':parseFloat(c1),'X':parseFloat(cx),'2':parseFloat(c2)}
+  try {
+    const d = await api(`/api/mercados/arbitraje?bankroll=${bank}&cuotas=${encodeURIComponent(JSON.stringify(cuotas))}`)
+    const color = d.hay_arbitraje?'var(--green)':'var(--red)'
+    if (d.hay_arbitraje) {
+      const stakes = d.stakes_optimos||{}
+      document.getElementById('arb-res').innerHTML = `
+        <div style="color:var(--green);font-size:13px;font-weight:700;margin-bottom:6px">✅ ARBITRAJE DETECTADO +${d.margen_arb_pct}%</div>
+        ${Object.entries(stakes).map(([k,v])=>`Apostar [${k}]: <span style="color:var(--text)">$${v}</span>`).join('<br>')}<br>
+        Ganancia garantizada: <span style="color:var(--green);font-weight:700">$${d.ganancia_garantizada}</span>`
+      document.getElementById('hedge-detail').innerHTML = `<span style="color:var(--green)">Arbitraje real — ${d.urgencia}</span>`
+    } else {
+      document.getElementById('arb-res').innerHTML = `<span style="color:var(--red)">Sin arbitraje — overround casa: ${d.overround_casa_pct}%</span>`
+    }
+  } catch(e) { document.getElementById('arb-res').innerHTML='<span style="color:var(--red)">Error: '+e+'</span>' }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// OPTIMIZADOR PROGOL
+// ═══════════════════════════════════════════════════════════════════════
+async function loadProgolOpt(estrategia) {
+  const el = document.getElementById('progolopt-res')
+  el.innerHTML = 'Calculando...'
+  try {
+    let d, html = ''
+    if (estrategia==='simple') {
+      d = await api('/api/progol/optimizar/quiniela-simple')
+      html = `<div style="margin-bottom:12px"><span style="color:var(--muted);font-size:10px">QUINIELA ÓPTIMA</span>
+        <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:8px">${(d.signos||[]).map((s,i)=>
+          `<div style="background:${s==='1'?'rgba(52,211,153,.15)':s==='X'?'rgba(124,109,250,.15)':'rgba(248,113,113,.15)'};border:1px solid ${s==='1'?'var(--green)':s==='X'?'var(--purple)':'var(--red)'};border-radius:5px;padding:5px 10px;font-family:var(--mono);font-size:12px">
+            <span style="color:var(--muted)">${i+1}.</span> <span style="font-weight:700">${s}</span>
+          </div>`).join('')}
+        </div>
+        <div style="margin-top:10px;font-size:11px;font-family:var(--mono);color:var(--muted)">
+          Prob. ganar: <span style="color:var(--gold)">${d.prob_ganar_pct}%</span> · Aciertos esperados: <span style="color:var(--text)">${d.aciertos_esperados}/14</span>
+        </div></div>`
+    } else if (estrategia==='diversificada') {
+      d = await api('/api/progol/optimizar/diversificada?n=5')
+      html = (d.quinielas||[]).map(q=>`
+        <div style="margin-bottom:10px;padding:10px;background:var(--bg4);border-radius:7px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+            <span style="color:var(--muted);font-size:10px;font-family:var(--mono)">Quiniela ${q.quiniela_num}</span>
+            <span style="color:var(--gold);font-size:10px;font-family:var(--mono)">P(ganar): ${q.prob_ganar_pct}%</span>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:3px">${(q.signos||[]).map((s,i)=>
+            `<span style="background:${s==='1'?'rgba(52,211,153,.15)':s==='X'?'rgba(124,109,250,.15)':'rgba(248,113,113,.15)'};padding:2px 7px;border-radius:3px;font-family:var(--mono);font-size:11px">${s}</span>`).join('')}</div>
+        </div>`).join('')
+    } else {
+      d = await api('/api/progol/optimizar/maxima-cobertura?n=3')
+      html = `<div style="margin-bottom:10px;padding:10px;background:rgba(240,180,41,.05);border:1px solid rgba(240,180,41,.2);border-radius:7px">
+        <div style="color:var(--gold);font-size:12px;font-weight:700">P(al menos 1 quiniela gana 11+): ${d.prob_al_menos_una_pct}%</div>
+        <div style="color:var(--muted);font-size:10px;font-family:var(--mono)">Costo total: $${d.costo_total_mxn}</div>
+      </div>` + (d.quinielas||[]).map(q=>`
+        <div style="margin-bottom:8px;padding:8px;background:var(--bg4);border-radius:6px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+            <span style="color:var(--muted);font-size:10px">Q${q.quiniela_num}</span>
+            <span style="color:var(--gold);font-size:10px;font-family:var(--mono)">${q.prob_gana_pct}% · ${q.aciertos_esp} esp.</span>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:3px">${(q.signos||[]).map(s=>
+            `<span style="background:${s==='1'?'rgba(52,211,153,.15)':s==='X'?'rgba(124,109,250,.15)':'rgba(248,113,113,.15)'};padding:2px 7px;border-radius:3px;font-family:var(--mono);font-size:11px">${s}</span>`).join('')}</div>
+        </div>`).join('')
+    }
+    el.innerHTML = html || 'Sin resultados'
+    document.getElementById('progolopt-analisis').style.display='none'
+  } catch(e) { el.innerHTML='<span style="color:var(--red)">Error: '+e+'</span>' }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ML MODEL
+// ═══════════════════════════════════════════════════════════════════════
+async function loadML() {
+  const home = document.getElementById('ml-home').value
+  const away = document.getElementById('ml-away').value
+  try {
+    const d = await api('/api/ml/ensemble-vs-ml?home='+encodeURIComponent(home)+'&away='+encodeURIComponent(away))
+    document.getElementById('ml-resultado').style.display='block'
+    const fmt = (o, label) => o ? `
+      <div>Local: <span style="color:var(--green)">${((o.local||0)*100).toFixed(1)}%</span></div>
+      <div>Empate: <span style="color:var(--gold)">${((o.empate||0)*100).toFixed(1)}%</span></div>
+      <div>Visitante: <span style="color:var(--red)">${((o.visitante||0)*100).toFixed(1)}%</span></div>
+      <div style="margin-top:6px;color:var(--purple2);font-weight:700">[${o.pronostico||'?'}] ${o.confianza_pct||0}%</div>` : '<span style="color:var(--muted)">No disponible</span>'
+    document.getElementById('ml-ens').innerHTML = fmt(d.ensemble)
+    document.getElementById('ml-gb').innerHTML = d.ml&&d.ml.disponible ? fmt(d.ml) : '<span style="color:var(--muted)">Necesita más datos históricos</span>'
+    document.getElementById('ml-comb').innerHTML = d.combinado ? fmt(d.combinado) : '<span style="color:var(--muted)">—</span>'
+    // Feature importance
+    const fi = await api('/api/ml/feature-importance')
+    document.getElementById('ml-feat').innerHTML = (fi.features||[]).slice(0,8).map(f=>
+      `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border)">
+        <span style="color:var(--muted)">${f.feature}</span>
+        <span style="color:var(--text)">${(f.importancia*100).toFixed(1)}%</span>
+      </div>`).join('')
+  } catch(e) { document.getElementById('ml-resultado').style.display='none'; alert('Error: '+e) }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// MULTI-LIGA
+// ═══════════════════════════════════════════════════════════════════════
+async function loadLiga(ligaKey) {
+  document.getElementById('ligas-panel').style.display='block'
+  document.getElementById('ligas-res').innerHTML='Cargando predicciones...'
+  document.querySelectorAll('.liga-btn').forEach(b=>b.style.opacity='0.6')
+  try {
+    const d = await api('/api/ligas/predicciones-liga?liga='+ligaKey)
+    if (d.error) { document.getElementById('ligas-res').innerHTML='<span style="color:var(--muted)">'+d.error+'</span>'; return }
+    document.getElementById('ligas-title').textContent = (d.liga||{}).nombre||ligaKey
+    document.getElementById('ligas-badge').textContent = (d.predicciones||[]).length+' partidos'
+    document.getElementById('ligas-res').innerHTML = (d.predicciones||[]).length ? 
+      (d.predicciones||[]).map(p=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border)">
+          <span style="color:var(--text)">${p.home} <span style="color:var(--muted)">vs</span> ${p.away}</span>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span style="color:var(--muted);font-size:10px">${((p.prob_local||0)*100).toFixed(0)}%·${((p.prob_empate||0)*100).toFixed(0)}%·${((p.prob_visitante||0)*100).toFixed(0)}%</span>
+            <span style="background:${p.confianza_pct>55?'rgba(52,211,153,.15)':'rgba(124,109,250,.1)'};color:${p.confianza_pct>55?'var(--green)':'var(--purple2)'};padding:3px 10px;border-radius:4px;font-family:var(--mono);font-size:11px;font-weight:700">[${p.pronostico}] ${p.confianza_pct}%</span>
+          </div>
+        </div>`).join('') : '<span style="color:var(--muted)">Sin partidos próximos (requiere API_FOOTBALL_KEY)</span>'
+  } catch(e) { document.getElementById('ligas-res').innerHTML='<span style="color:var(--red)">'+e+'</span>' }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// SSE — Alertas en tiempo real
+// ═══════════════════════════════════════════════════════════════════════
+function conectarSSE() {
+  const evtSource = new EventSource('/api/eventos')
+  evtSource.onmessage = function(e) {
+    try {
+      const data = JSON.parse(e.data)
+      if (data.tipo === 'conectado') {
+        document.querySelector('.live-pill').style.opacity = '1'
+        return
+      }
+      if (data.tipo === 'nlp_alerta' || data.tipo === 'steam_move' || data.tipo === 'value_bet') {
+        mostrarToast(data)
+      }
+    } catch(err) {}
+  }
+  evtSource.onerror = function() {
+    document.querySelector('.live-pill').style.opacity = '0.3'
+    setTimeout(conectarSSE, 5000) // reconectar en 5s
+  }
+}
+
+function mostrarToast(data) {
+  const toast = document.createElement('div')
+  const color = data.tipo==='nlp_alerta'?'var(--red)':data.tipo==='steam_move'?'var(--gold)':'var(--green)'
+  const icon  = data.tipo==='nlp_alerta'?'🚨':data.tipo==='steam_move'?'⚡':'💰'
+  toast.style.cssText = `position:fixed;bottom:20px;right:20px;background:var(--bg3);border:1px solid ${color};
+    border-radius:10px;padding:12px 16px;z-index:9999;font-family:var(--mono);font-size:11px;
+    max-width:280px;box-shadow:0 4px 20px rgba(0,0,0,.5);animation:fu .3s ease`
+  toast.innerHTML = `<div style="color:${color};font-weight:700;margin-bottom:4px">${icon} ${data.tipo.replace('_',' ').toUpperCase()}</div>
+    <div style="color:var(--muted)">${data.partido||data.job||''}</div>`
+  document.body.appendChild(toast)
+  setTimeout(() => toast.remove(), 6000)
+}
+
+conectarSSE()
+initDashboard() {
   document.getElementById('dash-sub').textContent = 'cargando datos en tiempo real...'
 
   // Frecuencias Melate
@@ -1273,6 +1741,290 @@ function loadAlertas(target='alertas-feed') {
 // ═══════════════════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════
+// BANKROLL TRACKER
+// ═══════════════════════════════════════════════════════════════════════
+async function loadBankroll() {
+  try {
+    const d = await api('/api/bankroll/estadisticas')
+    if (d.error) { document.getElementById('bk-lista').innerHTML = '<span style="color:var(--muted)">'+d.error+'</span>'; return }
+    const b = d.bankroll || {}
+    const a = d.apuestas || {}
+    const r = d.rendimiento || {}
+    document.getElementById('bk-actual').textContent = '$'+(b.actual||0).toLocaleString('es-MX',{minimumFractionDigits:2})
+    document.getElementById('bk-crec').textContent = (b.crecimiento_pct>=0?'+':'')+b.crecimiento_pct+'% vs inicial'
+    document.getElementById('bk-roi').textContent = (r.roi_pct>=0?'+':'')+r.roi_pct+'%'
+    document.getElementById('bk-profit').textContent = 'Profit: $'+(r.profit_neto||0).toLocaleString('es-MX',{minimumFractionDigits:2})
+    document.getElementById('bk-wr').textContent = (a.win_rate_pct||0)+'%'
+    document.getElementById('bk-wl').textContent = (a.ganadas||0)+'W / '+(a.perdidas||0)+'L'
+    document.getElementById('bk-total').textContent = a.total||0
+    document.getElementById('bk-pend').textContent = (a.pendientes||0)+' pendientes'
+    const lista = await api('/api/bankroll/apuestas?limite=10')
+    if (!lista.length) { document.getElementById('bk-lista').innerHTML = '<span style="color:var(--muted)">Sin apuestas registradas</span>'; return }
+    document.getElementById('bk-lista').innerHTML = lista.map(b => {
+      const color = b.resultado==='ganada'?'var(--green)':b.resultado==='perdida'?'var(--red)':'var(--gold)'
+      const gn = (b.ganancia_neta||0)>=0?'+'+b.ganancia_neta:b.ganancia_neta
+      return `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)">
+        <span><span style="color:var(--text)">${b.partido}</span> <span style="color:var(--muted)">${b.seleccion} @${b.cuota}</span></span>
+        <span><span style="color:${color}">${b.resultado}</span> <span style="color:${color}">${b.resultado!=='pendiente'?'$'+gn:''}</span></span>
+      </div>`
+    }).join('')
+  } catch(e) { document.getElementById('bk-lista').innerHTML = '<span style="color:var(--red)">Error: '+e+'</span>' }
+}
+
+async function registrarApuesta() {
+  const partido = document.getElementById('bk-partido').value
+  const seleccion = document.getElementById('bk-seleccion').value
+  const cuota = parseFloat(document.getElementById('bk-cuota').value)
+  const monto = parseFloat(document.getElementById('bk-monto').value)
+  const mercado = document.getElementById('bk-mercado').value
+  if (!partido||!seleccion||!cuota||!monto) { document.getElementById('bk-msg').textContent='Completa todos los campos'; return }
+  try {
+    const r = await fetch('/api/bankroll/registrar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({partido,seleccion,cuota,monto,mercado})})
+    const d = await r.json()
+    document.getElementById('bk-msg').textContent = d.error ? '❌ '+d.error : '✅ Apuesta #'+d.id+' registrada'
+    document.getElementById('bk-msg').style.color = d.error?'var(--red)':'var(--green)'
+    if (!d.error) loadBankroll()
+  } catch(e) { document.getElementById('bk-msg').textContent='❌ '+e }
+}
+
+async function inicializarBankroll() {
+  const monto = parseFloat(document.getElementById('bk-inicial').value)
+  if (!monto||monto<=0) return
+  try {
+    const r = await fetch('/api/bankroll/inicializar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({monto})})
+    const d = await r.json()
+    alert(d.error || '✅ Bankroll de $'+monto+' establecido')
+    loadBankroll()
+  } catch(e) { alert('Error: '+e) }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// MERCADOS EXTRA
+// ═══════════════════════════════════════════════════════════════════════
+async function loadMercados() {
+  const home = document.getElementById('m-home').value
+  const away = document.getElementById('m-away').value
+  try {
+    const d = await api('/api/mercados/partido?home='+encodeURIComponent(home)+'&away='+encodeURIComponent(away))
+    document.getElementById('m-resultado').style.display='block'
+    // Over/Under
+    const ou = d.over_under||{}
+    document.getElementById('m-ou').innerHTML = Object.entries(ou).map(([l,v])=>
+      `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)">
+        <span style="color:var(--text)">O/U ${l}</span>
+        <span><span style="color:var(--green)">Over ${v.over_pct}%</span> · <span style="color:var(--red)">Under ${v.under_pct}%</span></span>
+      </div>`).join('')
+    // BTTS
+    const btts = d.btts||{}
+    document.getElementById('m-btts').innerHTML = `
+      <div style="text-align:center;padding:10px 0">
+        <div style="font-size:28px;font-weight:800;color:var(--green)">${btts.si_pct}%</div>
+        <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">Ambos anotan</div>
+        <div style="margin-top:8px;font-size:11px;font-family:var(--mono)">Cuota Si: <span style="color:var(--text)">${btts.cuota_si}</span></div>
+        <div style="font-size:11px;font-family:var(--mono)">No anotan: <span style="color:var(--text)">${btts.no_pct}% @ ${btts.cuota_no}</span></div>
+        <div style="font-size:11px;font-family:var(--mono);color:var(--muted);margin-top:4px">Goles esp: ${(d.goles_esperados||{}).total||'—'}</div>
+      </div>`
+    // Marcadores exactos
+    const ms = d.marcadores_exactos||[]
+    document.getElementById('m-scores').innerHTML = ms.map(m=>
+      `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border)">
+        <span style="color:var(--text)">${m.marcador}</span>
+        <span><span style="color:var(--gold)">${m.prob_pct}%</span> <span style="color:var(--muted)">@${m.cuota_justa}</span></span>
+      </div>`).join('')
+    // Asian Handicap
+    const ah = d.asian_handicap||{}
+    document.getElementById('m-ah').innerHTML = Object.entries(ah).slice(0,9).map(([h,v])=>
+      `<div style="background:var(--bg4);border:1px solid var(--border);border-radius:6px;padding:6px 8px">
+        <div style="color:var(--muted);font-size:10px">AH ${h}</div>
+        <div style="color:var(--green);font-size:11px">L: ${v.p_local_pct}%</div>
+        <div style="color:var(--red);font-size:11px">V: ${v.p_visitante_pct}%</div>
+      </div>`).join('')
+  } catch(e) { document.getElementById('m-resultado').style.display='none'; alert('Error: '+e) }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// HEDGE & ARBITRAJE
+// ═══════════════════════════════════════════════════════════════════════
+async function calcHedge() {
+  const stake = document.getElementById('h-stake').value
+  const corig = document.getElementById('h-corig').value
+  const chedge = document.getElementById('h-chedge').value
+  try {
+    const d = await api(`/api/mercados/hedge/garantizado?stake=${stake}&cuota_original=${corig}&cuota_hedge=${chedge}`)
+    const color = d.conviene?'var(--green)':'var(--red)'
+    document.getElementById('h-res').innerHTML = `
+      <div style="color:${color};font-size:13px;font-weight:700;margin-bottom:6px">${d.conviene?'✅ Hedge recomendado':'⚠️ No asegura ganancia'}</div>
+      Apostar hedge: <span style="color:var(--text)">$${d.stake_hedge}</span><br>
+      Si original gana: <span style="color:var(--green)">+$${d.ganancia_si_original_gana}</span><br>
+      Si hedge gana: <span style="color:var(--green)">+$${d.ganancia_si_hedge_gana}</span><br>
+      Ganancia garantizada: <span style="color:${color};font-weight:700">$${d.ganancia_garantizada} (${d.roi_garantizado_pct}%)</span>`
+    document.getElementById('hedge-detail').innerHTML = d.recomendacion
+  } catch(e) { document.getElementById('h-res').innerHTML='<span style="color:var(--red)">Error: '+e+'</span>' }
+}
+
+async function calcArbitraje() {
+  const c1 = document.getElementById('arb-1').value
+  const cx = document.getElementById('arb-x').value
+  const c2 = document.getElementById('arb-2').value
+  const bank = document.getElementById('arb-bank').value
+  const cuotas = {'1':parseFloat(c1),'X':parseFloat(cx),'2':parseFloat(c2)}
+  try {
+    const d = await api(`/api/mercados/arbitraje?bankroll=${bank}&cuotas=${encodeURIComponent(JSON.stringify(cuotas))}`)
+    const color = d.hay_arbitraje?'var(--green)':'var(--red)'
+    if (d.hay_arbitraje) {
+      const stakes = d.stakes_optimos||{}
+      document.getElementById('arb-res').innerHTML = `
+        <div style="color:var(--green);font-size:13px;font-weight:700;margin-bottom:6px">✅ ARBITRAJE DETECTADO +${d.margen_arb_pct}%</div>
+        ${Object.entries(stakes).map(([k,v])=>`Apostar [${k}]: <span style="color:var(--text)">$${v}</span>`).join('<br>')}<br>
+        Ganancia garantizada: <span style="color:var(--green);font-weight:700">$${d.ganancia_garantizada}</span>`
+      document.getElementById('hedge-detail').innerHTML = `<span style="color:var(--green)">Arbitraje real — ${d.urgencia}</span>`
+    } else {
+      document.getElementById('arb-res').innerHTML = `<span style="color:var(--red)">Sin arbitraje — overround casa: ${d.overround_casa_pct}%</span>`
+    }
+  } catch(e) { document.getElementById('arb-res').innerHTML='<span style="color:var(--red)">Error: '+e+'</span>' }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// OPTIMIZADOR PROGOL
+// ═══════════════════════════════════════════════════════════════════════
+async function loadProgolOpt(estrategia) {
+  const el = document.getElementById('progolopt-res')
+  el.innerHTML = 'Calculando...'
+  try {
+    let d, html = ''
+    if (estrategia==='simple') {
+      d = await api('/api/progol/optimizar/quiniela-simple')
+      html = `<div style="margin-bottom:12px"><span style="color:var(--muted);font-size:10px">QUINIELA ÓPTIMA</span>
+        <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:8px">${(d.signos||[]).map((s,i)=>
+          `<div style="background:${s==='1'?'rgba(52,211,153,.15)':s==='X'?'rgba(124,109,250,.15)':'rgba(248,113,113,.15)'};border:1px solid ${s==='1'?'var(--green)':s==='X'?'var(--purple)':'var(--red)'};border-radius:5px;padding:5px 10px;font-family:var(--mono);font-size:12px">
+            <span style="color:var(--muted)">${i+1}.</span> <span style="font-weight:700">${s}</span>
+          </div>`).join('')}
+        </div>
+        <div style="margin-top:10px;font-size:11px;font-family:var(--mono);color:var(--muted)">
+          Prob. ganar: <span style="color:var(--gold)">${d.prob_ganar_pct}%</span> · Aciertos esperados: <span style="color:var(--text)">${d.aciertos_esperados}/14</span>
+        </div></div>`
+    } else if (estrategia==='diversificada') {
+      d = await api('/api/progol/optimizar/diversificada?n=5')
+      html = (d.quinielas||[]).map(q=>`
+        <div style="margin-bottom:10px;padding:10px;background:var(--bg4);border-radius:7px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+            <span style="color:var(--muted);font-size:10px;font-family:var(--mono)">Quiniela ${q.quiniela_num}</span>
+            <span style="color:var(--gold);font-size:10px;font-family:var(--mono)">P(ganar): ${q.prob_ganar_pct}%</span>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:3px">${(q.signos||[]).map((s,i)=>
+            `<span style="background:${s==='1'?'rgba(52,211,153,.15)':s==='X'?'rgba(124,109,250,.15)':'rgba(248,113,113,.15)'};padding:2px 7px;border-radius:3px;font-family:var(--mono);font-size:11px">${s}</span>`).join('')}</div>
+        </div>`).join('')
+    } else {
+      d = await api('/api/progol/optimizar/maxima-cobertura?n=3')
+      html = `<div style="margin-bottom:10px;padding:10px;background:rgba(240,180,41,.05);border:1px solid rgba(240,180,41,.2);border-radius:7px">
+        <div style="color:var(--gold);font-size:12px;font-weight:700">P(al menos 1 quiniela gana 11+): ${d.prob_al_menos_una_pct}%</div>
+        <div style="color:var(--muted);font-size:10px;font-family:var(--mono)">Costo total: $${d.costo_total_mxn}</div>
+      </div>` + (d.quinielas||[]).map(q=>`
+        <div style="margin-bottom:8px;padding:8px;background:var(--bg4);border-radius:6px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+            <span style="color:var(--muted);font-size:10px">Q${q.quiniela_num}</span>
+            <span style="color:var(--gold);font-size:10px;font-family:var(--mono)">${q.prob_gana_pct}% · ${q.aciertos_esp} esp.</span>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:3px">${(q.signos||[]).map(s=>
+            `<span style="background:${s==='1'?'rgba(52,211,153,.15)':s==='X'?'rgba(124,109,250,.15)':'rgba(248,113,113,.15)'};padding:2px 7px;border-radius:3px;font-family:var(--mono);font-size:11px">${s}</span>`).join('')}</div>
+        </div>`).join('')
+    }
+    el.innerHTML = html || 'Sin resultados'
+    document.getElementById('progolopt-analisis').style.display='none'
+  } catch(e) { el.innerHTML='<span style="color:var(--red)">Error: '+e+'</span>' }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ML MODEL
+// ═══════════════════════════════════════════════════════════════════════
+async function loadML() {
+  const home = document.getElementById('ml-home').value
+  const away = document.getElementById('ml-away').value
+  try {
+    const d = await api('/api/ml/ensemble-vs-ml?home='+encodeURIComponent(home)+'&away='+encodeURIComponent(away))
+    document.getElementById('ml-resultado').style.display='block'
+    const fmt = (o, label) => o ? `
+      <div>Local: <span style="color:var(--green)">${((o.local||0)*100).toFixed(1)}%</span></div>
+      <div>Empate: <span style="color:var(--gold)">${((o.empate||0)*100).toFixed(1)}%</span></div>
+      <div>Visitante: <span style="color:var(--red)">${((o.visitante||0)*100).toFixed(1)}%</span></div>
+      <div style="margin-top:6px;color:var(--purple2);font-weight:700">[${o.pronostico||'?'}] ${o.confianza_pct||0}%</div>` : '<span style="color:var(--muted)">No disponible</span>'
+    document.getElementById('ml-ens').innerHTML = fmt(d.ensemble)
+    document.getElementById('ml-gb').innerHTML = d.ml&&d.ml.disponible ? fmt(d.ml) : '<span style="color:var(--muted)">Necesita más datos históricos</span>'
+    document.getElementById('ml-comb').innerHTML = d.combinado ? fmt(d.combinado) : '<span style="color:var(--muted)">—</span>'
+    // Feature importance
+    const fi = await api('/api/ml/feature-importance')
+    document.getElementById('ml-feat').innerHTML = (fi.features||[]).slice(0,8).map(f=>
+      `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border)">
+        <span style="color:var(--muted)">${f.feature}</span>
+        <span style="color:var(--text)">${(f.importancia*100).toFixed(1)}%</span>
+      </div>`).join('')
+  } catch(e) { document.getElementById('ml-resultado').style.display='none'; alert('Error: '+e) }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// MULTI-LIGA
+// ═══════════════════════════════════════════════════════════════════════
+async function loadLiga(ligaKey) {
+  document.getElementById('ligas-panel').style.display='block'
+  document.getElementById('ligas-res').innerHTML='Cargando predicciones...'
+  document.querySelectorAll('.liga-btn').forEach(b=>b.style.opacity='0.6')
+  try {
+    const d = await api('/api/ligas/predicciones-liga?liga='+ligaKey)
+    if (d.error) { document.getElementById('ligas-res').innerHTML='<span style="color:var(--muted)">'+d.error+'</span>'; return }
+    document.getElementById('ligas-title').textContent = (d.liga||{}).nombre||ligaKey
+    document.getElementById('ligas-badge').textContent = (d.predicciones||[]).length+' partidos'
+    document.getElementById('ligas-res').innerHTML = (d.predicciones||[]).length ? 
+      (d.predicciones||[]).map(p=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border)">
+          <span style="color:var(--text)">${p.home} <span style="color:var(--muted)">vs</span> ${p.away}</span>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span style="color:var(--muted);font-size:10px">${((p.prob_local||0)*100).toFixed(0)}%·${((p.prob_empate||0)*100).toFixed(0)}%·${((p.prob_visitante||0)*100).toFixed(0)}%</span>
+            <span style="background:${p.confianza_pct>55?'rgba(52,211,153,.15)':'rgba(124,109,250,.1)'};color:${p.confianza_pct>55?'var(--green)':'var(--purple2)'};padding:3px 10px;border-radius:4px;font-family:var(--mono);font-size:11px;font-weight:700">[${p.pronostico}] ${p.confianza_pct}%</span>
+          </div>
+        </div>`).join('') : '<span style="color:var(--muted)">Sin partidos próximos (requiere API_FOOTBALL_KEY)</span>'
+  } catch(e) { document.getElementById('ligas-res').innerHTML='<span style="color:var(--red)">'+e+'</span>' }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// SSE — Alertas en tiempo real
+// ═══════════════════════════════════════════════════════════════════════
+function conectarSSE() {
+  const evtSource = new EventSource('/api/eventos')
+  evtSource.onmessage = function(e) {
+    try {
+      const data = JSON.parse(e.data)
+      if (data.tipo === 'conectado') {
+        document.querySelector('.live-pill').style.opacity = '1'
+        return
+      }
+      if (data.tipo === 'nlp_alerta' || data.tipo === 'steam_move' || data.tipo === 'value_bet') {
+        mostrarToast(data)
+      }
+    } catch(err) {}
+  }
+  evtSource.onerror = function() {
+    document.querySelector('.live-pill').style.opacity = '0.3'
+    setTimeout(conectarSSE, 5000) // reconectar en 5s
+  }
+}
+
+function mostrarToast(data) {
+  const toast = document.createElement('div')
+  const color = data.tipo==='nlp_alerta'?'var(--red)':data.tipo==='steam_move'?'var(--gold)':'var(--green)'
+  const icon  = data.tipo==='nlp_alerta'?'🚨':data.tipo==='steam_move'?'⚡':'💰'
+  toast.style.cssText = `position:fixed;bottom:20px;right:20px;background:var(--bg3);border:1px solid ${color};
+    border-radius:10px;padding:12px 16px;z-index:9999;font-family:var(--mono);font-size:11px;
+    max-width:280px;box-shadow:0 4px 20px rgba(0,0,0,.5);animation:fu .3s ease`
+  toast.innerHTML = `<div style="color:${color};font-weight:700;margin-bottom:4px">${icon} ${data.tipo.replace('_',' ').toUpperCase()}</div>
+    <div style="color:var(--muted)">${data.partido||data.job||''}</div>`
+  document.body.appendChild(toast)
+  setTimeout(() => toast.remove(), 6000)
+}
+
+conectarSSE()
 initDashboard()
 calcCLV()
 renderCLVT()
