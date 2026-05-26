@@ -23,7 +23,10 @@ def get_connection():
     if _USE_PG:
         import psycopg2
         import psycopg2.extras
-        conn = psycopg2.connect(DATABASE_URL, sslmode="require")
+        url = DATABASE_URL
+        if "sslmode" not in url:
+            url += "?sslmode=require" if "?" not in url else "&sslmode=require"
+        conn = psycopg2.connect(url)
         conn.autocommit = False
         return conn
     else:
@@ -79,12 +82,15 @@ def _q(sql: str) -> str:
 # ── Crear tablas ──────────────────────────────────────────────────────────────
 
 def init_db() -> None:
-    """Crea todas las tablas si no existen."""
-    if _USE_PG:
-        _init_pg()
-    else:
-        _init_sqlite()
-    logger.info("DB inicializada (%s)", "PostgreSQL/Supabase" if _USE_PG else "SQLite")
+    """Crea todas las tablas si no existen. No fatal si DB no disponible."""
+    try:
+        if _USE_PG:
+            _init_pg()
+        else:
+            _init_sqlite()
+        logger.info("DB inicializada (%s)", "PostgreSQL/Supabase" if _USE_PG else "SQLite")
+    except Exception as e:
+        logger.error("DB no disponible: %s — sistema funciona sin persistencia", e)
 
 
 def _init_pg() -> None:
