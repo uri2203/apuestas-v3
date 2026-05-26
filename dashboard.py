@@ -895,7 +895,6 @@ const MAXF = SRT[0].f, MINF = SRT[SRT.length-1].f
 // ═══════════════════════════════════════════════════════════════════════════
 // DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════
-async function 
 // ═══════════════════════════════════════════════════════════════════════
 // BANKROLL TRACKER
 // ═══════════════════════════════════════════════════════════════════════
@@ -1179,7 +1178,7 @@ function mostrarToast(data) {
 }
 
 conectarSSE()
-initDashboard() {
+async function initDashboard() {
   document.getElementById('dash-sub').textContent = 'cargando datos en tiempo real...'
 
   // Frecuencias Melate
