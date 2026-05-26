@@ -853,33 +853,31 @@ setInterval(() => {
 
 // NAV
 function go(btn, id) {
+  // Quitar clase activa de todos los botones y secciones
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('on'))
   document.querySelectorAll('.section').forEach(s => s.classList.remove('on'))
+  // Activar botón clickeado
   if(btn) btn.classList.add('on')
+  // Mostrar sección correspondiente
   const sec = document.getElementById('s-' + id)
-  if(sec) sec.classList.add('on')
-
-  const actions = {
-    dashboard:  initDashboard,
-    melate:     initMelate,
-    progol:     () => {},
-    odds:       () => { loadVB(); calcEV() },
-    clv:        () => { calcCLV(); renderCLVT() },
-    kelly:      calcKelly,
-    alertas:    loadAlertas,
-    sharp:      () => {},
-    nlp:        () => {},
-    backtest:   () => {},
-    mc:         () => {},
-    partido:    () => {},
-    bankroll:   loadBankroll,
-    mercados:   () => {},
-    hedge:      () => {},
-    progolopt:  () => {},
-    mlmodel:    () => {},
-    ligas:      () => {},
+  if(sec) {
+    sec.classList.add('on')
+  } else {
+    console.warn('Sección no encontrada: s-' + id)
   }
-  if(actions[id]) actions[id]()
+  // Ejecutar acción de carga según sección
+  if(id==='dashboard') initDashboard()
+  else if(id==='melate') initMelate()
+  else if(id==='odds') { loadVB(); calcEV() }
+  else if(id==='clv') { calcCLV(); renderCLVT() }
+  else if(id==='kelly') calcKelly()
+  else if(id==='alertas') loadAlertas()
+  else if(id==='bankroll') loadBankroll()
+  else if(id==='mercados') {}
+  else if(id==='hedge') {}
+  else if(id==='progolopt') {}
+  else if(id==='mlmodel') {}
+  else if(id==='ligas') {}
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
