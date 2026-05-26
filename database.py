@@ -23,7 +23,7 @@ def get_connection():
     if _USE_PG:
         import psycopg2
         import psycopg2.extras
-        conn = psycopg2.connect(DATABASE_URL)
+        conn = psycopg2.connect(DATABASE_URL, sslmode="require")
         conn.autocommit = False
         return conn
     else:
@@ -90,7 +90,7 @@ def init_db() -> None:
 def _init_pg() -> None:
     import psycopg2
     import psycopg2.extras
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = psycopg2.connect(DATABASE_URL, sslmode="require")
     conn.autocommit = True
     cur = conn.cursor()
 
