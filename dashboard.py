@@ -860,18 +860,24 @@ function go(btn, id) {
   if(sec) sec.classList.add('on')
 
   const actions = {
-    dashboard: initDashboard,
-    melate:    initMelate,
-    progol:    () => {},
-    odds:      () => { loadVB(); calcEV() },
-    clv:       () => { calcCLV(); renderCLVT() },
-    kelly:     calcKelly,
-    alertas:   loadAlertas,
-    sharp:     () => {},
-    nlp:       () => {},
-    backtest:  () => {},
-    mc:        () => {},
-    partido:   () => {},
+    dashboard:  initDashboard,
+    melate:     initMelate,
+    progol:     () => {},
+    odds:       () => { loadVB(); calcEV() },
+    clv:        () => { calcCLV(); renderCLVT() },
+    kelly:      calcKelly,
+    alertas:    loadAlertas,
+    sharp:      () => {},
+    nlp:        () => {},
+    backtest:   () => {},
+    mc:         () => {},
+    partido:    () => {},
+    bankroll:   loadBankroll,
+    mercados:   () => {},
+    hedge:      () => {},
+    progolopt:  () => {},
+    mlmodel:    () => {},
+    ligas:      () => {},
   }
   if(actions[id]) actions[id]()
 }
