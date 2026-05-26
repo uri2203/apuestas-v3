@@ -33,6 +33,8 @@ def _prob_acertar_k_de_n(probs_correctas: List[float], k: int) -> float:
                 continue
             dp[i + 1][j]     += dp[i][j] * (1 - p)   # falla
             dp[i + 1][j + 1] += dp[i][j] * p          # acierta
+    if k > n:
+        return 0.0
     return dp[n][k]
 
 
