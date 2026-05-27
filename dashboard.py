@@ -256,6 +256,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
   <button class="nav-btn" onclick="go(this,'mlmodel')"><span class="nav-icon">🤖</span>ML Model <span class="nb nb-green">NEW</span></button>
   <button class="nav-btn" onclick="go(this,'ligas')"><span class="nav-icon">🌍</span>Multi-Liga <span class="nb nb-green">NEW</span></button>
 
+  <button class="nav-btn" onclick="go(this,'cuentas')"><span class="nav-icon">🏦</span>Cuentas & Camuflaje <span class="nb nb-red">NEW</span></button>
+
   <div class="nav-label">Sistema</div>
   <button class="nav-btn" onclick="go(this,'alertas')"><span class="nav-icon">◇</span>Alertas <span class="nb nb-gold">4</span></button>
 </aside>
@@ -825,6 +827,115 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
   </div>
 </div>
 
+
+<!-- ══════════════════════════════════════════════════ -->
+<!-- CUENTAS & CAMUFLAJE -->
+<!-- ══════════════════════════════════════════════════ -->
+<div id="s-cuentas" class="section">
+  <div class="ph">
+    <div class="ph-title">🏦 Cuentas & Estrategia de Camuflaje</div>
+    <div class="ph-sub">Gestiona tus cuentas · Monitorea health · Genera plan de camuflaje</div>
+  </div>
+
+  <!-- Stats de cuentas -->
+  <div class="sg" id="cuentas-stats">
+    <div class="sc"><div class="sc-glow" style="background:var(--green)"></div><div class="sc-lbl">Cuentas Activas</div><div class="sc-val" style="color:var(--green)" id="ct-activas">—</div><div class="sc-sub">casas registradas</div></div>
+    <div class="sc"><div class="sc-glow" style="background:var(--gold)"></div><div class="sc-lbl">Health Promedio</div><div class="sc-val" style="color:var(--gold)" id="ct-health">—</div><div class="sc-sub">score de salud</div></div>
+    <div class="sc"><div class="sc-glow" style="background:var(--red)"></div><div class="sc-lbl">En Riesgo</div><div class="sc-val" style="color:var(--red)" id="ct-riesgo">—</div><div class="sc-sub">cuentas limitadas</div></div>
+    <div class="sc"><div class="sc-glow" style="background:var(--purple)"></div><div class="sc-lbl">Perfil Activo</div><div class="sc-val" style="color:var(--purple2)" id="ct-perfil">Recreativo</div><div class="sc-sub">camuflaje</div></div>
+  </div>
+
+  <div class="sg2">
+    <!-- Registrar cuenta -->
+    <div class="panel">
+      <div class="ph2"><span class="pt">➕ Registrar Cuenta</span></div>
+      <div class="pb" style="display:flex;flex-direction:column;gap:10px">
+        <select id="ct-casa" style="padding:9px 12px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--ui);font-size:12px">
+          <option value="caliente">🇲🇽 Caliente.mx</option>
+          <option value="codere">Codere</option>
+          <option value="1xbet">1xBet</option>
+          <option value="bet365">Bet365</option>
+          <option value="betano">Betano</option>
+          <option value="pinnacle">Pinnacle (sharp)</option>
+          <option value="williamhill">William Hill</option>
+          <option value="bwin">Bwin</option>
+        </select>
+        <input id="ct-limite" type="number" placeholder="Límite máximo por apuesta ($)" style="padding:9px 12px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--ui);font-size:12px">
+        <input id="ct-balance" type="number" placeholder="Balance inicial ($)" style="padding:9px 12px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--ui);font-size:12px">
+        <input id="ct-notas" placeholder="Notas (opcional)" style="padding:9px 12px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--ui);font-size:12px">
+        <button onclick="registrarCuenta()" style="padding:10px;background:var(--purple);border:none;border-radius:8px;color:#fff;font-weight:700;cursor:pointer;font-family:var(--ui)">Registrar Casa</button>
+        <div id="ct-msg" style="font-size:11px;font-family:var(--mono);color:var(--green);text-align:center;min-height:16px"></div>
+      </div>
+    </div>
+
+    <!-- Reportar limitación -->
+    <div class="panel">
+      <div class="ph2"><span class="pt">⚠️ Reportar Limitación</span></div>
+      <div class="pb" style="display:flex;flex-direction:column;gap:10px">
+        <p style="font-size:11px;color:var(--muted);font-family:var(--mono)">Si una casa redujo tu límite máximo por apuesta, regístralo aquí para que el sistema ajuste tu estrategia.</p>
+        <select id="ct-casa-lim" style="padding:9px 12px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--ui);font-size:12px">
+          <option value="">Selecciona la casa...</option>
+        </select>
+        <input id="ct-nuevo-lim" type="number" placeholder="Nuevo límite máximo ($)" style="padding:9px 12px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--ui);font-size:12px">
+        <input id="ct-razon" placeholder="Razón (ej: limitaron a $200)" style="padding:9px 12px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--ui);font-size:12px">
+        <button onclick="reportarLimitacion()" style="padding:10px;background:rgba(248,113,113,.2);border:1px solid var(--red);border-radius:8px;color:var(--red);font-weight:700;cursor:pointer;font-family:var(--ui)">Reportar Limitación</button>
+        <div id="ct-lim-msg" style="font-size:11px;font-family:var(--mono);min-height:16px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Estado de cuentas -->
+  <div class="panel">
+    <div class="ph2">
+      <span class="pt">📊 Estado de Cuentas</span>
+      <button onclick="loadCuentas()" style="padding:5px 12px;font-size:11px;background:var(--bg4);border:1px solid var(--border2);border-radius:6px;color:var(--text);cursor:pointer">Actualizar</button>
+    </div>
+    <div class="pb" id="ct-lista" style="font-family:var(--mono);font-size:11px;color:var(--muted)">Sin cuentas registradas. Agrega tu primera casa arriba.</div>
+  </div>
+
+  <!-- Plan de camuflaje -->
+  <div class="panel">
+    <div class="ph2"><span class="pt">🎭 Plan de Camuflaje Semanal</span></div>
+    <div class="pb">
+      <div style="display:flex;gap:10px;margin-bottom:12px;align-items:flex-end">
+        <div>
+          <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">PERFIL</div>
+          <select id="ct-perfil-sel" style="padding:8px 12px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--ui);font-size:12px">
+            <option value="recreativo">Recreativo — cuentas duran años</option>
+            <option value="mixto" selected>Mixto — balance recomendado</option>
+            <option value="agresivo">Agresivo — máxima ganancia</option>
+          </select>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">BANKROLL ($)</div>
+          <input id="ct-bank" type="number" value="2000" style="padding:8px 12px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--ui);font-size:12px;width:110px">
+        </div>
+        <button onclick="loadCamuflaje()" style="padding:9px 18px;background:var(--teal);border:none;border-radius:8px;color:#000;font-weight:700;cursor:pointer;font-family:var(--ui)">Generar Plan</button>
+      </div>
+      <div id="ct-camuflaje" style="font-family:var(--mono);font-size:11px;color:var(--muted)">Selecciona un perfil y genera el plan.</div>
+    </div>
+  </div>
+
+  <!-- Análisis de comportamiento -->
+  <div class="panel">
+    <div class="ph2">
+      <span class="pt">🔍 Análisis de tu Perfil de Riesgo</span>
+      <button onclick="loadAnalisisCuenta()" style="padding:5px 12px;font-size:11px;background:var(--bg4);border:1px solid var(--border2);border-radius:6px;color:var(--text);cursor:pointer">Analizar</button>
+    </div>
+    <div class="pb" id="ct-analisis" style="font-family:var(--mono);font-size:11px;color:var(--muted)">Haz clic en "Analizar" para ver tu perfil de riesgo actual.</div>
+  </div>
+
+  <!-- Rotación óptima -->
+  <div class="panel">
+    <div class="ph2"><span class="pt">🔄 Rotación Óptima por Apuesta</span></div>
+    <div class="pb" style="display:flex;gap:10px;align-items:flex-end;margin-bottom:12px">
+      <input id="ct-monto-rot" type="number" value="500" placeholder="Monto total ($)" style="padding:8px 12px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--ui);font-size:12px;width:140px">
+      <button onclick="loadRotacion()" style="padding:9px 18px;background:var(--purple);border:none;border-radius:8px;color:#fff;font-weight:700;cursor:pointer;font-family:var(--ui)">Calcular Rotación</button>
+    </div>
+    <div id="ct-rotacion" style="font-family:var(--mono);font-size:11px;color:var(--muted)">Ingresa el monto y calcula cómo distribuirlo entre tus casas.</div>
+  </div>
+</div>
+
 </main>
 </div>
 
@@ -878,6 +989,7 @@ function go(btn, id) {
   else if(id==='progolopt') {}
   else if(id==='mlmodel') {}
   else if(id==='ligas') {}
+  else if(id==='cuentas') loadCuentas()
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1144,6 +1256,170 @@ async function loadLiga(ligaKey) {
 // ═══════════════════════════════════════════════════════════════════════
 // SSE — Alertas en tiempo real
 // ═══════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════
+// CUENTAS & CAMUFLAJE
+// ═══════════════════════════════════════════════════════════════════════
+async function loadCuentas() {
+  try {
+    const cuentas = await api('/api/cuentas/listar')
+    const activas = cuentas.filter(c => c.activa)
+    document.getElementById('ct-activas').textContent = activas.length
+    const avgHealth = activas.length ? Math.round(activas.reduce((s,c)=>s+(c.health_score||100),0)/activas.length) : 100
+    document.getElementById('ct-health').textContent = avgHealth + '/100'
+    const enRiesgo = activas.filter(c => (c.health_score||100) < 40).length
+    document.getElementById('ct-riesgo').textContent = enRiesgo
+
+    // Llenar selector de casas para reportar limitación
+    const sel = document.getElementById('ct-casa-lim')
+    sel.innerHTML = '<option value="">Selecciona la casa...</option>' +
+      activas.map(c => `<option value="${c.casa_key}">${c.nombre}</option>`).join('')
+
+    if (!activas.length) {
+      document.getElementById('ct-lista').innerHTML = '<span style="color:var(--muted)">Sin cuentas registradas. Agrega tu primera casa arriba.</span>'
+      return
+    }
+
+    document.getElementById('ct-lista').innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px">
+        ${activas.map(c => {
+          const color = c.estado==='verde'?'var(--green)':c.estado==='amarillo'?'var(--gold)':'var(--red)'
+          const icon  = c.estado==='verde'?'🟢':c.estado==='amarillo'?'🟡':'🔴'
+          return `<div style="background:var(--bg4);border:1px solid ${color}33;border-radius:8px;padding:12px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+              <span style="color:var(--text);font-weight:700">${icon} ${c.nombre}</span>
+              <span style="color:${color};font-size:10px">${c.health_score||100}/100</span>
+            </div>
+            <div style="color:var(--muted);font-size:10px">Tipo: ${c.tipo} · ${c.tolerancia||''}</div>
+            <div style="color:var(--muted);font-size:10px">Límite: $${c.limite_actual||0} (${c.pct_limite_restante||100}%)</div>
+            <div style="margin-top:6px;background:var(--bg3);border-radius:3px;height:4px">
+              <div style="background:${color};width:${c.health_score||100}%;height:4px;border-radius:3px"></div>
+            </div>
+          </div>`
+        }).join('')}
+      </div>`
+  } catch(e) {
+    document.getElementById('ct-lista').innerHTML = '<span style="color:var(--red)">Error: '+e+'</span>'
+  }
+}
+
+async function registrarCuenta() {
+  const casa_key = document.getElementById('ct-casa').value
+  const limite   = parseFloat(document.getElementById('ct-limite').value)
+  const balance  = parseFloat(document.getElementById('ct-balance').value||0)
+  const notas    = document.getElementById('ct-notas').value
+  if (!limite) { document.getElementById('ct-msg').textContent='Ingresa el límite máximo'; return }
+  try {
+    const r = await fetch('/api/cuentas/registrar',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({casa_key,limite_inicial:limite,balance,notas})})
+    const d = await r.json()
+    const msg = document.getElementById('ct-msg')
+    msg.textContent = d.error ? '❌ '+d.error : '✅ '+d.casa+' registrada con límite $'+d.limite
+    msg.style.color = d.error?'var(--red)':'var(--green)'
+    if (!d.error) loadCuentas()
+  } catch(e) { document.getElementById('ct-msg').textContent='❌ '+e }
+}
+
+async function reportarLimitacion() {
+  const casa_key    = document.getElementById('ct-casa-lim').value
+  const nuevo_limite = parseFloat(document.getElementById('ct-nuevo-lim').value)
+  const razon       = document.getElementById('ct-razon').value
+  if (!casa_key || !nuevo_limite) { document.getElementById('ct-lim-msg').textContent='Completa los campos'; return }
+  try {
+    const r = await fetch('/api/cuentas/limite',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({casa_key,nuevo_limite,razon})})
+    const d = await r.json()
+    const msg = document.getElementById('ct-lim-msg')
+    if (d.error) { msg.style.color='var(--red)'; msg.textContent='❌ '+d.error; return }
+    const color = d.nivel==='CRÍTICA'?'var(--red)':d.nivel==='MODERADA'?'var(--gold)':'var(--muted)'
+    msg.style.color = color
+    msg.textContent = `${d.nivel}: -${d.reduccion_pct}% en ${d.casa}. Health: ${d.health_score}/100`
+    document.getElementById('ct-analisis').innerHTML =
+      `<div style="color:${color};margin-bottom:6px">⚠️ ${d.recomendacion}</div>`
+    loadCuentas()
+  } catch(e) { document.getElementById('ct-lim-msg').textContent='❌ '+e }
+}
+
+async function loadCamuflaje() {
+  const perfil  = document.getElementById('ct-perfil-sel').value
+  const bankroll = document.getElementById('ct-bank').value
+  document.getElementById('ct-perfil').textContent = perfil.charAt(0).toUpperCase()+perfil.slice(1)
+  try {
+    const d = await api(`/api/cuentas/camuflaje/plan?perfil=${perfil}&bankroll=${bankroll}`)
+    const r = d.resumen || {}
+    const camuflajes = d.apuestas_camuflaje || []
+    document.getElementById('ct-camuflaje').innerHTML = `
+      <div style="background:rgba(124,109,250,.08);border:1px solid rgba(124,109,250,.2);border-radius:8px;padding:12px;margin-bottom:12px">
+        <div style="color:var(--purple2);font-weight:700;margin-bottom:6px">Plan Semana ${d.semana||''}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:11px">
+          <div>Sharp: <span style="color:var(--green)">${r.apuestas_sharp||0}</span></div>
+          <div>Camuflaje: <span style="color:var(--gold)">${r.apuestas_camuflaje||0}</span></div>
+          <div>Ratio: <span style="color:var(--text)">${r.ratio_real||''}</span></div>
+        </div>
+        <div style="color:var(--muted);font-size:10px;margin-top:6px">${d.advertencia||''}</div>
+        <div style="color:var(--muted);font-size:10px">Vida estimada de cuentas: ~${d.semanas_vida_estimada||0} semanas</div>
+      </div>
+      <div style="color:var(--text);margin-bottom:6px;font-weight:700">🎭 Apuestas de Camuflaje Sugeridas:</div>
+      ${camuflajes.map(c=>`
+        <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+          <div>
+            <span style="color:var(--gold)">◇</span>
+            <span style="color:var(--text)">${c.mercado}</span>
+            <span style="color:var(--muted)"> · ${c.liga}</span>
+          </div>
+          <div>
+            <span style="color:var(--muted)">@${c.cuota}</span>
+            <span style="color:var(--text)"> $${c.monto}</span>
+            <span style="color:var(--muted)"> en ${c.casa}</span>
+          </div>
+        </div>`).join('')}`
+  } catch(e) { document.getElementById('ct-camuflaje').innerHTML='<span style="color:var(--red)">'+e+'</span>' }
+}
+
+async function loadAnalisisCuenta() {
+  try {
+    const d = await api('/api/cuentas/camuflaje/analizar')
+    const color = d.riesgo==='ALTO'?'var(--red)':d.riesgo==='MEDIO'?'var(--gold)':'var(--green)'
+    const alertas = d.alertas || []
+    const recs    = d.recomendaciones || []
+    document.getElementById('ct-analisis').innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div style="font-size:24px;font-weight:800;color:${color}">${d.score_riesgo||0}/100</div>
+        <div>
+          <div style="color:${color};font-weight:700">Riesgo ${d.riesgo||'BAJO'}</div>
+          <div style="color:var(--muted);font-size:10px">Score de exposición a limitaciones</div>
+        </div>
+      </div>
+      ${alertas.length ? alertas.map(a=>`
+        <div style="background:rgba(248,113,113,.05);border-left:3px solid var(--red);padding:6px 10px;margin-bottom:5px;border-radius:0 5px 5px 0">
+          <div style="color:var(--red);font-size:10px">${a.urgencia}</div>
+          <div style="color:var(--text);font-size:11px">${a.detalle}</div>
+        </div>`).join('') : '<div style="color:var(--green)">✓ Sin alertas de comportamiento</div>'}
+      ${recs.length ? '<div style="margin-top:8px;color:var(--muted)">'+recs.map(r=>'→ '+r).join('<br>')+'</div>' : ''}`
+  } catch(e) { document.getElementById('ct-analisis').innerHTML='<span style="color:var(--red)">'+e+'</span>' }
+}
+
+async function loadRotacion() {
+  const monto = document.getElementById('ct-monto-rot').value
+  try {
+    const d = await api(`/api/cuentas/rotacion?monto=${monto}`)
+    if (d.error) { document.getElementById('ct-rotacion').innerHTML='<span style="color:var(--muted)">'+d.error+'</span>'; return }
+    document.getElementById('ct-rotacion').innerHTML = `
+      <div style="color:var(--muted);font-size:10px;margin-bottom:8px">Total a apostar: <span style="color:var(--text)">$${d.total_a_apostar}</span> de $${d.monto_total}</div>
+      ${(d.distribucion||[]).map(c=>{
+        const color = c.estado==='verde'?'var(--green)':c.estado==='amarillo'?'var(--gold)':'var(--red)'
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
+          <div>
+            <span style="color:var(--text);font-weight:700">${c.casa}</span>
+            <span style="color:var(--muted)"> · Health ${c.health_score}/100</span>
+          </div>
+          <div>
+            <span style="color:${color};font-weight:700">$${c.monto}</span>
+            <span style="color:var(--muted)"> (${c.pct_del_total}%)</span>
+          </div>
+        </div>`}).join('')}`
+  } catch(e) { document.getElementById('ct-rotacion').innerHTML='<span style="color:var(--red)">'+e+'</span>' }
+}
+
 function conectarSSE() {
   const evtSource = new EventSource('/api/eventos')
   evtSource.onmessage = function(e) {
@@ -1177,7 +1453,173 @@ function mostrarToast(data) {
   setTimeout(() => toast.remove(), 6000)
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════
+// CUENTAS & CAMUFLAJE
+// ═══════════════════════════════════════════════════════════════════════
+async function loadCuentas() {
+  try {
+    const cuentas = await api('/api/cuentas/listar')
+    const activas = cuentas.filter(c => c.activa)
+    document.getElementById('ct-activas').textContent = activas.length
+    const avgHealth = activas.length ? Math.round(activas.reduce((s,c)=>s+(c.health_score||100),0)/activas.length) : 100
+    document.getElementById('ct-health').textContent = avgHealth + '/100'
+    const enRiesgo = activas.filter(c => (c.health_score||100) < 40).length
+    document.getElementById('ct-riesgo').textContent = enRiesgo
+
+    // Llenar selector de casas para reportar limitación
+    const sel = document.getElementById('ct-casa-lim')
+    sel.innerHTML = '<option value="">Selecciona la casa...</option>' +
+      activas.map(c => `<option value="${c.casa_key}">${c.nombre}</option>`).join('')
+
+    if (!activas.length) {
+      document.getElementById('ct-lista').innerHTML = '<span style="color:var(--muted)">Sin cuentas registradas. Agrega tu primera casa arriba.</span>'
+      return
+    }
+
+    document.getElementById('ct-lista').innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px">
+        ${activas.map(c => {
+          const color = c.estado==='verde'?'var(--green)':c.estado==='amarillo'?'var(--gold)':'var(--red)'
+          const icon  = c.estado==='verde'?'🟢':c.estado==='amarillo'?'🟡':'🔴'
+          return `<div style="background:var(--bg4);border:1px solid ${color}33;border-radius:8px;padding:12px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+              <span style="color:var(--text);font-weight:700">${icon} ${c.nombre}</span>
+              <span style="color:${color};font-size:10px">${c.health_score||100}/100</span>
+            </div>
+            <div style="color:var(--muted);font-size:10px">Tipo: ${c.tipo} · ${c.tolerancia||''}</div>
+            <div style="color:var(--muted);font-size:10px">Límite: $${c.limite_actual||0} (${c.pct_limite_restante||100}%)</div>
+            <div style="margin-top:6px;background:var(--bg3);border-radius:3px;height:4px">
+              <div style="background:${color};width:${c.health_score||100}%;height:4px;border-radius:3px"></div>
+            </div>
+          </div>`
+        }).join('')}
+      </div>`
+  } catch(e) {
+    document.getElementById('ct-lista').innerHTML = '<span style="color:var(--red)">Error: '+e+'</span>'
+  }
+}
+
+async function registrarCuenta() {
+  const casa_key = document.getElementById('ct-casa').value
+  const limite   = parseFloat(document.getElementById('ct-limite').value)
+  const balance  = parseFloat(document.getElementById('ct-balance').value||0)
+  const notas    = document.getElementById('ct-notas').value
+  if (!limite) { document.getElementById('ct-msg').textContent='Ingresa el límite máximo'; return }
+  try {
+    const r = await fetch('/api/cuentas/registrar',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({casa_key,limite_inicial:limite,balance,notas})})
+    const d = await r.json()
+    const msg = document.getElementById('ct-msg')
+    msg.textContent = d.error ? '❌ '+d.error : '✅ '+d.casa+' registrada con límite $'+d.limite
+    msg.style.color = d.error?'var(--red)':'var(--green)'
+    if (!d.error) loadCuentas()
+  } catch(e) { document.getElementById('ct-msg').textContent='❌ '+e }
+}
+
+async function reportarLimitacion() {
+  const casa_key    = document.getElementById('ct-casa-lim').value
+  const nuevo_limite = parseFloat(document.getElementById('ct-nuevo-lim').value)
+  const razon       = document.getElementById('ct-razon').value
+  if (!casa_key || !nuevo_limite) { document.getElementById('ct-lim-msg').textContent='Completa los campos'; return }
+  try {
+    const r = await fetch('/api/cuentas/limite',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({casa_key,nuevo_limite,razon})})
+    const d = await r.json()
+    const msg = document.getElementById('ct-lim-msg')
+    if (d.error) { msg.style.color='var(--red)'; msg.textContent='❌ '+d.error; return }
+    const color = d.nivel==='CRÍTICA'?'var(--red)':d.nivel==='MODERADA'?'var(--gold)':'var(--muted)'
+    msg.style.color = color
+    msg.textContent = `${d.nivel}: -${d.reduccion_pct}% en ${d.casa}. Health: ${d.health_score}/100`
+    document.getElementById('ct-analisis').innerHTML =
+      `<div style="color:${color};margin-bottom:6px">⚠️ ${d.recomendacion}</div>`
+    loadCuentas()
+  } catch(e) { document.getElementById('ct-lim-msg').textContent='❌ '+e }
+}
+
+async function loadCamuflaje() {
+  const perfil  = document.getElementById('ct-perfil-sel').value
+  const bankroll = document.getElementById('ct-bank').value
+  document.getElementById('ct-perfil').textContent = perfil.charAt(0).toUpperCase()+perfil.slice(1)
+  try {
+    const d = await api(`/api/cuentas/camuflaje/plan?perfil=${perfil}&bankroll=${bankroll}`)
+    const r = d.resumen || {}
+    const camuflajes = d.apuestas_camuflaje || []
+    document.getElementById('ct-camuflaje').innerHTML = `
+      <div style="background:rgba(124,109,250,.08);border:1px solid rgba(124,109,250,.2);border-radius:8px;padding:12px;margin-bottom:12px">
+        <div style="color:var(--purple2);font-weight:700;margin-bottom:6px">Plan Semana ${d.semana||''}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:11px">
+          <div>Sharp: <span style="color:var(--green)">${r.apuestas_sharp||0}</span></div>
+          <div>Camuflaje: <span style="color:var(--gold)">${r.apuestas_camuflaje||0}</span></div>
+          <div>Ratio: <span style="color:var(--text)">${r.ratio_real||''}</span></div>
+        </div>
+        <div style="color:var(--muted);font-size:10px;margin-top:6px">${d.advertencia||''}</div>
+        <div style="color:var(--muted);font-size:10px">Vida estimada de cuentas: ~${d.semanas_vida_estimada||0} semanas</div>
+      </div>
+      <div style="color:var(--text);margin-bottom:6px;font-weight:700">🎭 Apuestas de Camuflaje Sugeridas:</div>
+      ${camuflajes.map(c=>`
+        <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+          <div>
+            <span style="color:var(--gold)">◇</span>
+            <span style="color:var(--text)">${c.mercado}</span>
+            <span style="color:var(--muted)"> · ${c.liga}</span>
+          </div>
+          <div>
+            <span style="color:var(--muted)">@${c.cuota}</span>
+            <span style="color:var(--text)"> $${c.monto}</span>
+            <span style="color:var(--muted)"> en ${c.casa}</span>
+          </div>
+        </div>`).join('')}`
+  } catch(e) { document.getElementById('ct-camuflaje').innerHTML='<span style="color:var(--red)">'+e+'</span>' }
+}
+
+async function loadAnalisisCuenta() {
+  try {
+    const d = await api('/api/cuentas/camuflaje/analizar')
+    const color = d.riesgo==='ALTO'?'var(--red)':d.riesgo==='MEDIO'?'var(--gold)':'var(--green)'
+    const alertas = d.alertas || []
+    const recs    = d.recomendaciones || []
+    document.getElementById('ct-analisis').innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div style="font-size:24px;font-weight:800;color:${color}">${d.score_riesgo||0}/100</div>
+        <div>
+          <div style="color:${color};font-weight:700">Riesgo ${d.riesgo||'BAJO'}</div>
+          <div style="color:var(--muted);font-size:10px">Score de exposición a limitaciones</div>
+        </div>
+      </div>
+      ${alertas.length ? alertas.map(a=>`
+        <div style="background:rgba(248,113,113,.05);border-left:3px solid var(--red);padding:6px 10px;margin-bottom:5px;border-radius:0 5px 5px 0">
+          <div style="color:var(--red);font-size:10px">${a.urgencia}</div>
+          <div style="color:var(--text);font-size:11px">${a.detalle}</div>
+        </div>`).join('') : '<div style="color:var(--green)">✓ Sin alertas de comportamiento</div>'}
+      ${recs.length ? '<div style="margin-top:8px;color:var(--muted)">'+recs.map(r=>'→ '+r).join('<br>')+'</div>' : ''}`
+  } catch(e) { document.getElementById('ct-analisis').innerHTML='<span style="color:var(--red)">'+e+'</span>' }
+}
+
+async function loadRotacion() {
+  const monto = document.getElementById('ct-monto-rot').value
+  try {
+    const d = await api(`/api/cuentas/rotacion?monto=${monto}`)
+    if (d.error) { document.getElementById('ct-rotacion').innerHTML='<span style="color:var(--muted)">'+d.error+'</span>'; return }
+    document.getElementById('ct-rotacion').innerHTML = `
+      <div style="color:var(--muted);font-size:10px;margin-bottom:8px">Total a apostar: <span style="color:var(--text)">$${d.total_a_apostar}</span> de $${d.monto_total}</div>
+      ${(d.distribucion||[]).map(c=>{
+        const color = c.estado==='verde'?'var(--green)':c.estado==='amarillo'?'var(--gold)':'var(--red)'
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
+          <div>
+            <span style="color:var(--text);font-weight:700">${c.casa}</span>
+            <span style="color:var(--muted)"> · Health ${c.health_score}/100</span>
+          </div>
+          <div>
+            <span style="color:${color};font-weight:700">$${c.monto}</span>
+            <span style="color:var(--muted)"> (${c.pct_del_total}%)</span>
+          </div>
+        </div>`}).join('')}`
+  } catch(e) { document.getElementById('ct-rotacion').innerHTML='<span style="color:var(--red)">'+e+'</span>' }
+}
+
 conectarSSE()
+function conectarSSE() { /* ya definida arriba */ }
 async function initDashboard() {
   document.getElementById('dash-sub').textContent = 'cargando datos en tiempo real...'
 
@@ -1744,6 +2186,171 @@ function loadAlertas(target='alertas-feed') {
 // ═══════════════════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════════════════
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// CUENTAS & CAMUFLAJE
+// ═══════════════════════════════════════════════════════════════════════
+async function loadCuentas() {
+  try {
+    const cuentas = await api('/api/cuentas/listar')
+    const activas = cuentas.filter(c => c.activa)
+    document.getElementById('ct-activas').textContent = activas.length
+    const avgHealth = activas.length ? Math.round(activas.reduce((s,c)=>s+(c.health_score||100),0)/activas.length) : 100
+    document.getElementById('ct-health').textContent = avgHealth + '/100'
+    const enRiesgo = activas.filter(c => (c.health_score||100) < 40).length
+    document.getElementById('ct-riesgo').textContent = enRiesgo
+
+    // Llenar selector de casas para reportar limitación
+    const sel = document.getElementById('ct-casa-lim')
+    sel.innerHTML = '<option value="">Selecciona la casa...</option>' +
+      activas.map(c => `<option value="${c.casa_key}">${c.nombre}</option>`).join('')
+
+    if (!activas.length) {
+      document.getElementById('ct-lista').innerHTML = '<span style="color:var(--muted)">Sin cuentas registradas. Agrega tu primera casa arriba.</span>'
+      return
+    }
+
+    document.getElementById('ct-lista').innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px">
+        ${activas.map(c => {
+          const color = c.estado==='verde'?'var(--green)':c.estado==='amarillo'?'var(--gold)':'var(--red)'
+          const icon  = c.estado==='verde'?'🟢':c.estado==='amarillo'?'🟡':'🔴'
+          return `<div style="background:var(--bg4);border:1px solid ${color}33;border-radius:8px;padding:12px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+              <span style="color:var(--text);font-weight:700">${icon} ${c.nombre}</span>
+              <span style="color:${color};font-size:10px">${c.health_score||100}/100</span>
+            </div>
+            <div style="color:var(--muted);font-size:10px">Tipo: ${c.tipo} · ${c.tolerancia||''}</div>
+            <div style="color:var(--muted);font-size:10px">Límite: $${c.limite_actual||0} (${c.pct_limite_restante||100}%)</div>
+            <div style="margin-top:6px;background:var(--bg3);border-radius:3px;height:4px">
+              <div style="background:${color};width:${c.health_score||100}%;height:4px;border-radius:3px"></div>
+            </div>
+          </div>`
+        }).join('')}
+      </div>`
+  } catch(e) {
+    document.getElementById('ct-lista').innerHTML = '<span style="color:var(--red)">Error: '+e+'</span>'
+  }
+}
+
+async function registrarCuenta() {
+  const casa_key = document.getElementById('ct-casa').value
+  const limite   = parseFloat(document.getElementById('ct-limite').value)
+  const balance  = parseFloat(document.getElementById('ct-balance').value||0)
+  const notas    = document.getElementById('ct-notas').value
+  if (!limite) { document.getElementById('ct-msg').textContent='Ingresa el límite máximo'; return }
+  try {
+    const r = await fetch('/api/cuentas/registrar',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({casa_key,limite_inicial:limite,balance,notas})})
+    const d = await r.json()
+    const msg = document.getElementById('ct-msg')
+    msg.textContent = d.error ? '❌ '+d.error : '✅ '+d.casa+' registrada con límite $'+d.limite
+    msg.style.color = d.error?'var(--red)':'var(--green)'
+    if (!d.error) loadCuentas()
+  } catch(e) { document.getElementById('ct-msg').textContent='❌ '+e }
+}
+
+async function reportarLimitacion() {
+  const casa_key    = document.getElementById('ct-casa-lim').value
+  const nuevo_limite = parseFloat(document.getElementById('ct-nuevo-lim').value)
+  const razon       = document.getElementById('ct-razon').value
+  if (!casa_key || !nuevo_limite) { document.getElementById('ct-lim-msg').textContent='Completa los campos'; return }
+  try {
+    const r = await fetch('/api/cuentas/limite',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({casa_key,nuevo_limite,razon})})
+    const d = await r.json()
+    const msg = document.getElementById('ct-lim-msg')
+    if (d.error) { msg.style.color='var(--red)'; msg.textContent='❌ '+d.error; return }
+    const color = d.nivel==='CRÍTICA'?'var(--red)':d.nivel==='MODERADA'?'var(--gold)':'var(--muted)'
+    msg.style.color = color
+    msg.textContent = `${d.nivel}: -${d.reduccion_pct}% en ${d.casa}. Health: ${d.health_score}/100`
+    document.getElementById('ct-analisis').innerHTML =
+      `<div style="color:${color};margin-bottom:6px">⚠️ ${d.recomendacion}</div>`
+    loadCuentas()
+  } catch(e) { document.getElementById('ct-lim-msg').textContent='❌ '+e }
+}
+
+async function loadCamuflaje() {
+  const perfil  = document.getElementById('ct-perfil-sel').value
+  const bankroll = document.getElementById('ct-bank').value
+  document.getElementById('ct-perfil').textContent = perfil.charAt(0).toUpperCase()+perfil.slice(1)
+  try {
+    const d = await api(`/api/cuentas/camuflaje/plan?perfil=${perfil}&bankroll=${bankroll}`)
+    const r = d.resumen || {}
+    const camuflajes = d.apuestas_camuflaje || []
+    document.getElementById('ct-camuflaje').innerHTML = `
+      <div style="background:rgba(124,109,250,.08);border:1px solid rgba(124,109,250,.2);border-radius:8px;padding:12px;margin-bottom:12px">
+        <div style="color:var(--purple2);font-weight:700;margin-bottom:6px">Plan Semana ${d.semana||''}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:11px">
+          <div>Sharp: <span style="color:var(--green)">${r.apuestas_sharp||0}</span></div>
+          <div>Camuflaje: <span style="color:var(--gold)">${r.apuestas_camuflaje||0}</span></div>
+          <div>Ratio: <span style="color:var(--text)">${r.ratio_real||''}</span></div>
+        </div>
+        <div style="color:var(--muted);font-size:10px;margin-top:6px">${d.advertencia||''}</div>
+        <div style="color:var(--muted);font-size:10px">Vida estimada de cuentas: ~${d.semanas_vida_estimada||0} semanas</div>
+      </div>
+      <div style="color:var(--text);margin-bottom:6px;font-weight:700">🎭 Apuestas de Camuflaje Sugeridas:</div>
+      ${camuflajes.map(c=>`
+        <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+          <div>
+            <span style="color:var(--gold)">◇</span>
+            <span style="color:var(--text)">${c.mercado}</span>
+            <span style="color:var(--muted)"> · ${c.liga}</span>
+          </div>
+          <div>
+            <span style="color:var(--muted)">@${c.cuota}</span>
+            <span style="color:var(--text)"> $${c.monto}</span>
+            <span style="color:var(--muted)"> en ${c.casa}</span>
+          </div>
+        </div>`).join('')}`
+  } catch(e) { document.getElementById('ct-camuflaje').innerHTML='<span style="color:var(--red)">'+e+'</span>' }
+}
+
+async function loadAnalisisCuenta() {
+  try {
+    const d = await api('/api/cuentas/camuflaje/analizar')
+    const color = d.riesgo==='ALTO'?'var(--red)':d.riesgo==='MEDIO'?'var(--gold)':'var(--green)'
+    const alertas = d.alertas || []
+    const recs    = d.recomendaciones || []
+    document.getElementById('ct-analisis').innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div style="font-size:24px;font-weight:800;color:${color}">${d.score_riesgo||0}/100</div>
+        <div>
+          <div style="color:${color};font-weight:700">Riesgo ${d.riesgo||'BAJO'}</div>
+          <div style="color:var(--muted);font-size:10px">Score de exposición a limitaciones</div>
+        </div>
+      </div>
+      ${alertas.length ? alertas.map(a=>`
+        <div style="background:rgba(248,113,113,.05);border-left:3px solid var(--red);padding:6px 10px;margin-bottom:5px;border-radius:0 5px 5px 0">
+          <div style="color:var(--red);font-size:10px">${a.urgencia}</div>
+          <div style="color:var(--text);font-size:11px">${a.detalle}</div>
+        </div>`).join('') : '<div style="color:var(--green)">✓ Sin alertas de comportamiento</div>'}
+      ${recs.length ? '<div style="margin-top:8px;color:var(--muted)">'+recs.map(r=>'→ '+r).join('<br>')+'</div>' : ''}`
+  } catch(e) { document.getElementById('ct-analisis').innerHTML='<span style="color:var(--red)">'+e+'</span>' }
+}
+
+async function loadRotacion() {
+  const monto = document.getElementById('ct-monto-rot').value
+  try {
+    const d = await api(`/api/cuentas/rotacion?monto=${monto}`)
+    if (d.error) { document.getElementById('ct-rotacion').innerHTML='<span style="color:var(--muted)">'+d.error+'</span>'; return }
+    document.getElementById('ct-rotacion').innerHTML = `
+      <div style="color:var(--muted);font-size:10px;margin-bottom:8px">Total a apostar: <span style="color:var(--text)">$${d.total_a_apostar}</span> de $${d.monto_total}</div>
+      ${(d.distribucion||[]).map(c=>{
+        const color = c.estado==='verde'?'var(--green)':c.estado==='amarillo'?'var(--gold)':'var(--red)'
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
+          <div>
+            <span style="color:var(--text);font-weight:700">${c.casa}</span>
+            <span style="color:var(--muted)"> · Health ${c.health_score}/100</span>
+          </div>
+          <div>
+            <span style="color:${color};font-weight:700">$${c.monto}</span>
+            <span style="color:var(--muted)"> (${c.pct_del_total}%)</span>
+          </div>
+        </div>`}).join('')}`
+  } catch(e) { document.getElementById('ct-rotacion').innerHTML='<span style="color:var(--red)">'+e+'</span>' }
+}
 
 conectarSSE()
 initDashboard()

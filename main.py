@@ -14,16 +14,22 @@ from routers.bankroll_router import bankroll_bp
 from routers.mercados_router import mercados_bp
 from routers.ml_router import ml_bp, ligas_bp, predicciones_bp
 from routers.progol_optimizer_router import progol_opt_bp
+from routers.accounts_router import accounts_bp
 
 logging.basicConfig(level=logging.INFO)
 app = Flask(__name__)
 
 # ── Blueprints ─────────────────────────────────────────────────────────────────
-for bp in [auth_bp, telegram_bp, bankroll_bp, mercados_bp, ml_bp, ligas_bp, predicciones_bp, progol_opt_bp]:
+for bp in [auth_bp, telegram_bp, bankroll_bp, mercados_bp, ml_bp, ligas_bp, predicciones_bp, progol_opt_bp, accounts_bp]:
     app.register_blueprint(bp)
 
 # ── Base de datos ──────────────────────────────────────────────────────────────
 init_db()
+from services.account_manager import init_account_tables
+try:
+    init_account_tables()
+except Exception as e:
+    logging.warning("account_tables init: %s", e)
 
 # ── SSE — cola de eventos en tiempo real ──────────────────────────────────────
 _sse_clients: list[queue.Queue] = []
