@@ -23,8 +23,17 @@ def registrar():
 @accounts_bp.route("/listar")
 @login_required
 def listar():
-    from services.account_manager import listar_cuentas
-    return jsonify(listar_cuentas())
+    try:
+        from services.account_manager import listar_cuentas, init_account_tables
+        try:
+            init_account_tables()
+        except Exception:
+            pass
+        return jsonify(listar_cuentas())
+    except Exception as e:
+        import traceback, logging
+        logging.error("Error en /listar cuentas: %s", traceback.format_exc())
+        return jsonify({"error": str(e), "cuentas": []}), 200
 
 
 @accounts_bp.route("/health/<casa_key>")

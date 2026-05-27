@@ -32,52 +32,18 @@ CASAS_CATALOGO = {
 # ── Inicializar tablas ────────────────────────────────────────────────────────
 
 def init_account_tables() -> None:
-    """Crea tablas de gestión de cuentas."""
+    """Crea tablas de gestión de cuentas — compatible con PostgreSQL y SQLite."""
     USE_PG = bool(os.getenv("DATABASE_URL", ""))
-    with db() as conn:
-        if USE_PG:
-            conn.cursor().execute("""
-            CREATE TABLE IF NOT EXISTS bookmaker_accounts (
-                id            SERIAL PRIMARY KEY,
-                created_at    TIMESTAMP DEFAULT NOW(),
-                casa_key      TEXT NOT NULL UNIQUE,
-                nombre        TEXT NOT NULL,
-                tipo          TEXT DEFAULT 'soft',
-                activa        INTEGER DEFAULT 1,
-                limite_actual REAL DEFAULT 0,
-                limite_inicial REAL DEFAULT 0,
-                balance       REAL DEFAULT 0,
-                notas         TEXT,
-                ultima_apuesta TEXT,
-                health_score  INTEGER DEFAULT 100
-            );
-            CREATE TABLE IF NOT EXISTS account_bets (
-                id          SERIAL PRIMARY KEY,
-                created_at  TIMESTAMP DEFAULT NOW(),
-                casa_key    TEXT NOT NULL,
-                partido     TEXT,
-                mercado     TEXT,
-                seleccion   TEXT,
-                cuota       REAL,
-                monto       REAL,
-                tipo_apuesta TEXT DEFAULT 'sharp',
-                resultado   TEXT DEFAULT 'pendiente',
-                ganancia    REAL DEFAULT 0
-            );
-            CREATE TABLE IF NOT EXISTS limit_history (
-                id         SERIAL PRIMARY KEY,
-                fecha      TIMESTAMP DEFAULT NOW(),
-                casa_key   TEXT NOT NULL,
-                limite_ant REAL,
-                limite_nuevo REAL,
-                razon      TEXT
-            );
-            """)
-        else:
-            conn.execute("""
-            CREATE TABLE IF NOT EXISTS bookmaker_accounts (
-                id             INTEGER PRIMARY KEY AUTOINCREMENT,
-                created_at     TEXT DEFAULT (datetime('now')),
+    if USE_PG:
+        # PostgreSQL: usar conexión directa con autocommit para DDL
+        import psycopg2
+        conn = psycopg2.connect(os.getenv("DATABASE_URL"), sslmode="require")
+        conn.autocommit = True
+        cur = conn.cursor()
+        ddl_statements = [
+            """CREATE TABLE IF NOT EXISTS bookmaker_accounts (
+                id             SERIAL PRIMARY KEY,
+                created_at     TIMESTAMP DEFAULT NOW(),
                 casa_key       TEXT NOT NULL UNIQUE,
                 nombre         TEXT NOT NULL,
                 tipo           TEXT DEFAULT 'soft',
@@ -88,11 +54,10 @@ def init_account_tables() -> None:
                 notas          TEXT,
                 ultima_apuesta TEXT,
                 health_score   INTEGER DEFAULT 100
-            )""")
-            conn.execute("""
-            CREATE TABLE IF NOT EXISTS account_bets (
-                id           INTEGER PRIMARY KEY AUTOINCREMENT,
-                created_at   TEXT DEFAULT (datetime('now')),
+            )""",
+            """CREATE TABLE IF NOT EXISTS account_bets (
+                id           SERIAL PRIMARY KEY,
+                created_at   TIMESTAMP DEFAULT NOW(),
                 casa_key     TEXT NOT NULL,
                 partido      TEXT,
                 mercado      TEXT,
@@ -102,16 +67,63 @@ def init_account_tables() -> None:
                 tipo_apuesta TEXT DEFAULT 'sharp',
                 resultado    TEXT DEFAULT 'pendiente',
                 ganancia     REAL DEFAULT 0
-            )""")
-            conn.execute("""
-            CREATE TABLE IF NOT EXISTS limit_history (
-                id           INTEGER PRIMARY KEY AUTOINCREMENT,
-                fecha        TEXT DEFAULT (datetime('now')),
+            )""",
+            """CREATE TABLE IF NOT EXISTS limit_history (
+                id           SERIAL PRIMARY KEY,
+                fecha        TIMESTAMP DEFAULT NOW(),
                 casa_key     TEXT NOT NULL,
                 limite_ant   REAL,
                 limite_nuevo REAL,
                 razon        TEXT
-            )""")
+            )""",
+        ]
+        for stmt in ddl_statements:
+            cur.execute(stmt)
+        cur.close()
+        conn.close()
+    else:
+        # SQLite
+        import sqlite3
+        conn = sqlite3.connect(os.getenv("DB_PATH", "apuestaspro.db"))
+        conn.executescript("""
+        CREATE TABLE IF NOT EXISTS bookmaker_accounts (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at     TEXT DEFAULT (datetime('now')),
+            casa_key       TEXT NOT NULL UNIQUE,
+            nombre         TEXT NOT NULL,
+            tipo           TEXT DEFAULT 'soft',
+            activa         INTEGER DEFAULT 1,
+            limite_actual  REAL DEFAULT 0,
+            limite_inicial REAL DEFAULT 0,
+            balance        REAL DEFAULT 0,
+            notas          TEXT,
+            ultima_apuesta TEXT,
+            health_score   INTEGER DEFAULT 100
+        );
+        CREATE TABLE IF NOT EXISTS account_bets (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at   TEXT DEFAULT (datetime('now')),
+            casa_key     TEXT NOT NULL,
+            partido      TEXT,
+            mercado      TEXT,
+            seleccion    TEXT,
+            cuota        REAL,
+            monto        REAL,
+            tipo_apuesta TEXT DEFAULT 'sharp',
+            resultado    TEXT DEFAULT 'pendiente',
+            ganancia     REAL DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS limit_history (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            fecha        TEXT DEFAULT (datetime('now')),
+            casa_key     TEXT NOT NULL,
+            limite_ant   REAL,
+            limite_nuevo REAL,
+            razon        TEXT
+        );
+        """)
+        conn.commit()
+        conn.close()
 
 
 # ── CRUD de cuentas ───────────────────────────────────────────────────────────

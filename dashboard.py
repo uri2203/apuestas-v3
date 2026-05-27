@@ -1261,7 +1261,8 @@ async function loadLiga(ligaKey) {
 // ═══════════════════════════════════════════════════════════════════════
 async function loadCuentas() {
   try {
-    const cuentas = await api('/api/cuentas/listar')
+    const resp = await api('/api/cuentas/listar')
+    const cuentas = Array.isArray(resp) ? resp : (resp.cuentas || [])
     const activas = cuentas.filter(c => c.activa)
     document.getElementById('ct-activas').textContent = activas.length
     const avgHealth = activas.length ? Math.round(activas.reduce((s,c)=>s+(c.health_score||100),0)/activas.length) : 100
@@ -1459,7 +1460,8 @@ function mostrarToast(data) {
 // ═══════════════════════════════════════════════════════════════════════
 async function loadCuentas() {
   try {
-    const cuentas = await api('/api/cuentas/listar')
+    const resp = await api('/api/cuentas/listar')
+    const cuentas = Array.isArray(resp) ? resp : (resp.cuentas || [])
     const activas = cuentas.filter(c => c.activa)
     document.getElementById('ct-activas').textContent = activas.length
     const avgHealth = activas.length ? Math.round(activas.reduce((s,c)=>s+(c.health_score||100),0)/activas.length) : 100
@@ -2193,7 +2195,8 @@ function loadAlertas(target='alertas-feed') {
 // ═══════════════════════════════════════════════════════════════════════
 async function loadCuentas() {
   try {
-    const cuentas = await api('/api/cuentas/listar')
+    const resp = await api('/api/cuentas/listar')
+    const cuentas = Array.isArray(resp) ? resp : (resp.cuentas || [])
     const activas = cuentas.filter(c => c.activa)
     document.getElementById('ct-activas').textContent = activas.length
     const avgHealth = activas.length ? Math.round(activas.reduce((s,c)=>s+(c.health_score||100),0)/activas.length) : 100
