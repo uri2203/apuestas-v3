@@ -270,7 +270,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
     <div class="sc"><div class="sc-glow" style="background:var(--purple)"></div><div class="sc-lbl">Sorteos Melate analizados</div><div class="sc-val" style="color:var(--purple2)">3,847</div><div class="sc-sub">Desde 1996 — histórico completo</div></div>
     <div class="sc"><div class="sc-glow" style="background:var(--green)"></div><div class="sc-lbl">Número más caliente</div><div class="sc-val" style="color:var(--gold)" id="d-hot">—</div><div class="sc-sub" id="d-hot-s">cargando API...</div></div>
     <div class="sc"><div class="sc-glow" style="background:var(--teal)"></div><div class="sc-lbl">Número más frío</div><div class="sc-val" style="color:var(--teal)" id="d-cold">—</div><div class="sc-sub" id="d-cold-s">cargando API...</div></div>
-    <div class="sc"><div class="sc-glow" style="background:var(--gold)"></div><div class="sc-lbl">Value bets activos</div><div class="sc-val" style="color:var(--green)">4</div><div class="sc-sub">Edge promedio +6.8%</div></div>
+    <div class="sc"><div class="sc-glow" style="background:var(--gold)"></div><div class="sc-lbl">Value bets activos</div><div class="sc-val" style="color:var(--green)" id="dash-vb-count">—</div><div class="sc-sub" id="dash-vb-edge">cargando...</div></div>
   </div>
   <div class="g2">
     <div class="panel">
@@ -639,7 +639,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
   <div class="ph"><div class="ph-title">Alertas</div><div class="ph-sub">value bets · sharp money · lesiones · rachas · sorteos — en tiempo real</div></div>
   <div class="sg">
     <div class="sc"><div class="sc-glow" style="background:var(--gold)"></div><div class="sc-lbl">Urgentes</div><div class="sc-val" style="color:var(--gold)">4</div><div class="sc-sub">Acción inmediata</div></div>
-    <div class="sc"><div class="sc-glow" style="background:var(--green)"></div><div class="sc-lbl">Value bets</div><div class="sc-val" style="color:var(--green)">4</div><div class="sc-sub">Edge prom +6.8%</div></div>
+    <div class="sc"><div class="sc-glow" style="background:var(--green)"></div><div class="sc-lbl">Value bets</div><div class="sc-val" style="color:var(--green)" id="vb-count2">—</div><div class="sc-sub" id="vb-edge2">cargando...</div></div>
     <div class="sc"><div class="sc-glow" style="background:var(--purple)"></div><div class="sc-lbl">Sharp moves</div><div class="sc-val" style="color:var(--purple2)">3</div><div class="sc-sub">Últimas 2 horas</div></div>
     <div class="sc"><div class="sc-glow" style="background:var(--teal)"></div><div class="sc-lbl">Próximo sorteo</div><div class="sc-val" style="color:var(--teal)">Hoy</div><div class="sc-sub">Melate 21:00 CDMX</div></div>
   </div>
@@ -1678,23 +1678,36 @@ async function initDashboard() {
     document.getElementById('dash-progol').innerHTML = '<p style="color:var(--red);padding:12px;font-size:11px;font-family:var(--mono)">Error al cargar jornada: ' + e + '</p>'
   }
 
-  // Value bets mini
+  // Value bets mini + tarjeta superior
   try {
     const v = await api('/api/odds/value-bets?edge_minimo=2')
-    if (v.error) {
+    const vbs = v.value_bets || []
+    // Actualizar tarjeta superior con datos reales
+    const cnt = document.getElementById('dash-vb-count')
+    const edg = document.getElementById('dash-vb-edge')
+    if (cnt) cnt.textContent = vbs.length
+    if (edg) {
+      if (v.error || v.es_demo) edg.textContent = 'sin API'
+      else if (!vbs.length) edg.textContent = 'sin edge ahora'
+      else edg.textContent = `Edge prom +${(vbs.reduce((s,x)=>s+x.edge_porcentaje,0)/vbs.length).toFixed(1)}%`
+    }
+    // Lista mini
+    if (v.error || v.es_demo) {
       document.getElementById('dash-vb').innerHTML = `<p style="color:var(--gold);padding:12px;font-size:11px;font-family:var(--mono)">${v.aviso || v.error}</p>`
-    } else if (!v.value_bets || !v.value_bets.length) {
-      document.getElementById('dash-vb').innerHTML = '<p style="color:var(--muted);padding:12px;font-size:11px;font-family:var(--mono)">Sin value bets con edge >= 2% en este momento</p>'
+    } else if (!vbs.length) {
+      document.getElementById('dash-vb').innerHTML = '<p style="color:var(--muted);padding:12px;font-size:11px;font-family:var(--mono)">Sin value bets con edge &gt;= 2% en este momento</p>'
     } else {
-      const rows = v.value_bets.slice(0,4).map(d => `
+      const rows = vbs.slice(0,4).map(d => `
         <div class="mm">
           <div><div class="mm-l" style="font-size:11px;color:var(--text)">${d.partido}</div>
-          <div style="font-size:10px;color:var(--muted)">${d.resultado} · ${d.casa}</div></div>
+          <div style="font-size:10px;color:var(--muted)">${d.resultado} &middot; ${d.casa}</div></div>
           <span class="badge ${d.edge_porcentaje>7?'bs2':'bv'}">+${d.edge_porcentaje}%</span>
         </div>`).join('')
       document.getElementById('dash-vb').innerHTML = `<div class="pb">${rows}</div>`
     }
   } catch(e) {
+    const cnt = document.getElementById('dash-vb-count')
+    if (cnt) cnt.textContent = '0'
     document.getElementById('dash-vb').innerHTML = '<p style="color:var(--red);padding:12px;font-size:11px;font-family:var(--mono)">Error: ' + e + '</p>'
   }
 
@@ -1943,8 +1956,11 @@ async function loadVB() {
     }
 
     const vbs = d.value_bets || []
+    const edgeTxt = vbs.length ? `Edge prom +${(vbs.reduce((s,v)=>s+v.edge_porcentaje,0)/vbs.length).toFixed(1)}%` : 'sin edge'
     document.getElementById('vb-count').textContent = vbs.length
-    document.getElementById('vb-edge').textContent  = vbs.length ? `Edge prom +${(vbs.reduce((s,v)=>s+v.edge_porcentaje,0)/vbs.length).toFixed(1)}%` : 'sin edge'
+    document.getElementById('vb-edge').textContent  = edgeTxt
+    const c2 = document.getElementById('vb-count2'); if (c2) c2.textContent = vbs.length
+    const e2 = document.getElementById('vb-edge2'); if (e2) e2.textContent = edgeTxt
     document.getElementById('vb-best').textContent  = vbs.length ? `+${Math.max(...vbs.map(v=>v.edge_porcentaje))}%` : '—'
 
     if (!vbs.length) {
