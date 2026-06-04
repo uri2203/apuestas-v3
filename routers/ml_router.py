@@ -151,37 +151,50 @@ def proximos_partidos():
 @ligas_bp.route("/predicciones-liga")
 @login_required
 def predicciones_liga():
-    """Predicciones para los próximos partidos de una liga."""
-    from services.progol import predecir_partido, HISTORIAL_DEMO
+    """Predicciones para los próximos partidos de una liga (datos reales TheSportsDB)."""
+    from services.progol import predecir_partido_liga
     liga_key = request.args.get("liga", "liga_mx")
-    api_key  = os.getenv("API_FOOTBALL_KEY", "")
 
     liga_info = LIGAS_DISPONIBLES.get(liga_key)
     if not liga_info:
-        return jsonify({"error": f"Liga no encontrada"}), 400
+        return jsonify({"error": "Liga no encontrada"}), 400
 
-    partidos_futuros = []
-    if api_key:
-        try:
-            from services.api_football import get_upcoming_fixtures
-            partidos_futuros = get_upcoming_fixtures(liga_info["id"], 7, api_key)
-        except Exception:
-            pass
+    # Obtener partidos y entrenar modelo con datos reales de TheSportsDB
+    try:
+        from services import sportsdb
+        partidos_futuros = sportsdb.get_next_events(liga_key)
+        historial = sportsdb.historial_por_liga(liga_key)
+    except Exception as e:
+        return jsonify({"error": f"Error obteniendo datos: {e}", "liga": liga_info})
 
     if not partidos_futuros:
-        return jsonify({"error": "Sin API_FOOTBALL_KEY o sin partidos próximos", "liga": liga_info})
+        # Mostrar ranking de la liga si no hay partidos
+        ranking = []
+        if historial:
+            try:
+                from models.elo import ELOModel
+                elo = ELOModel(); elo.update(historial)
+                ranking = [{"equipo": k, "elo": round(v)} for k, v in
+                           sorted(elo.ratings.items(), key=lambda x: -x[1])[:18]]
+            except Exception:
+                pass
+        return jsonify({
+            "liga": liga_info, "predicciones": [], "total": 0,
+            "en_receso": True, "ranking_elo": ranking,
+            "partidos_entrenamiento": len(historial),
+            "aviso": f"{liga_info['nombre']} sin partidos próximos. Ranking actualizado con {len(historial)} partidos reales.",
+        })
 
+    # Entrenar modelo con el historial de esta liga
     predicciones = []
-    for p in partidos_futuros[:10]:
+    for p in partidos_futuros[:12]:
         home, away = p.get("home", ""), p.get("away", "")
         if not home or not away:
             continue
         try:
-            pred = predecir_partido(home, away)
+            pred = predecir_partido_liga(home, away, historial)
             predicciones.append({
-                "home":           home,
-                "away":           away,
-                "fecha":          p.get("fecha", ""),
+                "home": home, "away": away, "fecha": p.get("fecha", ""),
                 "pronostico":     pred["pronostico"],
                 "confianza_pct":  pred["confianza_pct"],
                 "prob_local":     pred["local"],
@@ -195,7 +208,10 @@ def predicciones_liga():
         "liga":         liga_info,
         "predicciones": predicciones,
         "total":        len(predicciones),
-        "modelo":       "Ensemble (Dixon-Coles + ELO + Poisson)",
+        "partidos_entrenamiento": len(historial),
+        "usa_datos_reales": True,
+        "fuente": "TheSportsDB (temporada actual)",
+        "modelo": "Ensemble (Dixon-Coles + ELO + Poisson)",
     })
 
 

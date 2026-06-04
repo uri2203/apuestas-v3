@@ -1233,22 +1233,37 @@ async function loadML() {
 // ═══════════════════════════════════════════════════════════════════════
 async function loadLiga(ligaKey) {
   document.getElementById('ligas-panel').style.display='block'
-  document.getElementById('ligas-res').innerHTML='Cargando predicciones...'
+  document.getElementById('ligas-res').innerHTML='Cargando datos reales...'
   document.querySelectorAll('.liga-btn').forEach(b=>b.style.opacity='0.6')
   try {
     const d = await api('/api/ligas/predicciones-liga?liga='+ligaKey)
-    if (d.error) { document.getElementById('ligas-res').innerHTML='<span style="color:var(--muted)">'+d.error+'</span>'; return }
     document.getElementById('ligas-title').textContent = (d.liga||{}).nombre||ligaKey
-    document.getElementById('ligas-badge').textContent = (d.predicciones||[]).length+' partidos'
-    document.getElementById('ligas-res').innerHTML = (d.predicciones||[]).length ? 
-      (d.predicciones||[]).map(p=>`
+    const preds = d.predicciones || []
+
+    // Con partidos → mostrar predicciones
+    if (preds.length) {
+      document.getElementById('ligas-badge').textContent = preds.length+' partidos'
+      const fuente = d.usa_datos_reales ? `<div style="font-size:10px;font-family:var(--mono);color:var(--green);margin-bottom:8px">&#10003; ${d.fuente} · ${d.partidos_entrenamiento} partidos de entrenamiento</div>` : ''
+      document.getElementById('ligas-res').innerHTML = fuente + preds.map(p=>`
         <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border)">
           <span style="color:var(--text)">${p.home} <span style="color:var(--muted)">vs</span> ${p.away}</span>
           <div style="display:flex;gap:8px;align-items:center">
-            <span style="color:var(--muted);font-size:10px">${((p.prob_local||0)*100).toFixed(0)}%·${((p.prob_empate||0)*100).toFixed(0)}%·${((p.prob_visitante||0)*100).toFixed(0)}%</span>
+            <span style="color:var(--muted);font-size:10px">${((p.prob_local||0)*100).toFixed(0)}%&middot;${((p.prob_empate||0)*100).toFixed(0)}%&middot;${((p.prob_visitante||0)*100).toFixed(0)}%</span>
             <span style="background:${p.confianza_pct>55?'rgba(52,211,153,.15)':'rgba(124,109,250,.1)'};color:${p.confianza_pct>55?'var(--green)':'var(--purple2)'};padding:3px 10px;border-radius:4px;font-family:var(--mono);font-size:11px;font-weight:700">[${p.pronostico}] ${p.confianza_pct}%</span>
           </div>
-        </div>`).join('') : '<span style="color:var(--muted)">Sin partidos próximos (requiere API_FOOTBALL_KEY)</span>'
+        </div>`).join('')
+      return
+    }
+
+    // Sin partidos → mostrar ranking ELO si existe
+    document.getElementById('ligas-badge').textContent = 'receso'
+    const rank = d.ranking_elo || []
+    let html = `<div style="font-size:11px;font-family:var(--mono);color:var(--gold);margin-bottom:10px;line-height:1.5">${d.aviso || 'Sin partidos próximos'}</div>`
+    if (rank.length) {
+      html += '<div style="font-size:10px;font-family:var(--mono);color:var(--purple2);margin-bottom:6px;font-weight:700">RANKING ELO ACTUAL</div>'
+      html += rank.map((e,i)=>`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:11px"><span style="color:var(--text)">${i+1}. ${e.equipo}</span><span style="color:var(--purple2);font-weight:700">${e.elo}</span></div>`).join('')
+    }
+    document.getElementById('ligas-res').innerHTML = html
   } catch(e) { document.getElementById('ligas-res').innerHTML='<span style="color:var(--red)">'+e+'</span>' }
 }
 

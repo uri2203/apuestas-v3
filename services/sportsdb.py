@@ -216,3 +216,43 @@ def diagnostico() -> dict:
         result["historial_error"] = str(e)[:150]
 
     return result
+
+
+def liga_activa_actual() -> dict:
+    """
+    Detecta automáticamente qué liga tiene partidos próximos.
+    Prioriza Liga MX; si está en receso, busca otras ligas activas.
+    Retorna {liga_key, nombre, next_events, en_receso}.
+    """
+    # Orden de preferencia: Liga MX primero, luego las que juegan todo el año / verano
+    prioridad = [
+        ("liga_mx",          "Liga MX"),
+        ("mls",              "MLS"),              # juega abr-oct (verano)
+        ("premier_league",   "Premier League"),  # ago-may
+        ("la_liga",          "La Liga"),
+        ("serie_a",          "Serie A"),
+        ("champions_league", "Champions League"),
+        ("bundesliga",       "Bundesliga"),
+        ("ligue_1",          "Ligue 1"),
+    ]
+    for liga_key, nombre in prioridad:
+        try:
+            nxt = get_next_events(liga_key)
+            if nxt:
+                return {
+                    "liga_key":    liga_key,
+                    "nombre":      nombre,
+                    "next_events": len(nxt),
+                    "partidos":    nxt,
+                    "en_receso":   False,
+                }
+        except Exception:
+            continue
+    # Ninguna liga con partidos próximos
+    return {"liga_key": "liga_mx", "nombre": "Liga MX", "next_events": 0,
+            "partidos": [], "en_receso": True}
+
+
+def historial_por_liga(liga_key: str = "liga_mx") -> list:
+    """Historial de entrenamiento para una liga específica."""
+    return get_historial_entrenamiento(liga_key)

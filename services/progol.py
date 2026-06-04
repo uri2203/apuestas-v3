@@ -66,6 +66,30 @@ def _get_modelo(partidos=None):
     return _modelo
 
 
+
+def predecir_partido_liga(home, away, historial_liga):
+    """
+    Predicción para un partido de cualquier liga, entrenando el ensemble
+    con el historial específico de esa liga (no usa el cache global).
+    """
+    from models.ensemble import EnsembleModel
+    datos = historial_liga or HISTORIAL_DEMO
+    modelo = EnsembleModel()
+    modelo.fit(datos)
+    pred = modelo.predict(home, away)
+    probs = [pred["local"], pred["empate"], pred["visitante"]]
+    max_p = max(probs)
+    idx = probs.index(max_p)
+    pred["pronostico"]    = ["1", "X", "2"][idx]
+    pred["confianza_pct"] = round(max_p * 100, 1)
+    pred["clasificacion"] = (
+        "Alta confianza"  if max_p > 0.55 else
+        "Media confianza" if max_p > 0.42 else
+        "Partido disputado"
+    )
+    return pred
+
+
 def predecir_partido(home, away, xg_home=None, xg_away=None, historial=None,
                      lesiones_local=None, lesiones_visitante=None,
                      arbitro=None, ciudad=None, pos_local=9, pos_visitante=9,
@@ -167,18 +191,25 @@ def generar_jornada_progol(api_key=""):
     historial        = []
     xg_map           = {}
     fuente_datos     = "demo"
+    liga_nombre      = "Liga MX"
+    liga_key_activa  = "liga_mx"
 
-    # ── FUENTE 1: TheSportsDB (gratis, temporada ACTUAL) ──────────────────────
+    # ── Detectar liga activa automáticamente (Liga MX o la que esté jugando) ──
     try:
         from services import sportsdb
-        historial = sportsdb.get_historial_entrenamiento("liga_mx")
-        partidos_futuros = sportsdb.get_next_events("liga_mx")
+        activa = sportsdb.liga_activa_actual()
+        liga_key_activa = activa["liga_key"]
+        liga_nombre     = activa["nombre"]
+        partidos_futuros = activa.get("partidos", [])
+
+        # Entrenar con el historial de ESA liga activa
+        historial = sportsdb.historial_por_liga(liga_key_activa)
         if historial or partidos_futuros:
-            fuente_datos = "TheSportsDB (temporada actual)"
+            fuente_datos = f"TheSportsDB · {liga_nombre} (temporada actual)"
     except Exception as e:
         import logging; logging.warning("SportsDB falló: %s", e)
 
-    # ── FUENTE 2: API-Football para historial (temporada 2024 plan free) ──────
+    # ── Respaldo: API-Football para historial Liga MX ─────────────────────────
     if not historial and api_key:
         try:
             historial = get_fixtures_liga(LIGAS["liga_mx"], None, api_key)
@@ -187,20 +218,19 @@ def generar_jornada_progol(api_key=""):
         except Exception:
             pass
 
-    # ── FUENTE 3: Odds API para próximos partidos ─────────────────────────────
+    # ── Respaldo: Odds API para próximos partidos ─────────────────────────────
     if not partidos_futuros:
         partidos_futuros = _upcoming_desde_odds()
-        if partidos_futuros and fuente_datos == "demo":
+        if partidos_futuros and "demo" in fuente_datos:
             fuente_datos = "The Odds API"
 
-    # ── Fallback final: demo solo para entrenar el modelo ─────────────────────
+    # ── Fallback final: demo solo para entrenar ───────────────────────────────
     if not historial:
         historial = HISTORIAL_DEMO
 
     # Sin partidos próximos — Liga MX en receso. Mostrar ranking actual + info útil
     _usando_demo_partidos = not bool(partidos_futuros)
     if not partidos_futuros:
-        # Entrenar el modelo igual para mostrar el ranking actualizado
         modelo_receso = _get_modelo(historial)
         ranking = modelo_receso.ranking_elo()[:18] if historial else []
         return {
@@ -209,13 +239,13 @@ def generar_jornada_progol(api_key=""):
             "en_receso": True,
             "usa_datos_reales": True,
             "fuente_partidos": fuente_datos,
+            "liga_activa": liga_nombre,
             "partidos_entrenamiento": len(historial),
             "modelo": "Ensemble (Dixon-Coles 50% + ELO 30% + Poisson 20%)",
             "ranking_elo": ranking,
-            "aviso": ("Liga MX está en receso entre torneos. El Apertura 2026 "
-                      "inicia en julio. El modelo ya está entrenado con "
-                      f"{len(historial)} partidos reales de la temporada — "
-                      "el ranking ELO de abajo está actualizado y listo para cuando regrese la liga."),
+            "aviso": (f"No hay partidos próximos en {liga_nombre} ni otras ligas principales "
+                      f"en este momento (posible receso general). El modelo está entrenado con "
+                      f"{len(historial)} partidos reales — el ranking ELO de abajo está actualizado."),
         }
 
     modelo = _get_modelo(historial)
@@ -256,7 +286,9 @@ def generar_jornada_progol(api_key=""):
         "total_partidos":     len(jornada),
         "usa_datos_reales":   not _usando_demo_partidos,
         "fuente_partidos":    fuente_datos,
+        "liga_activa":        liga_nombre,
         "es_demo":            _usando_demo_partidos,
+        "en_receso":          False,
         "partidos_entrenamiento": len(historial),
         "modelo":             "Ensemble (Dixon-Coles 50% + ELO 30% + Poisson 20%)",
         "precision_esperada": "55-62% por partido",
