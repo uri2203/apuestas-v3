@@ -693,6 +693,27 @@ def diag_espn():
         return jsonify({"error": str(e), "trace": traceback.format_exc()[:300]})
 
 
+
+@app.route("/api/admin/optimizar-pesos")
+def optimizar_pesos_endpoint():
+    """Encuentra los mejores pesos del ensemble probando contra datos reales."""
+    try:
+        from services import espn_scraper
+        from services.optimizador_pesos import optimizar
+        liga = request.args.get("liga", "liga_mx")
+        partidos = espn_scraper.get_historial_entrenamiento(liga)
+        if len(partidos) < 30:
+            # Probar con MLS que tiene más datos
+            partidos = espn_scraper.get_historial_entrenamiento("mls")
+            liga = "mls"
+        resultado = optimizar(partidos)
+        resultado["liga_evaluada"] = liga
+        return jsonify(resultado)
+    except Exception as e:
+        import traceback
+        return jsonify({"error": str(e), "trace": traceback.format_exc()[:300]})
+
+
 # ── SCHEDULER ──────────────────────────────────────────────────────────────────
 def _alerta_vb_con_broadcast():
     alerta_value_bets()

@@ -17,12 +17,14 @@ class EnsembleModel:
     """
 
     def __init__(self,
-                 w_dc=0.50,
-                 w_elo=0.30,
-                 w_poisson=0.20):
-        self.w_dc      = w_dc
-        self.w_elo     = w_elo
-        self.w_poisson = w_poisson
+                 w_dc=None,
+                 w_elo=None,
+                 w_poisson=None):
+        import os
+        # Pesos configurables vía env (optimizados empíricamente)
+        self.w_dc      = w_dc      if w_dc      is not None else float(os.getenv("ENSEMBLE_W_DC", "0.50"))
+        self.w_elo     = w_elo     if w_elo     is not None else float(os.getenv("ENSEMBLE_W_ELO", "0.30"))
+        self.w_poisson = w_poisson if w_poisson is not None else float(os.getenv("ENSEMBLE_W_POISSON", "0.20"))
         self.dc  = DixonColesModel()
         self.elo = ELOModel()
         self.entrenado = False
