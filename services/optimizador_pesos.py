@@ -20,7 +20,22 @@ def _resultado_real(home_goals, away_goals):
     return "2"
 
 
-def evaluar_pesos(partidos, w_dc, w_elo, w_poisson, ventana_min=20):
+def _pronostico_con_empate(probs, umbral_empate=0.30):
+    """
+    Elige pronóstico considerando empates.
+    Si el empate supera el umbral O si local/visitante están muy parejos,
+    predice empate (que de otro modo el modelo ignora).
+    """
+    p1, px, p2 = probs["1"], probs["X"], probs["2"]
+    # Si las probabilidades de 1 y 2 están muy cerca, es probable empate
+    if abs(p1 - p2) < 0.12 and px > 0.25:
+        return "X"
+    if px >= umbral_empate:
+        return "X"
+    return "1" if p1 >= p2 else "2"
+
+
+def evaluar_pesos(partidos, w_dc, w_elo, w_poisson, ventana_min=40):
     """
     Walk-forward: para cada partido (a partir de ventana_min),
     entrena con los anteriores y predice. Retorna accuracy.
@@ -44,7 +59,7 @@ def evaluar_pesos(partidos, w_dc, w_elo, w_poisson, ventana_min=20):
         try:
             pred = modelo.predict(test["home"], test["away"])
             probs = {"1": pred["local"], "X": pred["empate"], "2": pred["visitante"]}
-            pronostico = max(probs, key=probs.get)
+            pronostico = _pronostico_con_empate(probs)
             real = _resultado_real(test["home_goals"], test["away_goals"])
             if pronostico == real:
                 aciertos += 1
@@ -55,7 +70,7 @@ def evaluar_pesos(partidos, w_dc, w_elo, w_poisson, ventana_min=20):
     return round(aciertos / total * 100, 1) if total > 0 else None
 
 
-def optimizar(partidos, ventana_min=20):
+def optimizar(partidos, ventana_min=40):
     """
     Prueba combinaciones de pesos y retorna la mejor según accuracy real.
     """
