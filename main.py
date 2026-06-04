@@ -180,57 +180,105 @@ def progol_ranking():
     return jsonify(ranking_equipos(os.getenv("API_FOOTBALL_KEY","")))
 
 # ── ODDS / VALUE BETS ──────────────────────────────────────────────────────────
-_VB_DEMO = [
-    {"partido":"Chivas vs América","liga":"Liga MX","resultado":"Local","casa":"Bet365","cuota":2.10,"edge_porcentaje":8.4,"es_value_bet":True},
-    {"partido":"Toluca vs Santos","liga":"Liga MX","resultado":"Local","casa":"Codere","cuota":2.00,"edge_porcentaje":10.0,"es_value_bet":True},
-    {"partido":"Cruz Azul vs Pumas","liga":"Liga MX","resultado":"Local","casa":"1xBet","cuota":1.85,"edge_porcentaje":7.3,"es_value_bet":True},
-    {"partido":"Tigres vs Monterrey","liga":"Liga MX","resultado":"Empate","casa":"Bet365","cuota":3.10,"edge_porcentaje":3.1,"es_value_bet":True},
-]
-
-def _edge_con_modelo(ht,at,outcome,price):
+def _edge_con_modelo(ht, at, outcome, price):
+    """Calcula edge real: (prob_modelo * cuota - 1) * 100"""
     try:
         from services.progol import predecir_partido
-        pred=predecir_partido(ht,at)
-        mp={ht:pred["local"],at:pred["visitante"],"Draw":pred["empate"]}.get(outcome,0)
+        pred = predecir_partido(ht, at)
+        prob_map = {ht: pred["local"], at: pred["visitante"], "Draw": pred["empate"]}
+        mp = prob_map.get(outcome, 0)
         if not mp:
-            for k,v in {ht:pred["local"],at:pred["visitante"],"Draw":pred["empate"]}.items():
-                if k.lower() in outcome.lower() or outcome.lower() in k.lower(): mp=v; break
-        return round((mp*price-1)*100,1) if mp>0 else 0.0
-    except: return 0.0
+            for k, v in prob_map.items():
+                if k.lower() in outcome.lower() or outcome.lower() in k.lower():
+                    mp = v; break
+        return round((mp * price - 1) * 100, 1) if mp > 0 else 0.0
+    except:
+        return 0.0
 
 @app.route("/api/odds/value-bets")
 @login_required
 def value_bets():
     import httpx
-    edge_min=float(request.args.get("edge_minimo",2))
-    api_key=os.getenv("ODDS_API_KEY","")
-    results=_VB_DEMO
-    if api_key:
-        try:
-            r=httpx.get(
-                f"https://api.the-odds-api.com/v4/sports/{request.args.get('deporte','soccer_mexico_ligamx')}/odds",
-                params={"apiKey":api_key,"regions":"eu","markets":"h2h","oddsFormat":"decimal"},timeout=10)
-            real=[]
-            for m in r.json():
-                ht,at=m["home_team"],m["away_team"]
-                for book in m.get("bookmakers",[]):
-                    for o in book.get("markets",[{}])[0].get("outcomes",[]):
-                        edge=_edge_con_modelo(ht,at,o["name"],o["price"])
-                        if edge>=edge_min:
-                            real.append({"partido":f"{ht} vs {at}","liga":m["sport_title"],
-                                "resultado":o["name"],"casa":book["title"],"cuota":o["price"],
-                                "edge_porcentaje":edge,"es_value_bet":True})
+    edge_min = float(request.args.get("edge_minimo", 2))
+    api_key  = os.getenv("ODDS_API_KEY", "")
+
+    # Sin API key — error claro, sin datos demo
+    if not api_key:
+        return jsonify({
+            "total_encontrados": 0,
+            "value_bets": [],
+            "es_demo": True,
+            "error": "ODDS_API_KEY no configurada",
+            "aviso": "Configura ODDS_API_KEY en Render → Environment para obtener value bets reales",
+        })
+
+    try:
+        deporte = request.args.get("deporte", "soccer_mexico_ligamx")
+        r = httpx.get(
+            f"https://api.the-odds-api.com/v4/sports/{deporte}/odds",
+            params={"apiKey": api_key, "regions": "eu", "markets": "h2h", "oddsFormat": "decimal"},
+            timeout=10,
+        )
+        data = r.json()
+
+        # Error de API (cuota expirada, plan agotado, etc.)
+        if isinstance(data, dict) and data.get("message"):
+            return jsonify({
+                "total_encontrados": 0,
+                "value_bets": [],
+                "es_demo": False,
+                "error": f"Odds API: {data['message']}",
+                "aviso": f"Error de la API: {data['message']}",
+            })
+
+        real = []
+        for m in data if isinstance(data, list) else []:
+            ht, at = m.get("home_team",""), m.get("away_team","")
+            if not ht or not at: continue
+            for book in m.get("bookmakers", []):
+                for o in book.get("markets", [{}])[0].get("outcomes", []):
+                    if not o.get("price") or o["price"] <= 1: continue
+                    edge = _edge_con_modelo(ht, at, o["name"], o["price"])
+                    if edge >= edge_min:
+                        real.append({
+                            "partido":          f"{ht} vs {at}",
+                            "liga":             m.get("sport_title", "Liga MX"),
+                            "fecha":            m.get("commence_time", ""),
+                            "resultado":        o["name"],
+                            "casa":             book["title"],
+                            "cuota":            o["price"],
+                            "edge_porcentaje":  edge,
+                            "es_value_bet":     True,
+                        })
+                        try:
                             from database import log_value_bet
-                            log_value_bet(f"{ht} vs {at}",m["sport_title"],o["name"],book["title"],o["price"],edge)
-            if real: results=real
-        except Exception as e: logging.warning("Odds API: %s",e)
-    filtered=[v for v in results if v["edge_porcentaje"]>=edge_min]
-    return jsonify({
-        "total_encontrados": len(filtered),
-        "value_bets": filtered,
-        "es_demo": False,
-        "aviso": "Sin value bets con edge >= " + str(edge_min) + "% en este momento" if not filtered else None,
-    })
+                            log_value_bet(f"{ht} vs {at}", m.get("sport_title",""), o["name"], book["title"], o["price"], edge)
+                        except Exception:
+                            pass
+
+        # Deduplicar: mejor cuota por partido+resultado
+        seen = {}
+        for vb in sorted(real, key=lambda x: x["edge_porcentaje"], reverse=True):
+            key = f"{vb['partido']}|{vb['resultado']}"
+            if key not in seen:
+                seen[key] = vb
+        filtered = list(seen.values())
+
+        return jsonify({
+            "total_encontrados": len(filtered),
+            "value_bets":        filtered,
+            "es_demo":           False,
+            "total_partidos_analizados": len(data) if isinstance(data, list) else 0,
+            "aviso": None if filtered else f"Sin value bets con edge >= {edge_min}% en este momento",
+        })
+
+    except httpx.TimeoutException:
+        return jsonify({"total_encontrados": 0, "value_bets": [], "es_demo": False,
+                        "error": "Timeout al conectar con Odds API", "aviso": "La API tardó demasiado. Intenta de nuevo."})
+    except Exception as e:
+        logging.error("Odds API error: %s", e)
+        return jsonify({"total_encontrados": 0, "value_bets": [], "es_demo": False,
+                        "error": str(e), "aviso": f"Error: {e}"})
 
 # ── KELLY ──────────────────────────────────────────────────────────────────────
 @app.route("/api/kelly/calcular",methods=["POST"])

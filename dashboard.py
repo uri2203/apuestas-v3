@@ -1892,21 +1892,42 @@ async function loadVB() {
   try {
     const d = await api(`/api/odds/value-bets?edge_minimo=2&deporte=${dep}`)
     setAPIStatus(true)
+
+    // Error de API — mostrar mensaje real
+    if (d.error || d.es_demo) {
+      document.getElementById('vb-body').innerHTML = `<tr><td colspan="6" style="padding:16px;font-family:var(--mono);font-size:11px;color:var(--gold)">${d.aviso || d.error}</td></tr>`
+      document.getElementById('vb-count').textContent = '0'
+      document.getElementById('vb-edge').textContent  = 'sin datos'
+      document.getElementById('vb-best').textContent  = '—'
+      return
+    }
+
     const vbs = d.value_bets || []
     document.getElementById('vb-count').textContent = vbs.length
-    document.getElementById('vb-edge').textContent  = vbs.length ? `Edge prom +${(vbs.reduce((s,v)=>s+v.edge_porcentaje,0)/vbs.length).toFixed(1)}%` : 'sin datos'
+    document.getElementById('vb-edge').textContent  = vbs.length ? `Edge prom +${(vbs.reduce((s,v)=>s+v.edge_porcentaje,0)/vbs.length).toFixed(1)}%` : 'sin edge'
     document.getElementById('vb-best').textContent  = vbs.length ? `+${Math.max(...vbs.map(v=>v.edge_porcentaje))}%` : '—'
-    document.getElementById('vb-body').innerHTML = vbs.map(d=>`
+
+    if (!vbs.length) {
+      const msg = d.aviso || `Sin value bets con edge >= 2% en ${dep.replace('soccer_mexico_','').replace('ligamx','Liga MX')}`
+      document.getElementById('vb-body').innerHTML = `<tr><td colspan="6" style="padding:16px;font-family:var(--mono);font-size:11px;color:var(--muted)">${msg}</td></tr>`
+      return
+    }
+
+    document.getElementById('vb-body').innerHTML = vbs.map(vb => `
       <tr>
-        <td><div style="font-weight:700;font-size:12px">${d.partido}</div><div style="font-size:9px;font-family:var(--mono);color:var(--muted)">${d.liga}</div></td>
-        <td style="font-family:var(--mono);font-size:11px">${d.resultado}</td>
-        <td style="font-family:var(--mono);font-size:10px;color:var(--muted)">${d.casa}</td>
-        <td style="font-family:var(--mono);font-weight:700;font-size:14px">${d.cuota}</td>
-        <td><span class="badge ${d.edge_porcentaje>7?'bs2':'bv'}">+${d.edge_porcentaje}%</span></td>
-        <td><span class="badge ${d.edge_porcentaje>7?'hot':'bv'}">${d.edge_porcentaje>7?'STRONG VALUE':'VALUE BET'}</span></td>
+        <td>
+          <div style="font-weight:700;font-size:12px">${vb.partido}</div>
+          <div style="font-size:9px;font-family:var(--mono);color:var(--muted)">${vb.liga}${vb.fecha ? ' · ' + new Date(vb.fecha).toLocaleDateString('es-MX') : ''}</div>
+        </td>
+        <td style="font-family:var(--mono);font-size:11px">${vb.resultado}</td>
+        <td style="font-family:var(--mono);font-size:10px;color:var(--muted)">${vb.casa}</td>
+        <td style="font-family:var(--mono);font-weight:700;font-size:14px">${vb.cuota}</td>
+        <td><span class="badge ${vb.edge_porcentaje>7?'bs2':'bv'}">+${vb.edge_porcentaje}%</span></td>
+        <td><span class="badge ${vb.edge_porcentaje>7?'hot':'bv'}">${vb.edge_porcentaje>7?'STRONG VALUE':'VALUE BET'}</span></td>
       </tr>`).join('')
-  } catch {
-    document.getElementById('vb-body').innerHTML = '<tr><td colspan="6" style="padding:12px;font-size:12px;color:var(--muted)">Configura ODDS_API_KEY en Render para datos reales</td></tr>'
+
+  } catch(e) {
+    document.getElementById('vb-body').innerHTML = `<tr><td colspan="6" style="padding:12px;font-size:11px;font-family:var(--mono);color:var(--red)">Error: ${e}</td></tr>`
   }
 }
 
