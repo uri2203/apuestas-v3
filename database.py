@@ -248,10 +248,11 @@ def _fetchall(conn, sql: str, params: tuple = ()):
 
 
 def _execute(conn, sql: str, params: tuple = ()):
+    is_insert = "INSERT" in sql.upper()
     if _USE_PG:
         import psycopg2.extras
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        if _USE_PG and "INSERT" in sql.upper() and "RETURNING" not in sql.upper():
+        if is_insert and "RETURNING" not in sql.upper():
             sql = _q(sql) + " RETURNING id"
         else:
             sql = _q(sql)
@@ -260,12 +261,15 @@ def _execute(conn, sql: str, params: tuple = ()):
         sql = _q(sql)
     cur.execute(sql, params)
     last_id = None
-    if "INSERT" in sql.upper():
-        if _USE_PG:
-            row = cur.fetchone()
-            last_id = row["id"] if row else None
-        else:
-            last_id = cur.lastrowid
+    if is_insert:
+        try:
+            if _USE_PG:
+                row = cur.fetchone()
+                last_id = row["id"] if row else None
+            else:
+                last_id = cur.lastrowid
+        except Exception:
+            last_id = None
     cur.close()
     return last_id
 

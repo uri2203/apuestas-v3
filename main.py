@@ -180,11 +180,16 @@ def progol_ranking():
     return jsonify(ranking_equipos(os.getenv("API_FOOTBALL_KEY","")))
 
 # ── ODDS / VALUE BETS ──────────────────────────────────────────────────────────
+_pred_cache = {}
+
 def _edge_con_modelo(ht, at, outcome, price):
-    """Calcula edge real: (prob_modelo * cuota - 1) * 100"""
+    """Calcula edge real: (prob_modelo * cuota - 1) * 100. Cachea predicciones."""
     try:
-        from services.progol import predecir_partido
-        pred = predecir_partido(ht, at)
+        key = f"{ht}|{at}"
+        if key not in _pred_cache:
+            from services.progol import predecir_partido
+            _pred_cache[key] = predecir_partido(ht, at)
+        pred = _pred_cache[key]
         prob_map = {ht: pred["local"], at: pred["visitante"], "Draw": pred["empate"]}
         mp = prob_map.get(outcome, 0)
         if not mp:
@@ -192,7 +197,7 @@ def _edge_con_modelo(ht, at, outcome, price):
                 if k.lower() in outcome.lower() or outcome.lower() in k.lower():
                     mp = v; break
         return round((mp * price - 1) * 100, 1) if mp > 0 else 0.0
-    except:
+    except Exception:
         return 0.0
 
 @app.route("/api/odds/value-bets")
@@ -201,6 +206,7 @@ def value_bets():
     import httpx
     edge_min = float(request.args.get("edge_minimo", 2))
     api_key  = os.getenv("ODDS_API_KEY", "")
+    _pred_cache.clear()  # limpiar cache de predicciones
 
     # Sin API key — error claro, sin datos demo
     if not api_key:
@@ -232,6 +238,8 @@ def value_bets():
             })
 
         real = []
+        # Cache de predicciones por partido (evita recalcular el modelo por cada cuota)
+        pred_cache = {}
         for m in data if isinstance(data, list) else []:
             ht, at = m.get("home_team",""), m.get("away_team","")
             if not ht or not at: continue
@@ -250,11 +258,19 @@ def value_bets():
                             "edge_porcentaje":  edge,
                             "es_value_bet":     True,
                         })
-                        try:
-                            from database import log_value_bet
-                            log_value_bet(f"{ht} vs {at}", m.get("sport_title",""), o["name"], book["title"], o["price"], edge)
-                        except Exception:
-                            pass
+
+        # Guardar todos los value bets en UNA sola conexión (evita saturar el pool)
+        if real:
+            try:
+                from database import db, _execute
+                with db() as conn:
+                    for vb in real[:30]:
+                        _execute(conn,
+                            "INSERT INTO value_bets_log (partido, liga, resultado, casa, cuota, edge_pct) "
+                            "VALUES (?,?,?,?,?,?)",
+                            (vb["partido"], vb["liga"], vb["resultado"], vb["casa"], vb["cuota"], vb["edge_porcentaje"]))
+            except Exception as e:
+                logging.warning("No se pudo guardar value bets en DB: %s", e)
 
         # Deduplicar: mejor cuota por partido+resultado
         seen = {}
