@@ -270,6 +270,33 @@ def progol_ranking():
 # ── ODDS / VALUE BETS ──────────────────────────────────────────────────────────
 _pred_cache = {}
 
+
+def _prob_modelo_cache(ht, at, outcome):
+    """Probabilidad del modelo para un outcome (usa cache de _edge_con_modelo)."""
+    try:
+        key = f"{ht}|{at}"
+        if key not in _pred_cache:
+            from services.progol import predecir_partido
+            _pred_cache[key] = predecir_partido(ht, at)
+        pred = _pred_cache[key]
+        pm = {ht: pred["local"], at: pred["visitante"], "Draw": pred["empate"]}.get(outcome, 0)
+        if not pm:
+            for k, v in {ht: pred["local"], at: pred["visitante"], "Draw": pred["empate"]}.items():
+                if k.lower() in outcome.lower() or outcome.lower() in k.lower():
+                    pm = v; break
+        return pm
+    except Exception:
+        return 0
+
+
+def get_bankroll_seguro():
+    """Bankroll actual sin crashear si la DB falla."""
+    try:
+        from database import get_bankroll_actual
+        return get_bankroll_actual()
+    except Exception:
+        return 0
+
 def _edge_con_modelo(ht, at, outcome, price):
     """Calcula edge real: (prob_modelo * cuota - 1) * 100. Cachea predicciones."""
     try:
@@ -336,7 +363,9 @@ def value_bets():
                     if not o.get("price") or o["price"] <= 1: continue
                     edge = _edge_con_modelo(ht, at, o["name"], o["price"])
                     if edge >= edge_min:
-                        real.append({
+                        # Análisis profesional con Kelly
+                        prob_modelo = _prob_modelo_cache(ht, at, o["name"])
+                        vb = {
                             "partido":          f"{ht} vs {at}",
                             "liga":             m.get("sport_title", "Liga MX"),
                             "fecha":            m.get("commence_time", ""),
@@ -344,8 +373,23 @@ def value_bets():
                             "casa":             book["title"],
                             "cuota":            o["price"],
                             "edge_porcentaje":  edge,
+                            "edge_modelo_pct":  edge,
+                            "prob_modelo_pct":  round(prob_modelo * 100, 1) if prob_modelo else None,
                             "es_value_bet":     True,
-                        })
+                        }
+                        # Kelly stake si tenemos bankroll
+                        if prob_modelo and prob_modelo > 0:
+                            from services.value_engine import kelly_fraccionado
+                            bk = get_bankroll_seguro()
+                            k = kelly_fraccionado(prob_modelo, o["price"], 0.25, bk)
+                            vb["kelly_pct"] = k["kelly_aplicado_pct"]
+                            if "stake_sugerido" in k:
+                                vb["stake_sugerido"] = k["stake_sugerido"]
+                        vb["clasificacion"] = (
+                            "🔥 FUERTE" if edge > 7 else "✅ BUENO" if edge > 4 else
+                            "👍 MODERADO" if edge > 2 else "⚠️ MARGINAL"
+                        )
+                        real.append(vb)
 
         # Guardar todos los value bets en UNA sola conexión (evita saturar el pool)
         if real:
@@ -712,6 +756,31 @@ def optimizar_pesos_endpoint():
     except Exception as e:
         import traceback
         return jsonify({"error": str(e), "trace": traceback.format_exc()[:300]})
+
+
+
+@app.route("/api/value/analizar")
+@login_required
+def value_analizar():
+    """Análisis profesional de value de una apuesta específica."""
+    from services.value_engine import analizar_value
+    prob   = float(request.args.get("prob", 0)) / 100  # viene en %
+    cuota  = float(request.args.get("cuota", 2.0))
+    pinn   = request.args.get("pinnacle")
+    bk     = float(request.args.get("bankroll", 0)) or get_bankroll_seguro()
+    frac   = float(request.args.get("fraccion", 0.25))
+    pinn_v = float(pinn) if pinn else None
+    return jsonify(analizar_value(prob, cuota, pinn_v, bk, frac))
+
+
+@app.route("/api/value/clv")
+@login_required
+def value_clv():
+    """Calcula Closing Line Value."""
+    from services.value_engine import clv
+    apostada = float(request.args.get("apostada", 2.0))
+    cierre   = float(request.args.get("cierre", 1.9))
+    return jsonify(clv(apostada, cierre))
 
 
 # ── SCHEDULER ──────────────────────────────────────────────────────────────────
