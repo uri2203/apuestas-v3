@@ -194,20 +194,32 @@ def generar_jornada_progol(api_key=""):
     liga_nombre      = "Liga MX"
     liga_key_activa  = "liga_mx"
 
-    # ── Detectar liga activa automáticamente (Liga MX o la que esté jugando) ──
+    # ── FUENTE PRIMARIA: ESPN (gratis, completo, temporada actual) ────────────
     try:
-        from services import sportsdb
-        activa = sportsdb.liga_activa_actual()
+        from services import espn_scraper
+        activa = espn_scraper.liga_activa_actual()
         liga_key_activa = activa["liga_key"]
         liga_nombre     = activa["nombre"]
         partidos_futuros = activa.get("partidos", [])
-
-        # Entrenar con el historial de ESA liga activa
-        historial = sportsdb.historial_por_liga(liga_key_activa)
+        historial = espn_scraper.get_historial_entrenamiento(liga_key_activa)
         if historial or partidos_futuros:
-            fuente_datos = f"TheSportsDB · {liga_nombre} (temporada actual)"
+            fuente_datos = f"ESPN · {liga_nombre} (temporada actual)"
     except Exception as e:
-        import logging; logging.warning("SportsDB falló: %s", e)
+        import logging; logging.warning("ESPN falló: %s", e)
+
+    # ── RESPALDO: TheSportsDB ─────────────────────────────────────────────────
+    if not historial and not partidos_futuros:
+        try:
+            from services import sportsdb
+            activa = sportsdb.liga_activa_actual()
+            liga_key_activa = activa["liga_key"]
+            liga_nombre     = activa["nombre"]
+            partidos_futuros = activa.get("partidos", [])
+            historial = sportsdb.historial_por_liga(liga_key_activa)
+            if historial or partidos_futuros:
+                fuente_datos = f"TheSportsDB · {liga_nombre}"
+        except Exception as e:
+            import logging; logging.warning("SportsDB falló: %s", e)
 
     # ── Respaldo: API-Football para historial Liga MX ─────────────────────────
     if not historial and api_key:

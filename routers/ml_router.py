@@ -159,13 +159,22 @@ def predicciones_liga():
     if not liga_info:
         return jsonify({"error": "Liga no encontrada"}), 400
 
-    # Obtener partidos y entrenar modelo con datos reales de TheSportsDB
+    # Obtener partidos y entrenar con datos reales (ESPN primero, SportsDB respaldo)
+    partidos_futuros = []
+    historial = []
     try:
-        from services import sportsdb
-        partidos_futuros = sportsdb.get_next_events(liga_key)
-        historial = sportsdb.historial_por_liga(liga_key)
-    except Exception as e:
-        return jsonify({"error": f"Error obteniendo datos: {e}", "liga": liga_info})
+        from services import espn_scraper
+        partidos_futuros = espn_scraper.get_proximos(liga_key, 14)
+        historial = espn_scraper.get_historial_entrenamiento(liga_key)
+    except Exception:
+        pass
+    if not historial and not partidos_futuros:
+        try:
+            from services import sportsdb
+            partidos_futuros = sportsdb.get_next_events(liga_key)
+            historial = sportsdb.historial_por_liga(liga_key)
+        except Exception as e:
+            return jsonify({"error": f"Error obteniendo datos: {e}", "liga": liga_info})
 
     if not partidos_futuros:
         # Mostrar ranking de la liga si no hay partidos
@@ -210,7 +219,7 @@ def predicciones_liga():
         "total":        len(predicciones),
         "partidos_entrenamiento": len(historial),
         "usa_datos_reales": True,
-        "fuente": "TheSportsDB (temporada actual)",
+        "fuente": "ESPN (temporada actual)",
         "modelo": "Ensemble (Dixon-Coles + ELO + Poisson)",
     })
 
@@ -218,18 +227,15 @@ def predicciones_liga():
 @ligas_bp.route("/standings")
 @login_required
 def standings():
-    """Tabla de posiciones de una liga."""
+    """Tabla de posiciones de una liga (ESPN, temporada actual)."""
     liga_key = request.args.get("liga", "liga_mx")
-    api_key  = os.getenv("API_FOOTBALL_KEY", "")
     liga_info = LIGAS_DISPONIBLES.get(liga_key)
     if not liga_info:
         return jsonify({"error": "Liga no encontrada"}), 400
-    if not api_key:
-        return jsonify({"error": "API_FOOTBALL_KEY requerida"}), 400
     try:
-        from services.api_football import get_standings
-        tabla = get_standings(liga_info["id"], 2024, api_key)
-        return jsonify({"liga": liga_info, "tabla": tabla})
+        from services import espn_scraper
+        tabla = espn_scraper.get_standings(liga_key)
+        return jsonify({"liga": liga_info, "tabla": tabla, "fuente": "ESPN"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

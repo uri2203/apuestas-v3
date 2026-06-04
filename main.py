@@ -680,6 +680,19 @@ def diag_sportsdb():
         return jsonify({"error": str(e)})
 
 
+
+@app.route("/api/admin/diag-espn")
+def diag_espn():
+    """Diagnostica ESPN — fuente gratuita completa de datos actuales."""
+    try:
+        from services import espn_scraper
+        liga = request.args.get("liga", "liga_mx")
+        return jsonify(espn_scraper.diagnostico(liga))
+    except Exception as e:
+        import traceback
+        return jsonify({"error": str(e), "trace": traceback.format_exc()[:300]})
+
+
 # ── SCHEDULER ──────────────────────────────────────────────────────────────────
 def _alerta_vb_con_broadcast():
     alerta_value_bets()
