@@ -17,7 +17,11 @@ def analizar():
     jornada = generar_jornada_progol(api_key)
     partidos = jornada.get("partidos", [])
     if not partidos:
-        return jsonify({"error": "Sin partidos disponibles"}), 400
+        return jsonify({
+            "error": jornada.get("error", "Sin partidos disponibles"),
+            "aviso": jornada.get("aviso", "Configura API_FOOTBALL_KEY para análisis real"),
+            "partidos": [], "distribucion_tipos": {},
+        })
     return jsonify(analizar_jornada_progol(partidos))
 
 

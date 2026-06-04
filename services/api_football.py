@@ -87,22 +87,30 @@ def get_fixtures_liga(liga_id, season=None, api_key=""):
 
 def get_upcoming_fixtures(liga_id=262, days=7, api_key=""):
     today = datetime.now()
-    end   = today + timedelta(days=days)
-    data  = _cached_get("/fixtures", {
-        "league": liga_id,
-        "from":   today.strftime("%Y-%m-%d"),
-        "to":     end.strftime("%Y-%m-%d"),
-        "status": "NS",
-    }, api_key)
-    return [
-        {
-            "fixture_id": f.get("fixture", {}).get("id"),
-            "fecha":      f.get("fixture", {}).get("date", ""),
-            "home":       f.get("teams", {}).get("home", {}).get("name", ""),
-            "away":       f.get("teams", {}).get("away", {}).get("name", ""),
-        }
-        for f in data.get("response", [])
-    ]
+
+    def _fetch(d):
+        end = today + timedelta(days=d)
+        data = _cached_get("/fixtures", {
+            "league": liga_id, "season": current_season(),
+            "from":   today.strftime("%Y-%m-%d"),
+            "to":     end.strftime("%Y-%m-%d"),
+            "status": "NS",
+        }, api_key)
+        return [
+            {
+                "fixture_id": f.get("fixture", {}).get("id"),
+                "fecha":      f.get("fixture", {}).get("date", ""),
+                "home":       f.get("teams", {}).get("home", {}).get("name", ""),
+                "away":       f.get("teams", {}).get("away", {}).get("name", ""),
+            }
+            for f in data.get("response", [])
+        ]
+
+    # Buscar en ventana pedida; si no hay, ampliar a 30 días
+    partidos = _fetch(days)
+    if not partidos:
+        partidos = _fetch(30)
+    return partidos
 
 
 def get_standings(liga_id=262, season=None, api_key=""):
