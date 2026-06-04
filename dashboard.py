@@ -817,6 +817,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
       <button onclick="loadLiga('serie_a')" class="liga-btn" style="padding:7px 14px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-size:12px;cursor:pointer;font-family:var(--ui)">🇮🇹 Serie A</button>
       <button onclick="loadLiga('bundesliga')" class="liga-btn" style="padding:7px 14px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-size:12px;cursor:pointer;font-family:var(--ui)">🇩🇪 Bundesliga</button>
       <button onclick="loadLiga('champions_league')" class="liga-btn" style="padding:7px 14px;background:var(--gold);border:none;border-radius:7px;color:#000;font-size:12px;cursor:pointer;font-family:var(--ui)">⭐ Champions</button>
+      <button onclick="loadLiga('mls')" class="liga-btn" style="padding:7px 14px;background:var(--green);border:none;border-radius:7px;color:#000;font-size:12px;cursor:pointer;font-family:var(--ui)">🇺🇸 MLS (activa)</button>
+      <button onclick="loadLiga('ligue_1')" class="liga-btn" style="padding:7px 14px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-size:12px;cursor:pointer;font-family:var(--ui)">🇫🇷 Ligue 1</button>
     </div>
   </div>
   <div class="panel" id="ligas-panel" style="display:none">
