@@ -607,6 +607,67 @@ def admin_init_db():
     return jsonify(resultado)
 
 
+
+@app.route("/api/admin/diag-football")
+def diag_football():
+    """Diagnostica qué devuelve API-Football exactamente."""
+    api_key = os.getenv("API_FOOTBALL_KEY", "")
+    if not api_key:
+        return jsonify({"error": "Sin API_FOOTBALL_KEY"})
+
+    from services.api_football import (
+        get_fixtures_liga, get_upcoming_fixtures, current_season,
+        _cached_get, LIGAS, _headers, API_BASE, RAPID_BASE
+    )
+    import httpx
+
+    result = {
+        "season_calculada": current_season(),
+        "liga_mx_id": LIGAS["liga_mx"],
+        "tipo_key": "rapidapi" if len(api_key) > 40 else "api-sports",
+    }
+
+    # Test 1: fixtures terminados (historial)
+    try:
+        hist = get_fixtures_liga(LIGAS["liga_mx"], None, api_key)
+        result["historial_partidos"] = len(hist)
+        result["historial_ejemplo"] = hist[:2] if hist else []
+    except Exception as e:
+        result["historial_error"] = str(e)[:150]
+
+    # Test 2: próximos partidos (7 días)
+    try:
+        up = get_upcoming_fixtures(LIGAS["liga_mx"], 7, api_key)
+        result["proximos_7d"] = len(up)
+        result["proximos_ejemplo"] = up[:3] if up else []
+    except Exception as e:
+        result["proximos_error"] = str(e)[:150]
+
+    # Test 3: llamada cruda a la API para ver respuesta completa
+    try:
+        base = RAPID_BASE if len(api_key) > 40 else API_BASE
+        from datetime import datetime, timedelta
+        hoy = datetime.now()
+        r = httpx.get(base + "/fixtures", params={
+            "league": LIGAS["liga_mx"],
+            "season": current_season(),
+            "from": hoy.strftime("%Y-%m-%d"),
+            "to": (hoy + timedelta(days=30)).strftime("%Y-%m-%d"),
+        }, headers=_headers(api_key), timeout=12)
+        raw = r.json()
+        result["raw_api"] = {
+            "status_code": r.status_code,
+            "results": raw.get("results"),
+            "errors": raw.get("errors"),
+            "paging": raw.get("paging"),
+            "primer_fixture": raw.get("response", [{}])[0] if raw.get("response") else None,
+        }
+    except Exception as e:
+        result["raw_error"] = str(e)[:200]
+
+    return jsonify(result)
+
+
 # ── SCHEDULER ──────────────────────────────────────────────────────────────────
 def _alerta_vb_con_broadcast():
     alerta_value_bets()
