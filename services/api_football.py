@@ -14,12 +14,19 @@ except ImportError:
 API_BASE   = "https://v3.football.api-sports.io"
 RAPID_BASE = "https://api-football-v1.p.rapidapi.com/v3"
 
+# Plan FREE de API-Football solo permite temporadas 2022-2024
+API_FOOTBALL_MAX_SEASON = int(os.getenv("API_FOOTBALL_MAX_SEASON", "2024"))
+
 def current_season() -> int:
-    """Retorna el año de la temporada activa de forma dinámica."""
+    """
+    Retorna la temporada a consultar.
+    Limitada a API_FOOTBALL_MAX_SEASON (2024 en plan free).
+    """
     from datetime import datetime
     now = datetime.now()
-    # Liga MX: Clausura termina en May/Jun, Apertura empieza Jul/Ago
-    return now.year if now.month >= 7 else now.year - 1
+    real_season = now.year if now.month >= 7 else now.year - 1
+    # Plan free no accede a temporadas > 2024
+    return min(real_season, API_FOOTBALL_MAX_SEASON)
 
 LIGAS = {
     "liga_mx":          262,

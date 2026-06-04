@@ -129,6 +129,35 @@ def predecir_partido(home, away, xg_home=None, xg_away=None, historial=None,
     return pred
 
 
+
+def _upcoming_desde_odds():
+    """Obtiene próximos partidos de Liga MX desde The Odds API (tiene acceso real)."""
+    import os
+    odds_key = os.getenv("ODDS_API_KEY", "")
+    if not odds_key:
+        return []
+    try:
+        import httpx
+        r = httpx.get(
+            "https://api.the-odds-api.com/v4/sports/soccer_mexico_ligamx/odds",
+            params={"apiKey": odds_key, "regions": "eu", "markets": "h2h", "oddsFormat": "decimal"},
+            timeout=10,
+        )
+        data = r.json()
+        if not isinstance(data, list):
+            return []
+        partidos = []
+        for m in data:
+            ht, at = m.get("home_team", ""), m.get("away_team", "")
+            if ht and at:
+                partidos.append({
+                    "home": ht, "away": at, "liga": "Liga MX",
+                    "fecha": m.get("commence_time", ""),
+                })
+        return partidos
+    except Exception:
+        return []
+
 def generar_jornada_progol(api_key=""):
     """
     Genera predicciones para la jornada completa de Progol.
@@ -140,38 +169,36 @@ def generar_jornada_progol(api_key=""):
 
     if api_key:
         try:
-            # Entrenar con datos reales de la temporada
+            # Entrenar con datos reales (temporada permitida por el plan)
             historial = get_fixtures_liga(LIGAS["liga_mx"], None, api_key)
             if not historial:
-                # Intentar temporada anterior
                 from services.api_football import current_season
                 historial = get_fixtures_liga(LIGAS["liga_mx"], current_season()-1, api_key)
 
-            # Próximos partidos
+            # Próximos partidos desde API-Football (puede fallar en plan free)
             partidos_futuros = get_upcoming_fixtures(LIGAS["liga_mx"], 7, api_key)
-
-            # xG de la API para refinar lambdas
-            for p in partidos_futuros:
-                # Estadísticas recientes de cada equipo
-                # (simplificado — en prod buscar team_id por nombre)
-                pass
         except Exception:
-            historial        = HISTORIAL_DEMO
             partidos_futuros = []
 
-    # Sin partidos — retornar aviso claro (sin datos demo)
-    _usando_demo_partidos = not bool(partidos_futuros)
-    if not partidos_futuros and not api_key:
-        return {
-            "error": "Se requiere API_FOOTBALL_KEY para obtener partidos reales",
-            "partidos": [], "total_partidos": 0, "es_demo": True,
-            "aviso": "Configura API_FOOTBALL_KEY en Render para ver partidos reales de Liga MX",
-        }
+    # Si API-Football no dio próximos partidos (plan free), usar The Odds API
     if not partidos_futuros:
+        partidos_futuros = _upcoming_desde_odds()
+
+    # Si no hay historial real, usar demo para entrenar el modelo
+    if not historial:
+        historial = HISTORIAL_DEMO
+
+    # Sin partidos de ninguna fuente
+    _usando_demo_partidos = not bool(partidos_futuros)
+    import os as _os
+    if not partidos_futuros:
+        tiene_odds = bool(_os.getenv("ODDS_API_KEY", ""))
         return {
-            "error": "No hay partidos programados en los próximos 7 días para Liga MX",
+            "error": "No hay partidos próximos de Liga MX disponibles",
             "partidos": [], "total_partidos": 0, "es_demo": False,
-            "aviso": "Puede ser receso de temporada. Intenta ampliar el rango de fechas.",
+            "aviso": ("Liga MX puede estar en receso (sin partidos esta semana). "
+                      "Vuelve cuando haya jornada programada." if tiene_odds else
+                      "Configura ODDS_API_KEY para obtener próximos partidos reales."),
         }
 
     modelo = _get_modelo(historial)
@@ -210,7 +237,9 @@ def generar_jornada_progol(api_key=""):
 
     return {
         "total_partidos":     len(jornada),
-        "usa_datos_reales":   bool(api_key),
+        "usa_datos_reales":   not _usando_demo_partidos,
+        "fuente_partidos":    "Odds API / API-Football" if not _usando_demo_partidos else "demo",
+        "es_demo":            _usando_demo_partidos,
         "modelo":             "Ensemble (Dixon-Coles 50% + ELO 30% + Poisson 20%)",
         "precision_esperada": "55-62% por partido",
         "partidos":           jornada,

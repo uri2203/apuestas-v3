@@ -1785,9 +1785,20 @@ async function loadProgol() {
     const d = await api('/api/progol/jornada')
     setAPIStatus(true)
 
+    // Sin partidos o error
+    if (d.error || !d.partidos || !d.partidos.length) {
+      document.getElementById('prog-body').innerHTML = `<div style="padding:24px;text-align:center;font-family:var(--mono);font-size:12px;color:var(--gold)">${d.aviso || d.error || 'Sin partidos disponibles'}</div>`
+      const btn2 = document.getElementById('prog-btn')
+      if (btn2) { btn2.textContent = 'Actualizar'; btn2.disabled = false }
+      return
+    }
+
+    const fuente = d.usa_datos_reales
+      ? '<span style="color:var(--green)">&#10003; Datos reales (' + (d.fuente_partidos || 'API') + ')</span>'
+      : '<span style="color:var(--gold)">&#9888; Historial demo</span>'
     document.getElementById('prog-body').innerHTML = `
       <div style="font-size:10px;font-family:var(--mono);color:var(--muted);padding:10px 14px;border-bottom:1px solid var(--border)">
-        ${d.modelo} · Precisión esperada: ${d.precision_esperada} · ${d.usa_datos_reales?'<span style="color:var(--green)">✓ Datos reales API-Football</span>':'<span style="color:var(--gold)">⚠ Historial demo — agrega API_FOOTBALL_KEY</span>'}
+        ${d.modelo} · Precisión esperada: ${d.precision_esperada} · ${fuente}
       </div>
       ${(d.partidos||[]).map(p=>`
         <div class="prog-row" style="grid-template-columns:28px 1fr auto auto auto">
