@@ -32,7 +32,7 @@ def evaluar_pesos(partidos, w_dc, w_elo, w_poisson, ventana_min=20):
     total = 0
 
     # Evaluar en bloques para eficiencia (no reentrenar por cada partido)
-    paso = max(1, len(partidos) // 40)  # ~40 evaluaciones máx
+    paso = max(1, len(partidos) // 15)  # ~15 evaluaciones máx (evita timeout)
 
     for i in range(ventana_min, len(partidos), paso):
         train = partidos[:i]
@@ -64,17 +64,16 @@ def optimizar(partidos, ventana_min=20):
             "error": f"Se necesitan al menos {ventana_min + 10} partidos. Hay {len(partidos)}.",
             "pesos_recomendados": {"dc": 0.50, "elo": 0.30, "poisson": 0.20},
         }
+    # Limitar a últimos 100 partidos para velocidad (evita timeout Render)
+    if len(partidos) > 100:
+        partidos = partidos[-100:]
 
     # Combinaciones a probar (suman 1.0)
     combinaciones = [
         (0.50, 0.30, 0.20),  # balance estándar (baseline)
         (0.60, 0.25, 0.15),  # DC reforzado
         (0.70, 0.20, 0.10),  # DC dominante
-        (0.40, 0.40, 0.20),  # DC + ELO equilibrado
-        (0.45, 0.35, 0.20),  # ligeramente DC
-        (0.55, 0.30, 0.15),  # DC moderado
-        (0.50, 0.35, 0.15),  # más forma
-        (0.65, 0.25, 0.10),  # DC fuerte
+        (0.45, 0.35, 0.20),  # más forma reciente
     ]
 
     resultados = []
