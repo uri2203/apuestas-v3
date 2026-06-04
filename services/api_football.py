@@ -14,6 +14,13 @@ except ImportError:
 API_BASE   = "https://v3.football.api-sports.io"
 RAPID_BASE = "https://api-football-v1.p.rapidapi.com/v3"
 
+def current_season() -> int:
+    """Retorna el año de la temporada activa de forma dinámica."""
+    from datetime import datetime
+    now = datetime.now()
+    # Liga MX: Clausura termina en May/Jun, Apertura empieza Jul/Ago
+    return now.year if now.month >= 7 else now.year - 1
+
 LIGAS = {
     "liga_mx":          262,
     "champions_league": 2,
@@ -57,7 +64,8 @@ def _cached_get(url, params, api_key, ttl=CACHE_TTL):
         return {"errors": str(e), "response": []}
 
 
-def get_fixtures_liga(liga_id, season=2024, api_key=""):
+def get_fixtures_liga(liga_id, season=None, api_key=""):
+    if season is None: season = current_season()
     data = _cached_get("/fixtures", {"league": liga_id, "season": season, "status": "FT"}, api_key)
     partidos = []
     for f in data.get("response", []):
@@ -97,7 +105,8 @@ def get_upcoming_fixtures(liga_id=262, days=7, api_key=""):
     ]
 
 
-def get_standings(liga_id=262, season=2024, api_key=""):
+def get_standings(liga_id=262, season=None, api_key=""):
+    if season is None: season = current_season()
     data = _cached_get("/standings", {"league": liga_id, "season": season}, api_key)
     standings = []
     for group in data.get("response", []):

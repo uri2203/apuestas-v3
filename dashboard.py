@@ -1641,34 +1641,44 @@ async function initDashboard() {
   // Progol mini
   try {
     const j = await api('/api/progol/jornada')
-    const rows = (j.partidos||[]).slice(0,5).map(p => `
-      <div class="prog-row">
-        <span class="prog-num">${p.numero}</span>
-        <div><div class="prog-match">${p.local_nombre||p.home}</div><div class="prog-liga">vs ${p.visitante_nombre||p.away}</div></div>
-        <div class="prog-probs">
-          <span class="prob-box${p.pronostico==='1'?' best':''}">1 ${((p.prob_local||0)*100).toFixed(0)}%</span>
-          <span class="prob-box${p.pronostico==='X'?' best':''}">X ${((p.prob_empate||0)*100).toFixed(0)}%</span>
-          <span class="prob-box${p.pronostico==='2'?' best':''}">2 ${((p.prob_visitante||0)*100).toFixed(0)}%</span>
-        </div>
-        <span class="prog-pick"><span class="badge ${p.confianza_pct>55?'bv':p.confianza_pct>42?'bs2':'bdim'}">[${p.pronostico}] ${p.confianza_pct}%</span></span>
-      </div>`).join('')
-    document.getElementById('dash-progol').innerHTML = rows || '<p style="color:var(--muted);padding:12px;font-size:12px">Sin partidos disponibles — carga la sección Progol</p>'
-  } catch {
-    document.getElementById('dash-progol').innerHTML = '<p style="color:var(--muted);padding:12px;font-size:12px">Carga la sección Progol para ver predicciones</p>'
+    if (j.error || !j.partidos || !j.partidos.length) {
+      document.getElementById('dash-progol').innerHTML = `<p style="color:var(--gold);padding:12px;font-size:11px;font-family:var(--mono)">${j.aviso || j.error || 'Sin partidos en los proximos 7 dias'}</p>`
+    } else {
+      const rows = j.partidos.slice(0,5).map(p => `
+        <div class="prog-row">
+          <span class="prog-num">${p.numero}</span>
+          <div><div class="prog-match">${p.local_nombre||p.home}</div><div class="prog-liga">vs ${p.visitante_nombre||p.away}</div></div>
+          <div class="prog-probs">
+            <span class="prob-box${p.pronostico==='1'?' best':''}">1 ${((p.prob_local||0)*100).toFixed(0)}%</span>
+            <span class="prob-box${p.pronostico==='X'?' best':''}">X ${((p.prob_empate||0)*100).toFixed(0)}%</span>
+            <span class="prob-box${p.pronostico==='2'?' best':''}">2 ${((p.prob_visitante||0)*100).toFixed(0)}%</span>
+          </div>
+          <span class="prog-pick"><span class="badge ${p.confianza_pct>55?'bv':p.confianza_pct>42?'bs2':'bdim'}">[${p.pronostico}] ${p.confianza_pct}%</span></span>
+        </div>`).join('')
+      document.getElementById('dash-progol').innerHTML = rows
+    }
+  } catch(e) {
+    document.getElementById('dash-progol').innerHTML = '<p style="color:var(--red);padding:12px;font-size:11px;font-family:var(--mono)">Error al cargar jornada: ' + e + '</p>'
   }
 
   // Value bets mini
   try {
     const v = await api('/api/odds/value-bets?edge_minimo=2')
-    const rows = (v.value_bets||[]).slice(0,4).map(d => `
-      <div class="mm">
-        <div><div class="mm-l" style="font-size:11px;color:var(--text)">${d.partido}</div>
-        <div style="font-size:10px;color:var(--muted)">${d.resultado} · ${d.casa}</div></div>
-        <span class="badge ${d.edge_porcentaje>7?'bs2':'bv'}">+${d.edge_porcentaje}%</span>
-      </div>`).join('')
-    document.getElementById('dash-vb').innerHTML = `<div class="pb">${rows}</div>`
-  } catch {
-    document.getElementById('dash-vb').innerHTML = '<p style="color:var(--muted);padding:12px;font-size:12px">Configura ODDS_API_KEY para datos reales</p>'
+    if (v.error) {
+      document.getElementById('dash-vb').innerHTML = `<p style="color:var(--gold);padding:12px;font-size:11px;font-family:var(--mono)">${v.aviso || v.error}</p>`
+    } else if (!v.value_bets || !v.value_bets.length) {
+      document.getElementById('dash-vb').innerHTML = '<p style="color:var(--muted);padding:12px;font-size:11px;font-family:var(--mono)">Sin value bets con edge >= 2% en este momento</p>'
+    } else {
+      const rows = v.value_bets.slice(0,4).map(d => `
+        <div class="mm">
+          <div><div class="mm-l" style="font-size:11px;color:var(--text)">${d.partido}</div>
+          <div style="font-size:10px;color:var(--muted)">${d.resultado} · ${d.casa}</div></div>
+          <span class="badge ${d.edge_porcentaje>7?'bs2':'bv'}">+${d.edge_porcentaje}%</span>
+        </div>`).join('')
+      document.getElementById('dash-vb').innerHTML = `<div class="pb">${rows}</div>`
+    }
+  } catch(e) {
+    document.getElementById('dash-vb').innerHTML = '<p style="color:var(--red);padding:12px;font-size:11px;font-family:var(--mono)">Error: ' + e + '</p>'
   }
 
   loadAlertas('dash-alertas')

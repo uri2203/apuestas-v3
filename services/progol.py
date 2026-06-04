@@ -141,9 +141,11 @@ def generar_jornada_progol(api_key=""):
     if api_key:
         try:
             # Entrenar con datos reales de la temporada
-            historial = get_fixtures_liga(LIGAS["liga_mx"], 2024, api_key)
+            historial = get_fixtures_liga(LIGAS["liga_mx"], None, api_key)
             if not historial:
-                historial = HISTORIAL_DEMO
+                # Intentar temporada anterior
+                from services.api_football import current_season
+                historial = get_fixtures_liga(LIGAS["liga_mx"], current_season()-1, api_key)
 
             # Próximos partidos
             partidos_futuros = get_upcoming_fixtures(LIGAS["liga_mx"], 7, api_key)
@@ -157,19 +159,20 @@ def generar_jornada_progol(api_key=""):
             historial        = HISTORIAL_DEMO
             partidos_futuros = []
 
-    # Si no hay partidos futuros, usar demo
-    _usando_demo_partidos = False
+    # Sin partidos — retornar aviso claro (sin datos demo)
+    _usando_demo_partidos = not bool(partidos_futuros)
+    if not partidos_futuros and not api_key:
+        return {
+            "error": "Se requiere API_FOOTBALL_KEY para obtener partidos reales",
+            "partidos": [], "total_partidos": 0, "es_demo": True,
+            "aviso": "Configura API_FOOTBALL_KEY en Render para ver partidos reales de Liga MX",
+        }
     if not partidos_futuros:
-        _usando_demo_partidos = True
-        partidos_futuros = [
-            {"home": "Club América",   "away": "Guadalajara",  "liga": "Liga MX"},
-            {"home": "Cruz Azul",      "away": "Pumas UNAM",   "liga": "Liga MX"},
-            {"home": "Tigres UANL",    "away": "Monterrey",    "liga": "Liga MX"},
-            {"home": "Toluca",         "away": "Santos Laguna","liga": "Liga MX"},
-            {"home": "Atlas",          "away": "León",         "liga": "Liga MX"},
-            {"home": "Pachuca",        "away": "Necaxa",       "liga": "Liga MX"},
-            {"home": "Querétaro",      "away": "Mazatlán",     "liga": "Liga MX"},
-        ]
+        return {
+            "error": "No hay partidos programados en los próximos 7 días para Liga MX",
+            "partidos": [], "total_partidos": 0, "es_demo": False,
+            "aviso": "Puede ser receso de temporada. Intenta ampliar el rango de fechas.",
+        }
 
     modelo = _get_modelo(historial)
 
@@ -220,7 +223,7 @@ def ranking_equipos(api_key=""):
     historial = HISTORIAL_DEMO
     if api_key:
         try:
-            h = get_fixtures_liga(LIGAS["liga_mx"], 2024, api_key)
+            h = get_fixtures_liga(LIGAS["liga_mx"], None, api_key)
             if h:
                 historial = h
         except Exception:

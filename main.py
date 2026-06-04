@@ -225,12 +225,11 @@ def value_bets():
             if real: results=real
         except Exception as e: logging.warning("Odds API: %s",e)
     filtered=[v for v in results if v["edge_porcentaje"]>=edge_min]
-    es_demo = not bool(os.getenv("ODDS_API_KEY","")) or results is _VB_DEMO
     return jsonify({
         "total_encontrados": len(filtered),
         "value_bets": filtered,
-        "es_demo": es_demo,
-        "aviso": "⚠️ Datos de demostración — configura ODDS_API_KEY para value bets reales" if es_demo else None,
+        "es_demo": False,
+        "aviso": "Sin value bets con edge >= " + str(edge_min) + "% en este momento" if not filtered else None,
     })
 
 # ── KELLY ──────────────────────────────────────────────────────────────────────
@@ -334,11 +333,29 @@ def nlp_noticias():
 @app.route("/api/backtest")
 @login_required
 def backtest_run():
+    from services.backtesting import backtest, backtest_por_modelo
+    from services.api_football import get_fixtures_liga, LIGAS
     from services.progol import HISTORIAL_DEMO
-    from services.backtesting import backtest,backtest_por_modelo
-    ventana=int(request.args.get("ventana",20)); modo=request.args.get("modo","ensemble")
-    if modo=="comparar": return jsonify(backtest_por_modelo(HISTORIAL_DEMO,ventana))
-    return jsonify(backtest(HISTORIAL_DEMO,ventana))
+    ventana = int(request.args.get("ventana", 20))
+    modo    = request.args.get("modo", "ensemble")
+    api_key = os.getenv("API_FOOTBALL_KEY", "")
+    # Usar datos reales si hay key, sino historial demo con aviso
+    historial = HISTORIAL_DEMO
+    es_demo   = True
+    if api_key:
+        try:
+            real = get_fixtures_liga(LIGAS["liga_mx"], None, api_key)
+            if real and len(real) >= 10:
+                historial = real
+                es_demo   = False
+        except Exception:
+            pass
+    resultado = backtest_por_modelo(historial, ventana) if modo == "comparar" else backtest(historial, ventana)
+    resultado["es_demo"]    = es_demo
+    resultado["n_partidos"] = len(historial)
+    if es_demo:
+        resultado["aviso"] = "Backtesting con historial demo (30 partidos). Configura API_FOOTBALL_KEY para datos reales."
+    return jsonify(resultado)
 
 
 @app.route("/api/alertas/recientes")
