@@ -674,7 +674,8 @@ def diag_sportsdb():
     """Diagnostica TheSportsDB — fuente gratuita de datos actuales."""
     try:
         from services import sportsdb
-        return jsonify(sportsdb.diagnostico())
+        liga = request.args.get("liga", "liga_mx")
+        return jsonify(sportsdb.diagnostico(liga))
     except Exception as e:
         return jsonify({"error": str(e)})
 

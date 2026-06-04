@@ -177,43 +177,50 @@ def get_historial_entrenamiento(liga_key: str = "liga_mx") -> list:
     return partidos
 
 
-def diagnostico() -> dict:
-    """Diagnóstico de la conexión con TheSportsDB."""
+def diagnostico(liga_key: str = "liga_mx") -> dict:
+    """Diagnóstico de la conexión con TheSportsDB para una liga."""
     now = datetime.now()
     y = now.year
     season = f"{y}-{y+1}" if now.month >= 7 else f"{y-1}-{y}"
 
     result = {
+        "liga":          liga_key,
         "key_usada":     SPORTSDB_KEY,
-        "liga_mx_id":    LIGAS_SDB["liga_mx"],
+        "liga_id":       LIGAS_SDB.get(liga_key, "?"),
         "season_actual": season,
     }
 
     try:
-        past = get_past_events("liga_mx", 30)
+        past = get_past_events(liga_key, 30)
         result["past_events"] = len(past)
         result["past_ejemplo"] = past[:3]
     except Exception as e:
         result["past_error"] = str(e)[:150]
 
     try:
-        nxt = get_next_events("liga_mx")
+        nxt = get_next_events(liga_key)
         result["next_events"] = len(nxt)
         result["next_ejemplo"] = nxt[:3]
     except Exception as e:
         result["next_error"] = str(e)[:150]
 
     try:
-        season_ev = get_season_events("liga_mx", season)
+        season_ev = get_season_events(liga_key, season)
         result["season_events"] = len(season_ev)
     except Exception as e:
         result["season_error"] = str(e)[:150]
 
     try:
-        hist = get_historial_entrenamiento("liga_mx")
+        hist = get_historial_entrenamiento(liga_key)
         result["historial_entrenamiento"] = len(hist)
     except Exception as e:
         result["historial_error"] = str(e)[:150]
+
+    # Liga activa detectada
+    try:
+        result["liga_activa_detectada"] = liga_activa_actual()["nombre"]
+    except Exception:
+        pass
 
     return result
 
