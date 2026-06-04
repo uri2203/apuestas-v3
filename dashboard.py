@@ -348,12 +348,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
 </div>
 
 <div id="s-progol" class="section">
-  <div class="ph"><div class="ph-title">Progol · Jornada</div><div class="ph-sub">Dixon-Coles 50% + ELO 30% + Poisson 20% · precisión 55-62% · datos API-Football</div></div>
+  <div class="ph"><div class="ph-title">Progol · Jornada</div><div class="ph-sub">Dixon-Coles 50% + ELO 30% + Poisson 20% · precisión 55-62% · datos reales ESPN</div></div>
   <div class="sg">
     <div class="sc"><div class="sc-glow" style="background:var(--green)"></div><div class="sc-lbl">Modelo</div><div class="sc-val" style="color:var(--green);font-size:13px">Dixon-Coles</div><div class="sc-sub">Estándar industria</div></div>
     <div class="sc"><div class="sc-glow" style="background:var(--purple)"></div><div class="sc-lbl">ELO Rating</div><div class="sc-val" style="color:var(--purple2);font-size:13px">FiveThirtyEight</div><div class="sc-sub">Dinámico por forma</div></div>
     <div class="sc"><div class="sc-glow" style="background:var(--gold)"></div><div class="sc-lbl">Precisión real</div><div class="sc-val" style="color:var(--gold)">55-62%</div><div class="sc-sub">Por partido</div></div>
-    <div class="sc"><div class="sc-glow" style="background:var(--teal)"></div><div class="sc-lbl">xG fuente</div><div class="sc-val" style="color:var(--teal);font-size:13px">API-Football</div><div class="sc-sub">Configura API_FOOTBALL_KEY</div></div>
+    <div class="sc"><div class="sc-glow" style="background:var(--teal)"></div><div class="sc-lbl">Fuente datos</div><div class="sc-val" style="color:var(--teal);font-size:13px">ESPN</div><div class="sc-sub">Temporada actual real</div></div>
   </div>
   <div class="panel">
     <div class="ph2">
@@ -1862,6 +1862,9 @@ async function loadProgol() {
     if(d.ranking_elo?.length) {
       document.getElementById('elo-rank').innerHTML = d.ranking_elo.slice(0,8).map((e,i)=>`
         <div class="mm"><span class="mm-l">${i+1}. ${e.equipo}</span><span class="mm-v" style="color:var(--purple2)">${e.elo}</span></div>`).join('')
+      // El ranking Dixon-Coles deriva de la fuerza ofensiva/defensiva; mostramos el ELO como referencia unificada
+      const dcEl = document.getElementById('dc-rank')
+      if (dcEl) dcEl.innerHTML = '<p style="color:var(--muted);font-size:11px;font-family:var(--mono);line-height:1.5">El ranking Dixon-Coles se integra dentro del Ensemble junto con ELO. El ranking ELO de la izquierda refleja la fuerza combinada de cada equipo.</p>'
     }
 
   } catch(e) {
