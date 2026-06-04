@@ -99,11 +99,31 @@ def health():
     except Exception as e:
         db_error = str(e)[:200]
 
+    # Parsear la URL para diagnóstico (sin exponer password)
+    url_info = {}
+    raw_url = os.getenv("DATABASE_URL", "")
+    if raw_url:
+        try:
+            from urllib.parse import urlparse
+            stripped = raw_url.strip()
+            url_info["tenia_espacios"] = (raw_url != stripped)
+            url_info["longitud"] = len(stripped)
+            p = urlparse(stripped)
+            url_info["usuario"] = p.username
+            url_info["host"]    = p.hostname
+            url_info["puerto"]  = p.port
+            url_info["dbname"]  = p.path.lstrip("/")
+            url_info["password_longitud"] = len(p.password) if p.password else 0
+            url_info["scheme"]  = p.scheme
+        except Exception as e:
+            url_info["parse_error"] = str(e)[:100]
+
     estado["database"] = {
         "tipo":      db_tipo,
         "conectada": db_ok,
         "error":     db_error,
         "url_configurada": bool(os.getenv("DATABASE_URL")),
+        "url_info":  url_info,
     }
 
     # Estado de las API keys (solo booleanos, sin exponer las keys)
