@@ -2176,13 +2176,35 @@ const ALERTS_DATA=[
   {t:'i',x:'Sorteo Melate esta noche 21:00 CDMX — actualiza tu análisis antes',g:'hace 2h'},
 ]
 
-function loadAlertas(target='alertas-feed') {
-  const el=document.getElementById(target); if(!el) return
-  el.innerHTML=`<div class="afeed">${ALERTS_DATA.map(a=>`
-    <div class="ai ${a.t}">
-      <span class="ai-t">${a.x}</span>
-      <span class="ai-g">${a.g}</span>
-    </div>`).join('')}</div>`
+async function loadAlertas(target='alertas-feed') {
+  const el = document.getElementById(target)
+  if (!el) return
+  try {
+    const d = await api('/api/alertas/recientes')
+    const alertas = d.alertas || []
+    const status = d.api_status || {}
+    const modoColor = status.modo === 'REAL' ? 'var(--green)' : 'var(--gold)'
+    let html = `<div style="padding:6px 10px;margin-bottom:8px;background:var(--bg4);border-radius:6px;font-family:var(--mono);font-size:10px;display:flex;gap:10px;flex-wrap:wrap">
+      <span style="color:${modoColor};font-weight:700">${status.modo || 'DEMO'}</span>
+      <span style="color:${status.api_football ? 'var(--green)' : 'var(--red)'}">Football API ${status.api_football ? '&#10003;' : '&#10007;'}</span>
+      <span style="color:${status.odds_api ? 'var(--green)' : 'var(--red)'}">Odds API ${status.odds_api ? '&#10003;' : '&#10007;'}</span>
+      <span style="color:${status.db ? 'var(--green)' : 'var(--red)'}">DB ${status.db ? '&#10003;' : '&#10007;'}</span>
+    </div>`
+    if (alertas.length) {
+      html += '<div class="afeed">' + alertas.map(a => {
+        const pre = a.real ? '' : '[DEMO] '
+        const op = a.real ? '' : 'opacity:0.55;'
+        return `<div class="ai ${a.t}" style="${op}"><span class="ai-t">${pre}${a.x}</span><span class="ai-g">${a.g}</span></div>`
+      }).join('') + '</div>'
+    } else {
+      html += '<div style="color:var(--muted);padding:16px;text-align:center;font-family:var(--mono);font-size:11px">Sin alertas aun. El sistema las genera automaticamente.</div>'
+    }
+    el.innerHTML = html
+  } catch(e) {
+    el.innerHTML = '<div class="afeed">' + ALERTS_DATA.map(a =>
+      `<div class="ai ${a.t}"><span class="ai-t">[DEMO] ${a.x}</span><span class="ai-g">${a.g}</span></div>`
+    ).join('') + '</div>'
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

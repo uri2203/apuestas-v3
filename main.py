@@ -225,7 +225,13 @@ def value_bets():
             if real: results=real
         except Exception as e: logging.warning("Odds API: %s",e)
     filtered=[v for v in results if v["edge_porcentaje"]>=edge_min]
-    return jsonify({"total_encontrados":len(filtered),"value_bets":filtered})
+    es_demo = not bool(os.getenv("ODDS_API_KEY","")) or results is _VB_DEMO
+    return jsonify({
+        "total_encontrados": len(filtered),
+        "value_bets": filtered,
+        "es_demo": es_demo,
+        "aviso": "⚠️ Datos de demostración — configura ODDS_API_KEY para value bets reales" if es_demo else None,
+    })
 
 # ── KELLY ──────────────────────────────────────────────────────────────────────
 @app.route("/api/kelly/calcular",methods=["POST"])
@@ -333,6 +339,73 @@ def backtest_run():
     ventana=int(request.args.get("ventana",20)); modo=request.args.get("modo","ensemble")
     if modo=="comparar": return jsonify(backtest_por_modelo(HISTORIAL_DEMO,ventana))
     return jsonify(backtest(HISTORIAL_DEMO,ventana))
+
+
+@app.route("/api/alertas/recientes")
+@login_required
+def alertas_recientes():
+    """Alertas reales desde la base de datos + estado de las APIs."""
+    from database import db, _fetchall
+    
+    alertas = []
+    
+    # Leer alertas reales de la DB
+    try:
+        with db() as conn:
+            rows = _fetchall(conn,
+                "SELECT * FROM alerts_log ORDER BY id DESC LIMIT 20")
+        for r in rows:
+            tipo_map = {"NLP_LESION":"r","STEAM":"s","VALUE_BET":"g","NLP_MORAL":"i"}
+            alertas.append({
+                "t": tipo_map.get(r.get("tipo",""),"i"),
+                "x": r.get("detalle",""),
+                "g": r.get("created_at",""),
+                "urgencia": r.get("urgencia",""),
+                "real": True,
+            })
+    except Exception:
+        pass
+
+    # Leer últimos value bets detectados
+    try:
+        with db() as conn:
+            vbs = _fetchall(conn,
+                "SELECT * FROM value_bets_log ORDER BY id DESC LIMIT 5")
+        for v in vbs:
+            alertas.append({
+                "t": "g",
+                "x": f"Value bet: {v.get('partido','')} · {v.get('resultado','')} @{v.get('cuota','')} · Edge +{v.get('edge_pct','')}% ({v.get('casa','')})",
+                "g": str(v.get("detected_at","")),
+                "real": True,
+            })
+    except Exception:
+        pass
+
+    # Estado de las APIs
+    api_status = {
+        "api_football": bool(os.getenv("API_FOOTBALL_KEY","")),
+        "odds_api":     bool(os.getenv("ODDS_API_KEY","")),
+        "openweather":  bool(os.getenv("OPENWEATHER_KEY","")),
+        "telegram":     bool(os.getenv("TELEGRAM_TOKEN","")),
+        "db":           bool(os.getenv("DATABASE_URL","")),
+        "modo":         "REAL" if os.getenv("API_FOOTBALL_KEY","") else "DEMO",
+    }
+
+    # Si no hay alertas reales, indicar que el sistema está en modo demo
+    if not alertas:
+        alertas = [{
+            "t": "i",
+            "x": "Sistema en modo DEMO — configura API_FOOTBALL_KEY y ODDS_API_KEY para datos reales",
+            "g": "ahora",
+            "real": False,
+        }]
+
+    return jsonify({
+        "alertas": sorted(alertas, key=lambda x: x.get("g",""), reverse=True)[:15],
+        "api_status": api_status,
+        "total": len(alertas),
+    })
+
 
 # ── SCHEDULER ──────────────────────────────────────────────────────────────────
 def _alerta_vb_con_broadcast():

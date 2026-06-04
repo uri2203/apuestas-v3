@@ -158,7 +158,9 @@ def generar_jornada_progol(api_key=""):
             partidos_futuros = []
 
     # Si no hay partidos futuros, usar demo
+    _usando_demo_partidos = False
     if not partidos_futuros:
+        _usando_demo_partidos = True
         partidos_futuros = [
             {"home": "Club América",   "away": "Guadalajara",  "liga": "Liga MX"},
             {"home": "Cruz Azul",      "away": "Pumas UNAM",   "liga": "Liga MX"},
