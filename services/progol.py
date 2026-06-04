@@ -197,17 +197,25 @@ def generar_jornada_progol(api_key=""):
     if not historial:
         historial = HISTORIAL_DEMO
 
-    # Sin partidos de ninguna fuente
+    # Sin partidos próximos — Liga MX en receso. Mostrar ranking actual + info útil
     _usando_demo_partidos = not bool(partidos_futuros)
-    import os as _os
     if not partidos_futuros:
-        tiene_odds = bool(_os.getenv("ODDS_API_KEY", ""))
+        # Entrenar el modelo igual para mostrar el ranking actualizado
+        modelo_receso = _get_modelo(historial)
+        ranking = modelo_receso.ranking_elo()[:18] if historial else []
         return {
-            "error": "No hay partidos próximos de Liga MX disponibles",
+            "error": None,
             "partidos": [], "total_partidos": 0, "es_demo": False,
-            "aviso": ("Liga MX puede estar en receso (sin partidos esta semana). "
-                      "Vuelve cuando haya jornada programada." if tiene_odds else
-                      "Configura ODDS_API_KEY para obtener próximos partidos reales."),
+            "en_receso": True,
+            "usa_datos_reales": True,
+            "fuente_partidos": fuente_datos,
+            "partidos_entrenamiento": len(historial),
+            "modelo": "Ensemble (Dixon-Coles 50% + ELO 30% + Poisson 20%)",
+            "ranking_elo": ranking,
+            "aviso": ("Liga MX está en receso entre torneos. El Apertura 2026 "
+                      "inicia en julio. El modelo ya está entrenado con "
+                      f"{len(historial)} partidos reales de la temporada — "
+                      "el ranking ELO de abajo está actualizado y listo para cuando regrese la liga."),
         }
 
     modelo = _get_modelo(historial)

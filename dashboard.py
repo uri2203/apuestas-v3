@@ -1785,11 +1785,23 @@ async function loadProgol() {
     const d = await api('/api/progol/jornada')
     setAPIStatus(true)
 
-    // Sin partidos o error
-    if (d.error || !d.partidos || !d.partidos.length) {
-      document.getElementById('prog-body').innerHTML = `<div style="padding:24px;text-align:center;font-family:var(--mono);font-size:12px;color:var(--gold)">${d.aviso || d.error || 'Sin partidos disponibles'}</div>`
+    // En receso — mostrar aviso + ranking ELO actualizado
+    if (d.en_receso || !d.partidos || !d.partidos.length) {
+      const rankHtml = (d.ranking_elo || []).length
+        ? '<div style="padding:12px 14px"><div style="font-size:11px;font-family:var(--mono);color:var(--purple2);margin-bottom:8px;font-weight:700">RANKING ELO ACTUAL (temporada real)</div>' +
+          d.ranking_elo.map((e,i) => `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:11px">
+            <span style="color:var(--text)">${i+1}. ${e.equipo}</span>
+            <span style="color:var(--purple2);font-weight:700">${e.elo}</span></div>`).join('') + '</div>'
+        : ''
+      document.getElementById('prog-body').innerHTML =
+        `<div style="padding:16px;font-family:var(--mono);font-size:11px;color:var(--gold);line-height:1.6;border-bottom:1px solid var(--border)">${d.aviso || d.error || 'Sin partidos'}</div>` + rankHtml
       const btn2 = document.getElementById('prog-btn')
       if (btn2) { btn2.textContent = 'Actualizar'; btn2.disabled = false }
+      // Llenar ranking lateral también
+      if (d.ranking_elo?.length) {
+        const er = document.getElementById('elo-rank')
+        if (er) er.innerHTML = d.ranking_elo.slice(0,8).map((e,i)=>`<div class="mm"><span class="mm-l">${i+1}. ${e.equipo}</span><span class="mm-v" style="color:var(--purple2)">${e.elo}</span></div>`).join('')
+      }
       return
     }
 
