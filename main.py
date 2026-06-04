@@ -668,6 +668,17 @@ def diag_football():
     return jsonify(result)
 
 
+
+@app.route("/api/admin/diag-sportsdb")
+def diag_sportsdb():
+    """Diagnostica TheSportsDB — fuente gratuita de datos actuales."""
+    try:
+        from services import sportsdb
+        return jsonify(sportsdb.diagnostico())
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
 # ── SCHEDULER ──────────────────────────────────────────────────────────────────
 def _alerta_vb_con_broadcast():
     alerta_value_bets()

@@ -164,27 +164,36 @@ def generar_jornada_progol(api_key=""):
     Usa API-Football si hay key, si no usa historial demo.
     """
     partidos_futuros = []
-    historial        = HISTORIAL_DEMO
+    historial        = []
     xg_map           = {}
+    fuente_datos     = "demo"
 
-    if api_key:
+    # ── FUENTE 1: TheSportsDB (gratis, temporada ACTUAL) ──────────────────────
+    try:
+        from services import sportsdb
+        historial = sportsdb.get_historial_entrenamiento("liga_mx")
+        partidos_futuros = sportsdb.get_next_events("liga_mx")
+        if historial or partidos_futuros:
+            fuente_datos = "TheSportsDB (temporada actual)"
+    except Exception as e:
+        import logging; logging.warning("SportsDB falló: %s", e)
+
+    # ── FUENTE 2: API-Football para historial (temporada 2024 plan free) ──────
+    if not historial and api_key:
         try:
-            # Entrenar con datos reales (temporada permitida por el plan)
             historial = get_fixtures_liga(LIGAS["liga_mx"], None, api_key)
-            if not historial:
-                from services.api_football import current_season
-                historial = get_fixtures_liga(LIGAS["liga_mx"], current_season()-1, api_key)
-
-            # Próximos partidos desde API-Football (puede fallar en plan free)
-            partidos_futuros = get_upcoming_fixtures(LIGAS["liga_mx"], 7, api_key)
+            if historial:
+                fuente_datos = "API-Football (2024)"
         except Exception:
-            partidos_futuros = []
+            pass
 
-    # Si API-Football no dio próximos partidos (plan free), usar The Odds API
+    # ── FUENTE 3: Odds API para próximos partidos ─────────────────────────────
     if not partidos_futuros:
         partidos_futuros = _upcoming_desde_odds()
+        if partidos_futuros and fuente_datos == "demo":
+            fuente_datos = "The Odds API"
 
-    # Si no hay historial real, usar demo para entrenar el modelo
+    # ── Fallback final: demo solo para entrenar el modelo ─────────────────────
     if not historial:
         historial = HISTORIAL_DEMO
 
@@ -238,8 +247,9 @@ def generar_jornada_progol(api_key=""):
     return {
         "total_partidos":     len(jornada),
         "usa_datos_reales":   not _usando_demo_partidos,
-        "fuente_partidos":    "Odds API / API-Football" if not _usando_demo_partidos else "demo",
+        "fuente_partidos":    fuente_datos,
         "es_demo":            _usando_demo_partidos,
+        "partidos_entrenamiento": len(historial),
         "modelo":             "Ensemble (Dixon-Coles 50% + ELO 30% + Poisson 20%)",
         "precision_esperada": "55-62% por partido",
         "partidos":           jornada,
@@ -249,8 +259,16 @@ def generar_jornada_progol(api_key=""):
 
 def ranking_equipos(api_key=""):
     """Ranking de equipos por ELO y Dixon-Coles."""
-    historial = HISTORIAL_DEMO
-    if api_key:
+    historial = []
+    # Priorizar TheSportsDB (temporada actual)
+    try:
+        from services import sportsdb
+        historial = sportsdb.get_historial_entrenamiento("liga_mx")
+    except Exception:
+        pass
+    if not historial:
+        historial = HISTORIAL_DEMO
+    if not historial and api_key:
         try:
             h = get_fixtures_liga(LIGAS["liga_mx"], None, api_key)
             if h:
