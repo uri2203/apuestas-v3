@@ -255,9 +255,11 @@ def generar_jornada_progol(api_key=""):
             "partidos_entrenamiento": len(historial),
             "modelo": "Ensemble (Dixon-Coles 50% + ELO 30% + Poisson 20%)",
             "ranking_elo": ranking,
-            "aviso": (f"No hay partidos próximos en {liga_nombre} ni otras ligas principales "
-                      f"en este momento (posible receso general). El modelo está entrenado con "
-                      f"{len(historial)} partidos reales — el ranking ELO de abajo está actualizado."),
+            "aviso": (f"El modelo está entrenado con {len(historial)} partidos REALES de "
+                      f"la temporada actual (vía ESPN). No hay jornada programada en los "
+                      f"próximos 45 días — las ligas principales están en receso de verano. "
+                      f"El ranking ELO de abajo refleja la fuerza real actual de cada equipo. "
+                      f"Cuando regrese la liga, las predicciones se activan automáticamente."),
         }
 
     modelo = _get_modelo(historial)

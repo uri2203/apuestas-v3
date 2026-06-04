@@ -182,21 +182,24 @@ def get_standings(liga_key: str = "liga_mx") -> list:
 
 
 def liga_activa_actual() -> dict:
-    """Detecta qué liga tiene partidos próximos."""
+    """Detecta qué liga tiene partidos próximos. Busca hasta 45 días."""
     prioridad = [
         ("liga_mx", "Liga MX"), ("mls", "MLS"),
         ("premier_league", "Premier League"), ("la_liga", "La Liga"),
         ("serie_a", "Serie A"), ("champions_league", "Champions League"),
         ("bundesliga", "Bundesliga"), ("ligue_1", "Ligue 1"),
     ]
-    for liga_key, nombre in prioridad:
-        try:
-            nxt = get_proximos(liga_key, 14)
-            if nxt:
-                return {"liga_key": liga_key, "nombre": nombre,
-                        "next_events": len(nxt), "partidos": nxt, "en_receso": False}
-        except Exception:
-            continue
+    # Primera pasada: 14 días (partidos inminentes)
+    for dias in (14, 45):
+        for liga_key, nombre in prioridad:
+            try:
+                nxt = get_proximos(liga_key, dias)
+                if nxt:
+                    return {"liga_key": liga_key, "nombre": nombre,
+                            "next_events": len(nxt), "partidos": nxt,
+                            "en_receso": False, "ventana_dias": dias}
+            except Exception:
+                continue
     return {"liga_key": "liga_mx", "nombre": "Liga MX",
             "next_events": 0, "partidos": [], "en_receso": True}
 
