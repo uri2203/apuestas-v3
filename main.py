@@ -80,14 +80,82 @@ def dashboard():
 
 @app.route("/health")
 def health():
-    from database import get_bankroll_actual
-    return jsonify({
+    """Diagnóstico completo del sistema — público, nunca falla."""
+    estado = {
         "status":  "ok",
         "version": "4.3.0",
-        "db":      "ok",
         "sse_clients": len(_sse_clients),
-        "bankroll": get_bankroll_actual(),
-    })
+    }
+
+    # Test de conexión a la base de datos
+    db_ok = False
+    db_error = None
+    db_tipo = "PostgreSQL/Supabase" if os.getenv("DATABASE_URL") else "SQLite"
+    try:
+        from database import get_bankroll_actual
+        bankroll = get_bankroll_actual()
+        db_ok = True
+        estado["bankroll"] = bankroll
+    except Exception as e:
+        db_error = str(e)[:200]
+
+    estado["database"] = {
+        "tipo":      db_tipo,
+        "conectada": db_ok,
+        "error":     db_error,
+        "url_configurada": bool(os.getenv("DATABASE_URL")),
+    }
+
+    # Estado de las API keys (solo booleanos, sin exponer las keys)
+    estado["api_keys"] = {
+        "api_football": bool(os.getenv("API_FOOTBALL_KEY")),
+        "odds_api":     bool(os.getenv("ODDS_API_KEY")),
+        "openweather":  bool(os.getenv("OPENWEATHER_KEY")),
+        "telegram":     bool(os.getenv("TELEGRAM_TOKEN")),
+        "app_password": bool(os.getenv("APP_PASSWORD")),
+        "session_secret": bool(os.getenv("SESSION_SECRET")),
+    }
+
+    # Test rápido de API-Football (1 request ligera)
+    estado["api_tests"] = {}
+    if os.getenv("API_FOOTBALL_KEY"):
+        try:
+            import httpx
+            from services.api_football import _headers, API_BASE, RAPID_BASE, current_season
+            key = os.getenv("API_FOOTBALL_KEY")
+            base = RAPID_BASE if len(key) > 40 else API_BASE
+            r = httpx.get(base + "/status", headers=_headers(key), timeout=8)
+            d = r.json()
+            resp = d.get("response", {})
+            estado["api_tests"]["api_football"] = {
+                "ok": r.status_code == 200,
+                "cuenta": resp.get("account", {}).get("plan", "?") if isinstance(resp, dict) else "?",
+                "requests_dia": resp.get("requests", {}).get("current", "?") if isinstance(resp, dict) else "?",
+                "limite_dia": resp.get("requests", {}).get("limit_day", "?") if isinstance(resp, dict) else "?",
+            }
+        except Exception as e:
+            estado["api_tests"]["api_football"] = {"ok": False, "error": str(e)[:150]}
+
+    if os.getenv("ODDS_API_KEY"):
+        try:
+            import httpx
+            r = httpx.get("https://api.the-odds-api.com/v4/sports/",
+                          params={"apiKey": os.getenv("ODDS_API_KEY")}, timeout=8)
+            remaining = r.headers.get("x-requests-remaining", "?")
+            used = r.headers.get("x-requests-used", "?")
+            estado["api_tests"]["odds_api"] = {
+                "ok": r.status_code == 200,
+                "status_code": r.status_code,
+                "requests_restantes": remaining,
+                "requests_usados": used,
+            }
+        except Exception as e:
+            estado["api_tests"]["odds_api"] = {"ok": False, "error": str(e)[:150]}
+
+    # Resumen
+    estado["modo"] = "REAL" if (db_ok and os.getenv("API_FOOTBALL_KEY")) else "PARCIAL" if db_ok else "ERROR_DB"
+
+    return jsonify(estado)
 
 # ── MELATE ─────────────────────────────────────────────────────────────────────
 FREQ_MELATE = {
