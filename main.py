@@ -576,6 +576,37 @@ def alertas_recientes():
     })
 
 
+
+@app.route("/api/admin/init-db")
+def admin_init_db():
+    """Crea/repara todas las tablas. Útil tras configurar la DB."""
+    resultado = {"tablas_creadas": [], "errores": []}
+    try:
+        from database import init_db
+        init_db()
+        resultado["tablas_creadas"].append("core (predictions, bets, bankroll_history, value_bets_log, alerts_log)")
+    except Exception as e:
+        resultado["errores"].append(f"core: {str(e)[:150]}")
+
+    try:
+        from services.account_manager import init_account_tables
+        init_account_tables()
+        resultado["tablas_creadas"].append("cuentas (bookmaker_accounts, account_bets, limit_history)")
+    except Exception as e:
+        resultado["errores"].append(f"cuentas: {str(e)[:150]}")
+
+    # Verificar que funcionan
+    try:
+        from database import get_bankroll_actual
+        bk = get_bankroll_actual()
+        resultado["verificacion"] = {"ok": True, "bankroll": bk}
+    except Exception as e:
+        resultado["verificacion"] = {"ok": False, "error": str(e)[:150]}
+
+    resultado["status"] = "ok" if not resultado["errores"] else "con_errores"
+    return jsonify(resultado)
+
+
 # ── SCHEDULER ──────────────────────────────────────────────────────────────────
 def _alerta_vb_con_broadcast():
     alerta_value_bets()
