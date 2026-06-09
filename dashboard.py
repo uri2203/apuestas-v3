@@ -239,6 +239,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
 
   <div class="nav-label">Apuestas</div>
   <button class="nav-btn" onclick="go(this,'odds')"><span class="nav-icon">◉</span>Value Bets <span class="nb nb-green">LIVE</span></button>
+  <button class="nav-btn" onclick="go(this,'valuepro')"><span class="nav-icon">💎</span>Value Pro <span class="nb nb-gold">€</span></button>
   <button class="nav-btn" onclick="go(this,'sharp')"><span class="nav-icon">⚡</span>Sharp Money <span class="nb nb-gold">PRO</span></button>
   <button class="nav-btn" onclick="go(this,'clv')"><span class="nav-icon">◎</span>CLV Tracker</button>
   <button class="nav-btn" onclick="go(this,'kelly')"><span class="nav-icon">◈</span>Kelly Pro</button>
@@ -938,6 +939,102 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
   </div>
 </div>
 
+
+<!-- ══════════════════════════════════════════════════ -->
+<!-- VALUE PRO -->
+<!-- ══════════════════════════════════════════════════ -->
+<div id="s-valuepro" class="section">
+  <div class="ph">
+    <div class="ph-title">💎 Value Betting Pro</div>
+    <div class="ph-sub">Donde está el dinero real · Edge + Kelly + CLV · El método de los profesionales</div>
+  </div>
+
+  <div class="panel" style="background:rgba(124,109,250,.05);border:1px solid rgba(124,109,250,.2)">
+    <div class="pb" style="font-family:var(--mono);font-size:12px;color:var(--muted);line-height:1.7">
+      <span style="color:var(--purple2);font-weight:700">El secreto de los apostadores rentables:</span> no aciertan más del 55% de sus apuestas.
+      Ganan porque apuestan <span style="color:var(--green)">solo cuando hay value</span> (la casa paga de más) y usan
+      <span style="color:var(--gold)">Kelly</span> para el monto óptimo. No persiguen aciertos, persiguen <span style="color:var(--green)">edge positivo</span>.
+    </div>
+  </div>
+
+  <!-- Calculadora de Value -->
+  <div class="sg2">
+    <div class="panel">
+      <div class="ph2"><span class="pt">🔍 Calculadora de Value</span></div>
+      <div class="pb" style="display:flex;flex-direction:column;gap:10px">
+        <div>
+          <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">PROBABILIDAD REAL (tu estimación o la del modelo) %</div>
+          <input id="vp-prob" type="number" step="0.1" placeholder="ej: 55" value="55" style="width:100%;padding:9px 12px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--ui);font-size:12px">
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">CUOTA QUE PAGA LA CASA</div>
+          <input id="vp-cuota" type="number" step="0.01" placeholder="ej: 2.10" value="2.10" style="width:100%;padding:9px 12px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--ui);font-size:12px">
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">CUOTA PINNACLE (opcional — valida el value)</div>
+          <input id="vp-pinnacle" type="number" step="0.01" placeholder="ej: 1.95 (dejar vacío si no tienes)" style="width:100%;padding:9px 12px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--ui);font-size:12px">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div>
+            <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">BANKROLL $</div>
+            <input id="vp-bank" type="number" placeholder="2000" value="2000" style="width:100%;padding:9px 12px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--ui);font-size:12px">
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">FRACCIÓN KELLY</div>
+            <select id="vp-frac" style="width:100%;padding:9px 12px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--ui);font-size:12px">
+              <option value="0.25" selected>1/4 Kelly (seguro)</option>
+              <option value="0.5">1/2 Kelly (moderado)</option>
+              <option value="1">Kelly completo (agresivo)</option>
+            </select>
+          </div>
+        </div>
+        <button onclick="calcValuePro()" style="padding:11px;background:var(--purple);border:none;border-radius:8px;color:#fff;font-weight:700;cursor:pointer;font-family:var(--ui)">Analizar Value</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="ph2"><span class="pt">📊 Resultado del Análisis</span></div>
+      <div class="pb" id="vp-resultado" style="font-family:var(--mono);font-size:12px;color:var(--muted)">
+        Ingresa los datos y analiza. Te diré si hay value real y cuánto apostar.
+      </div>
+    </div>
+  </div>
+
+  <!-- CLV Calculator -->
+  <div class="panel">
+    <div class="ph2"><span class="pt">📈 Closing Line Value (CLV) — la métrica reina</span></div>
+    <div class="pb">
+      <p style="font-size:11px;font-family:var(--mono);color:var(--muted);margin-bottom:12px;line-height:1.6">
+        El CLV mide si apostaste a mejor cuota que la de cierre. <span style="color:var(--green)">CLV positivo consistente = rentabilidad garantizada</span> a largo plazo, aunque pierdas apuestas individuales.
+      </p>
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        <div>
+          <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">CUOTA QUE APOSTASTE</div>
+          <input id="clv-apostada" type="number" step="0.01" value="2.10" style="padding:8px 12px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--ui);font-size:12px;width:130px">
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">CUOTA DE CIERRE</div>
+          <input id="clv-cierre" type="number" step="0.01" value="1.90" style="padding:8px 12px;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--ui);font-size:12px;width:130px">
+        </div>
+        <button onclick="calcCLVpro()" style="padding:9px 18px;background:var(--teal);border:none;border-radius:8px;color:#000;font-weight:700;cursor:pointer;font-family:var(--ui)">Calcular CLV</button>
+      </div>
+      <div id="clv-pro-res" style="margin-top:12px;font-family:var(--mono);font-size:12px;color:var(--muted)"></div>
+    </div>
+  </div>
+
+  <!-- Guía rápida -->
+  <div class="panel">
+    <div class="ph2"><span class="pt">📖 Cómo ganar dinero (resumen)</span></div>
+    <div class="pb" style="font-family:var(--mono);font-size:11px;color:var(--muted);line-height:1.8">
+      <div style="padding:6px 0;border-bottom:1px solid var(--border)"><span style="color:var(--green)">1.</span> Apuesta SOLO cuando el edge es positivo (modelo dice más probable que la casa)</div>
+      <div style="padding:6px 0;border-bottom:1px solid var(--border)"><span style="color:var(--green)">2.</span> Usa el stake de Kelly — ni más ni menos</div>
+      <div style="padding:6px 0;border-bottom:1px solid var(--border)"><span style="color:var(--green)">3.</span> Compara con Pinnacle: si tu casa paga más, el value es real</div>
+      <div style="padding:6px 0;border-bottom:1px solid var(--border)"><span style="color:var(--green)">4.</span> Registra el CLV de cada apuesta — es tu termómetro de rentabilidad</div>
+      <div style="padding:6px 0"><span style="color:var(--gold)">5.</span> Acepta perder apuestas individuales. El edge se paga a largo plazo.</div>
+    </div>
+  </div>
+</div>
+
 </main>
 </div>
 
@@ -992,6 +1089,7 @@ function go(btn, id) {
   else if(id==='mlmodel') {}
   else if(id==='ligas') {}
   else if(id==='cuentas') loadCuentas()
+  else if(id==='valuepro') {}
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1438,6 +1536,63 @@ async function loadRotacion() {
   } catch(e) { document.getElementById('ct-rotacion').innerHTML='<span style="color:var(--red)">'+e+'</span>' }
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// VALUE PRO
+// ═══════════════════════════════════════════════════════════════════════
+async function calcValuePro() {
+  const prob = document.getElementById('vp-prob').value
+  const cuota = document.getElementById('vp-cuota').value
+  const pinn = document.getElementById('vp-pinnacle').value
+  const bank = document.getElementById('vp-bank').value
+  const frac = document.getElementById('vp-frac').value
+  let url = `/api/value/analizar?prob=${prob}&cuota=${cuota}&bankroll=${bank}&fraccion=${frac}`
+  if (pinn) url += `&pinnacle=${pinn}`
+  try {
+    const d = await api(url)
+    const edgeColor = d.edge_modelo_pct > 4 ? 'var(--green)' : d.edge_modelo_pct > 0 ? 'var(--gold)' : 'var(--red)'
+    let html = `
+      <div style="text-align:center;padding:12px 0;border-bottom:1px solid var(--border);margin-bottom:12px">
+        <div style="font-size:32px;font-weight:800;color:${edgeColor}">${d.edge_modelo_pct > 0 ? '+' : ''}${d.edge_modelo_pct}%</div>
+        <div style="font-size:11px;color:var(--muted)">EDGE · ${d.clasificacion}</div>
+      </div>
+      <div style="line-height:2">
+        <div>Prob. modelo: <span style="color:var(--text)">${d.prob_modelo_pct}%</span></div>
+        <div>Prob. implícita casa: <span style="color:var(--text)">${d.prob_implicita_pct}%</span></div>
+        <div>Valor esperado/unidad: <span style="color:${d.ev_por_unidad>0?'var(--green)':'var(--red)'}">${d.ev_por_unidad}</span></div>`
+    if (d.edge_mercado_pct !== undefined) {
+      html += `<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
+        Edge vs Pinnacle: <span style="color:${d.edge_mercado_pct>0?'var(--green)':'var(--red)'}">${d.edge_mercado_pct}%</span></div>
+        <div>Confianza: <span style="color:var(--purple2)">${d.confianza}</span></div>`
+    }
+    if (d.kelly) {
+      html += `<div style="margin-top:10px;padding:10px;background:rgba(240,180,41,.08);border-radius:7px">
+        <div style="color:var(--gold);font-weight:700;margin-bottom:4px">💰 STAKE KELLY</div>
+        <div>Apostar: <span style="color:var(--gold);font-size:16px;font-weight:700">$${d.kelly.stake_sugerido || 0}</span></div>
+        <div style="font-size:10px;color:var(--muted)">${d.kelly.kelly_aplicado_pct}% del bankroll (${d.kelly.fraccion_usada} Kelly)</div>
+      </div>`
+    }
+    html += `<div style="margin-top:10px;padding:8px;background:var(--bg4);border-radius:6px;color:${edgeColor}">${d.recomendacion}</div></div>`
+    document.getElementById('vp-resultado').innerHTML = html
+  } catch(e) { document.getElementById('vp-resultado').innerHTML = '<span style="color:var(--red)">Error: '+e+'</span>' }
+}
+
+async function calcCLVpro() {
+  const ap = document.getElementById('clv-apostada').value
+  const ci = document.getElementById('clv-cierre').value
+  try {
+    const d = await api(`/api/value/clv?apostada=${ap}&cierre=${ci}`)
+    const color = d.positivo ? 'var(--green)' : 'var(--red)'
+    document.getElementById('clv-pro-res').innerHTML = `
+      <div style="display:flex;align-items:center;gap:14px">
+        <div style="font-size:28px;font-weight:800;color:${color}">${d.clv_pct>0?'+':''}${d.clv_pct}%</div>
+        <div>
+          <div style="color:${color};font-weight:700">${d.interpretacion}</div>
+          <div style="font-size:10px;color:var(--muted)">${d.nota}</div>
+        </div>
+      </div>`
+  } catch(e) { document.getElementById('clv-pro-res').innerHTML = '<span style="color:var(--red)">Error: '+e+'</span>' }
+}
+
 function conectarSSE() {
   const evtSource = new EventSource('/api/eventos')
   evtSource.onmessage = function(e) {
@@ -1637,8 +1792,122 @@ async function loadRotacion() {
   } catch(e) { document.getElementById('ct-rotacion').innerHTML='<span style="color:var(--red)">'+e+'</span>' }
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════
+// VALUE PRO
+// ═══════════════════════════════════════════════════════════════════════
+async function calcValuePro() {
+  const prob = document.getElementById('vp-prob').value
+  const cuota = document.getElementById('vp-cuota').value
+  const pinn = document.getElementById('vp-pinnacle').value
+  const bank = document.getElementById('vp-bank').value
+  const frac = document.getElementById('vp-frac').value
+  let url = `/api/value/analizar?prob=${prob}&cuota=${cuota}&bankroll=${bank}&fraccion=${frac}`
+  if (pinn) url += `&pinnacle=${pinn}`
+  try {
+    const d = await api(url)
+    const edgeColor = d.edge_modelo_pct > 4 ? 'var(--green)' : d.edge_modelo_pct > 0 ? 'var(--gold)' : 'var(--red)'
+    let html = `
+      <div style="text-align:center;padding:12px 0;border-bottom:1px solid var(--border);margin-bottom:12px">
+        <div style="font-size:32px;font-weight:800;color:${edgeColor}">${d.edge_modelo_pct > 0 ? '+' : ''}${d.edge_modelo_pct}%</div>
+        <div style="font-size:11px;color:var(--muted)">EDGE · ${d.clasificacion}</div>
+      </div>
+      <div style="line-height:2">
+        <div>Prob. modelo: <span style="color:var(--text)">${d.prob_modelo_pct}%</span></div>
+        <div>Prob. implícita casa: <span style="color:var(--text)">${d.prob_implicita_pct}%</span></div>
+        <div>Valor esperado/unidad: <span style="color:${d.ev_por_unidad>0?'var(--green)':'var(--red)'}">${d.ev_por_unidad}</span></div>`
+    if (d.edge_mercado_pct !== undefined) {
+      html += `<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
+        Edge vs Pinnacle: <span style="color:${d.edge_mercado_pct>0?'var(--green)':'var(--red)'}">${d.edge_mercado_pct}%</span></div>
+        <div>Confianza: <span style="color:var(--purple2)">${d.confianza}</span></div>`
+    }
+    if (d.kelly) {
+      html += `<div style="margin-top:10px;padding:10px;background:rgba(240,180,41,.08);border-radius:7px">
+        <div style="color:var(--gold);font-weight:700;margin-bottom:4px">💰 STAKE KELLY</div>
+        <div>Apostar: <span style="color:var(--gold);font-size:16px;font-weight:700">$${d.kelly.stake_sugerido || 0}</span></div>
+        <div style="font-size:10px;color:var(--muted)">${d.kelly.kelly_aplicado_pct}% del bankroll (${d.kelly.fraccion_usada} Kelly)</div>
+      </div>`
+    }
+    html += `<div style="margin-top:10px;padding:8px;background:var(--bg4);border-radius:6px;color:${edgeColor}">${d.recomendacion}</div></div>`
+    document.getElementById('vp-resultado').innerHTML = html
+  } catch(e) { document.getElementById('vp-resultado').innerHTML = '<span style="color:var(--red)">Error: '+e+'</span>' }
+}
+
+async function calcCLVpro() {
+  const ap = document.getElementById('clv-apostada').value
+  const ci = document.getElementById('clv-cierre').value
+  try {
+    const d = await api(`/api/value/clv?apostada=${ap}&cierre=${ci}`)
+    const color = d.positivo ? 'var(--green)' : 'var(--red)'
+    document.getElementById('clv-pro-res').innerHTML = `
+      <div style="display:flex;align-items:center;gap:14px">
+        <div style="font-size:28px;font-weight:800;color:${color}">${d.clv_pct>0?'+':''}${d.clv_pct}%</div>
+        <div>
+          <div style="color:${color};font-weight:700">${d.interpretacion}</div>
+          <div style="font-size:10px;color:var(--muted)">${d.nota}</div>
+        </div>
+      </div>`
+  } catch(e) { document.getElementById('clv-pro-res').innerHTML = '<span style="color:var(--red)">Error: '+e+'</span>' }
+}
+
 conectarSSE()
-function conectarSSE() { /* ya definida arriba */ }
+// ═══════════════════════════════════════════════════════════════════════
+// VALUE PRO
+// ═══════════════════════════════════════════════════════════════════════
+async function calcValuePro() {
+  const prob = document.getElementById('vp-prob').value
+  const cuota = document.getElementById('vp-cuota').value
+  const pinn = document.getElementById('vp-pinnacle').value
+  const bank = document.getElementById('vp-bank').value
+  const frac = document.getElementById('vp-frac').value
+  let url = `/api/value/analizar?prob=${prob}&cuota=${cuota}&bankroll=${bank}&fraccion=${frac}`
+  if (pinn) url += `&pinnacle=${pinn}`
+  try {
+    const d = await api(url)
+    const edgeColor = d.edge_modelo_pct > 4 ? 'var(--green)' : d.edge_modelo_pct > 0 ? 'var(--gold)' : 'var(--red)'
+    let html = `
+      <div style="text-align:center;padding:12px 0;border-bottom:1px solid var(--border);margin-bottom:12px">
+        <div style="font-size:32px;font-weight:800;color:${edgeColor}">${d.edge_modelo_pct > 0 ? '+' : ''}${d.edge_modelo_pct}%</div>
+        <div style="font-size:11px;color:var(--muted)">EDGE · ${d.clasificacion}</div>
+      </div>
+      <div style="line-height:2">
+        <div>Prob. modelo: <span style="color:var(--text)">${d.prob_modelo_pct}%</span></div>
+        <div>Prob. implícita casa: <span style="color:var(--text)">${d.prob_implicita_pct}%</span></div>
+        <div>Valor esperado/unidad: <span style="color:${d.ev_por_unidad>0?'var(--green)':'var(--red)'}">${d.ev_por_unidad}</span></div>`
+    if (d.edge_mercado_pct !== undefined) {
+      html += `<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
+        Edge vs Pinnacle: <span style="color:${d.edge_mercado_pct>0?'var(--green)':'var(--red)'}">${d.edge_mercado_pct}%</span></div>
+        <div>Confianza: <span style="color:var(--purple2)">${d.confianza}</span></div>`
+    }
+    if (d.kelly) {
+      html += `<div style="margin-top:10px;padding:10px;background:rgba(240,180,41,.08);border-radius:7px">
+        <div style="color:var(--gold);font-weight:700;margin-bottom:4px">💰 STAKE KELLY</div>
+        <div>Apostar: <span style="color:var(--gold);font-size:16px;font-weight:700">$${d.kelly.stake_sugerido || 0}</span></div>
+        <div style="font-size:10px;color:var(--muted)">${d.kelly.kelly_aplicado_pct}% del bankroll (${d.kelly.fraccion_usada} Kelly)</div>
+      </div>`
+    }
+    html += `<div style="margin-top:10px;padding:8px;background:var(--bg4);border-radius:6px;color:${edgeColor}">${d.recomendacion}</div></div>`
+    document.getElementById('vp-resultado').innerHTML = html
+  } catch(e) { document.getElementById('vp-resultado').innerHTML = '<span style="color:var(--red)">Error: '+e+'</span>' }
+}
+
+async function calcCLVpro() {
+  const ap = document.getElementById('clv-apostada').value
+  const ci = document.getElementById('clv-cierre').value
+  try {
+    const d = await api(`/api/value/clv?apostada=${ap}&cierre=${ci}`)
+    const color = d.positivo ? 'var(--green)' : 'var(--red)'
+    document.getElementById('clv-pro-res').innerHTML = `
+      <div style="display:flex;align-items:center;gap:14px">
+        <div style="font-size:28px;font-weight:800;color:${color}">${d.clv_pct>0?'+':''}${d.clv_pct}%</div>
+        <div>
+          <div style="color:${color};font-weight:700">${d.interpretacion}</div>
+          <div style="font-size:10px;color:var(--muted)">${d.nota}</div>
+        </div>
+      </div>`
+  } catch(e) { document.getElementById('clv-pro-res').innerHTML = '<span style="color:var(--red)">Error: '+e+'</span>' }
+}
+
 async function initDashboard() {
   document.getElementById('dash-sub').textContent = 'cargando datos en tiempo real...'
 
@@ -2465,6 +2734,64 @@ async function loadRotacion() {
           </div>
         </div>`}).join('')}`
   } catch(e) { document.getElementById('ct-rotacion').innerHTML='<span style="color:var(--red)">'+e+'</span>' }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// VALUE PRO
+// ═══════════════════════════════════════════════════════════════════════
+async function calcValuePro() {
+  const prob = document.getElementById('vp-prob').value
+  const cuota = document.getElementById('vp-cuota').value
+  const pinn = document.getElementById('vp-pinnacle').value
+  const bank = document.getElementById('vp-bank').value
+  const frac = document.getElementById('vp-frac').value
+  let url = `/api/value/analizar?prob=${prob}&cuota=${cuota}&bankroll=${bank}&fraccion=${frac}`
+  if (pinn) url += `&pinnacle=${pinn}`
+  try {
+    const d = await api(url)
+    const edgeColor = d.edge_modelo_pct > 4 ? 'var(--green)' : d.edge_modelo_pct > 0 ? 'var(--gold)' : 'var(--red)'
+    let html = `
+      <div style="text-align:center;padding:12px 0;border-bottom:1px solid var(--border);margin-bottom:12px">
+        <div style="font-size:32px;font-weight:800;color:${edgeColor}">${d.edge_modelo_pct > 0 ? '+' : ''}${d.edge_modelo_pct}%</div>
+        <div style="font-size:11px;color:var(--muted)">EDGE · ${d.clasificacion}</div>
+      </div>
+      <div style="line-height:2">
+        <div>Prob. modelo: <span style="color:var(--text)">${d.prob_modelo_pct}%</span></div>
+        <div>Prob. implícita casa: <span style="color:var(--text)">${d.prob_implicita_pct}%</span></div>
+        <div>Valor esperado/unidad: <span style="color:${d.ev_por_unidad>0?'var(--green)':'var(--red)'}">${d.ev_por_unidad}</span></div>`
+    if (d.edge_mercado_pct !== undefined) {
+      html += `<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
+        Edge vs Pinnacle: <span style="color:${d.edge_mercado_pct>0?'var(--green)':'var(--red)'}">${d.edge_mercado_pct}%</span></div>
+        <div>Confianza: <span style="color:var(--purple2)">${d.confianza}</span></div>`
+    }
+    if (d.kelly) {
+      html += `<div style="margin-top:10px;padding:10px;background:rgba(240,180,41,.08);border-radius:7px">
+        <div style="color:var(--gold);font-weight:700;margin-bottom:4px">💰 STAKE KELLY</div>
+        <div>Apostar: <span style="color:var(--gold);font-size:16px;font-weight:700">$${d.kelly.stake_sugerido || 0}</span></div>
+        <div style="font-size:10px;color:var(--muted)">${d.kelly.kelly_aplicado_pct}% del bankroll (${d.kelly.fraccion_usada} Kelly)</div>
+      </div>`
+    }
+    html += `<div style="margin-top:10px;padding:8px;background:var(--bg4);border-radius:6px;color:${edgeColor}">${d.recomendacion}</div></div>`
+    document.getElementById('vp-resultado').innerHTML = html
+  } catch(e) { document.getElementById('vp-resultado').innerHTML = '<span style="color:var(--red)">Error: '+e+'</span>' }
+}
+
+async function calcCLVpro() {
+  const ap = document.getElementById('clv-apostada').value
+  const ci = document.getElementById('clv-cierre').value
+  try {
+    const d = await api(`/api/value/clv?apostada=${ap}&cierre=${ci}`)
+    const color = d.positivo ? 'var(--green)' : 'var(--red)'
+    document.getElementById('clv-pro-res').innerHTML = `
+      <div style="display:flex;align-items:center;gap:14px">
+        <div style="font-size:28px;font-weight:800;color:${color}">${d.clv_pct>0?'+':''}${d.clv_pct}%</div>
+        <div>
+          <div style="color:${color};font-weight:700">${d.interpretacion}</div>
+          <div style="font-size:10px;color:var(--muted)">${d.nota}</div>
+        </div>
+      </div>`
+  } catch(e) { document.getElementById('clv-pro-res').innerHTML = '<span style="color:var(--red)">Error: '+e+'</span>' }
 }
 
 conectarSSE()
