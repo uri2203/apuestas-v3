@@ -2,7 +2,7 @@
 ApuestasPro v4.3 — Servidor principal.
 """
 
-import math, os, json, logging, time, queue, threading, httpx, httpx
+import math, os, json, logging, time, queue, threading, traceback, httpx
 from datetime import datetime, timedelta
 from flask import Flask, jsonify, request, Response, stream_with_context
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -375,9 +375,11 @@ def value_bets():
         })
 
     except Exception as e:
-        logging.exception("Odds API error")
+        tb = traceback.format_exc()
+        logging.exception("Odds API error\n%s", tb)
         return jsonify({"total_encontrados": 0, "value_bets": [], "es_demo": False,
-                        "error": str(e), "aviso": f"Error: {e}"})
+                        "error": str(e), "traceback": tb,
+                        "aviso": f"Error: {e}"})
 # ── KELLY ──────────────────────────────────────────────────────────────────────
 @app.route("/api/kelly/calcular",methods=["POST"])
 @login_required
