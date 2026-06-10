@@ -1,68 +1,52 @@
 """
 Router para Criterio de Kelly y gestión de bankroll.
 """
-from fastapi import APIRouter, Body
+from flask import Blueprint, jsonify, request
 from services.estadisticas import criterio_kelly
-from pydantic import BaseModel
-from typing import Optional
 
-router = APIRouter()
+router = Blueprint("kelly", __name__)
 
 
-class KellyInput(BaseModel):
-    bankroll: float
-    cuota_decimal: float
-    probabilidad_estimada_pct: float
-    fraccion: Optional[float] = 0.5
-
-
-class ApuestaHistorial(BaseModel):
-    partido: str
-    cuota: float
-    probabilidad_pct: float
-    apuesta: float
-    resultado: bool  # True = ganó
-
-
-@router.post("/calcular")
-async def calcular_kelly(data: KellyInput):
+@router.route("/calcular", methods=["POST"])
+def calcular_kelly():
     """
     Calcula el tamaño óptimo de apuesta con el Criterio de Kelly.
     fraccion: 1.0=Kelly completo, 0.5=Medio Kelly, 0.25=Cuarto Kelly
     """
-    return criterio_kelly(
-        bankroll=data.bankroll,
-        cuota_decimal=data.cuota_decimal,
-        probabilidad_estimada=data.probabilidad_estimada_pct / 100,
-        fraccion=data.fraccion,
-    )
+    data = request.get_json()
+    return jsonify(criterio_kelly(
+        bankroll=data["bankroll"],
+        cuota_decimal=data["cuota_decimal"],
+        probabilidad_estimada=data["probabilidad_estimada_pct"] / 100,
+        fraccion=data.get("fraccion", 0.5),
+    ))
 
 
-@router.post("/analizar-historial")
-async def analizar_historial(apuestas: list[ApuestaHistorial]):
+@router.route("/analizar-historial", methods=["POST"])
+def analizar_historial():
     """
     Analiza el historial de apuestas y calcula métricas de rendimiento.
     """
+    apuestas = request.get_json()
     if not apuestas:
-        return {"error": "Sin apuestas para analizar"}
+        return jsonify({"error": "Sin apuestas para analizar"})
 
-    ganadas = [a for a in apuestas if a.resultado]
-    perdidas = [a for a in apuestas if not a.resultado]
+    ganadas = [a for a in apuestas if a["resultado"]]
+    perdidas = [a for a in apuestas if not a["resultado"]]
 
-    total_apostado = sum(a.apuesta for a in apuestas)
-    ganancias = sum(a.apuesta * (a.cuota - 1) for a in ganadas)
-    perdidas_total = sum(a.apuesta for a in perdidas)
+    total_apostado = sum(a["apuesta"] for a in apuestas)
+    ganancias = sum(a["apuesta"] * (a["cuota"] - 1) for a in ganadas)
+    perdidas_total = sum(a["apuesta"] for a in perdidas)
     profit = ganancias - perdidas_total
 
     tasa_acierto = len(ganadas) / len(apuestas) if apuestas else 0
     roi = (profit / total_apostado * 100) if total_apostado > 0 else 0
 
-    cuotas_avg = sum(a.cuota for a in apuestas) / len(apuestas)
+    cuotas_avg = sum(a["cuota"] for a in apuestas) / len(apuestas)
 
-    # Racha actual
     racha = 0
     for a in reversed(apuestas):
-        if a.resultado:
+        if a["resultado"]:
             if racha >= 0:
                 racha += 1
             else:
@@ -73,7 +57,7 @@ async def analizar_historial(apuestas: list[ApuestaHistorial]):
             else:
                 break
 
-    return {
+    return jsonify({
         "total_apuestas": len(apuestas),
         "ganadas": len(ganadas),
         "perdidas": len(perdidas),
@@ -87,15 +71,15 @@ async def analizar_historial(apuestas: list[ApuestaHistorial]):
             "Excelente" if roi > 10 else
             "Bueno" if roi > 5 else
             "Regular" if roi > 0 else
-            "Negativo — revisar estrategia"
+            "Negativo – revisar estrategia"
         ),
-    }
+    })
 
 
-@router.get("/guia-bankroll")
-async def guia_bankroll():
+@router.route("/guia-bankroll", methods=["GET"])
+def guia_bankroll():
     """Guía de gestión de bankroll y juego responsable."""
-    return {
+    return jsonify({
         "principios": [
             "Nunca apostar más del 5% del bankroll en una sola apuesta",
             "Usar Medio Kelly (0.5) o menos para reducir varianza",
@@ -113,4 +97,4 @@ async def guia_bankroll():
             "no_perseguir_perdidas": "Nunca aumentes apuestas para recuperar pérdidas.",
             "ayuda": "CONADIC México: 800 290 0024 (gratuito, 24/7)",
         },
-    }
+    })
