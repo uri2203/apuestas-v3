@@ -2,7 +2,7 @@
 ApuestasPro v4.3 — Servidor principal.
 """
 
-import math, os, json, logging, time, queue, threading
+import math, os, json, logging, time, queue, threading, httpx, httpx
 from datetime import datetime, timedelta
 from flask import Flask, jsonify, request, Response, stream_with_context
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -153,7 +153,6 @@ def health():
     estado["api_tests"] = {}
     if os.getenv("API_FOOTBALL_KEY"):
         try:
-            import httpx
             from services.api_football import _headers, API_BASE, RAPID_BASE, current_season
             key = os.getenv("API_FOOTBALL_KEY")
             base = RAPID_BASE if len(key) > 40 else API_BASE
@@ -171,7 +170,6 @@ def health():
 
     if os.getenv("ODDS_API_KEY"):
         try:
-            import httpx
             r = httpx.get("https://api.the-odds-api.com/v4/sports/",
                           params={"apiKey": os.getenv("ODDS_API_KEY")}, timeout=8)
             remaining = r.headers.get("x-requests-remaining", "?")
@@ -283,7 +281,6 @@ def _edge_con_modelo(ht, at, outcome, price):
 @login_required
 def value_bets():
     try:
-        import httpx
         edge_min = float(request.args.get("edge_minimo", 2))
         api_key  = os.getenv("ODDS_API_KEY", "")
         with _pred_cache_lock:
@@ -619,7 +616,6 @@ def diag_football():
         get_fixtures_liga, get_upcoming_fixtures, current_season,
         _cached_get, LIGAS, _headers, API_BASE, RAPID_BASE
     )
-    import httpx
 
     result = {
         "season_calculada": current_season(),
