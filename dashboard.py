@@ -1912,17 +1912,6 @@ async function initDashboard() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-    if(d.combinaciones) combis = d.combinaciones.map(c=>c.numeros)
-  } catch {}
-  if(!combis.length) combis = Array.from({length:n},()=>pick())
-
-  const hotSet = new Set(HOT), coldSet = new Set(COLD)
-  document.getElementById('gen-out').innerHTML = combis.map((nums,i)=>`
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:9px 11px;background:rgba(255,255,255,.02);border-radius:7px">
-      <span style="font-size:9px;font-family:var(--mono);color:var(--muted);width:14px">#${i+1}</span>
-      <div class="balls">${nums.map(n=>`<div class="ball ${hotSet.has(n)?'bh':coldSet.has(n)?'bc':'bs'}">${n}</div>`).join('')}</div>
-    </div>`).join('')
-}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PROGOL
