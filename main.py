@@ -240,28 +240,6 @@ def progol_ranking():
     return jsonify(ranking_equipos(os.getenv("API_FOOTBALL_KEY","")))
 
 # ── ODDS / VALUE BETS ──────────────────────────────────────────────────────────
-_pred_cache = {}
-_pred_cache_lock = threading.Lock()
-
-
-def _prob_modelo_cache(ht, at, outcome):
-    """Probabilidad del modelo para un outcome (usa cache de _edge_con_modelo)."""
-    try:
-        key = f"{ht}|{at}"
-        with _pred_cache_lock:
-            if key not in _pred_cache:
-                from services.progol import predecir_partido
-                _pred_cache[key] = predecir_partido(ht, at)
-            pred = _pred_cache[key]
-        pm = {ht: pred["local"], at: pred["visitante"], "Draw": pred["empate"]}.get(outcome, 0)
-        if not pm:
-            for k, v in {ht: pred["local"], at: pred["visitante"], "Draw": pred["empate"]}.items():
-                if k.lower() in outcome.lower() or outcome.lower() in k.lower():
-                    pm = v; break
-        return pm
-    except Exception:
-        return 0
-
 
 def get_bankroll_seguro():
     """Bankroll actual sin crashear si la DB falla."""
@@ -271,24 +249,32 @@ def get_bankroll_seguro():
     except Exception:
         return 0
 
-def _edge_con_modelo(ht, at, outcome, price):
-    """Calcula edge real: (prob_modelo * cuota - 1) * 100. Cachea predicciones."""
+DEMO_MATCHES = [
+    {"home":"Club América","away":"Chivas","odds":{"1":2.10,"X":3.40,"2":3.80},"liga":"Liga MX"},
+    {"home":"Cruz Azul","away":"Pumas","odds":{"1":1.95,"X":3.50,"2":4.20},"liga":"Liga MX"},
+    {"home":"Tigres","away":"Monterrey","odds":{"1":2.30,"X":3.30,"2":3.10},"liga":"Liga MX"},
+    {"home":"Toluca","away":"Santos","odds":{"1":1.80,"X":3.60,"2":4.80},"liga":"Liga MX"},
+    {"home":"León","away":"Atlas","odds":{"1":2.20,"X":3.35,"2":3.45},"liga":"Liga MX"},
+    {"home":"Pachuca","away":"Necaxa","odds":{"1":1.75,"X":3.70,"2":5.00},"liga":"Liga MX"},
+    {"home":"San Luis","away":"Mazatlán","odds":{"1":2.40,"X":3.25,"2":3.00},"liga":"Liga MX"},
+    {"home":"Juárez","away":"Querétaro","odds":{"1":2.15,"X":3.40,"2":3.60},"liga":"Liga MX"},
+    {"home":"Tijuana","away":"Puebla","odds":{"1":2.05,"X":3.45,"2":3.75},"liga":"Liga MX"},
+    {"home":"América (CAL)","away":"Nacional (URU)","odds":{"1":2.50,"X":3.20,"2":2.80},"liga":"Libertadores"},
+]
+
+def _edge_simple(prob_implícita, cuota):
+    """Edge = (cuota * prob - 1) * 100. prob se infiere del mercado."""
     try:
-        key = f"{ht}|{at}"
-        with _pred_cache_lock:
-            if key not in _pred_cache:
-                from services.progol import predecir_partido
-                _pred_cache[key] = predecir_partido(ht, at)
-            pred = _pred_cache[key]
-        prob_map = {ht: pred["local"], at: pred["visitante"], "Draw": pred["empate"]}
-        mp = prob_map.get(outcome, 0)
-        if not mp:
-            for k, v in prob_map.items():
-                if k.lower() in outcome.lower() or outcome.lower() in k.lower():
-                    mp = v; break
-        return round((mp * price - 1) * 100, 1) if mp > 0 else 0.0
+        return round((cuota * prob_implícita - 1) * 100, 1)
     except Exception:
         return 0.0
+
+def _prob_implicita(cuota):
+    """1 / cuota, con piso 0.01."""
+    try:
+        return max(0.01, 1.0 / cuota)
+    except Exception:
+        return 0.01
 
 @app.route("/api/odds/value-bets")
 @login_required
@@ -296,81 +282,78 @@ def value_bets():
     try:
         edge_min = float(request.args.get("edge_minimo", 2))
         api_key  = os.getenv("ODDS_API_KEY", "")
-        with _pred_cache_lock:
-            _pred_cache.clear()
+        deporte  = request.args.get("deporte", "soccer_mexico_ligamx")
 
-        if not api_key:
-            return jsonify({
-                "total_encontrados": 0,
-                "value_bets": [],
-                "es_demo": True,
-                "error": "ODDS_API_KEY no configurada",
-                "aviso": "Configura ODDS_API_KEY en Render \u2192 Environment para obtener value bets reales",
-            })
-
-        deporte = request.args.get("deporte", "soccer_mexico_ligamx")
-        r = httpx.get(
-            f"https://api.the-odds-api.com/v4/sports/{deporte}/odds",
-            params={"apiKey": api_key, "regions": "eu", "markets": "h2h", "oddsFormat": "decimal"},
-            timeout=10,
-        )
-        data = r.json()
-
-        if isinstance(data, dict) and data.get("message"):
-            return jsonify({
-                "total_encontrados": 0,
-                "value_bets": [],
-                "es_demo": False,
-                "error": f"Odds API: {data['message']}",
-                "aviso": f"Error de la API: {data['message']}",
-            })
-
-        real = []
-        for m in data if isinstance(data, list) else []:
-            ht, at = m.get("home_team",""), m.get("away_team","")
-            if not ht or not at: continue
-            for book in m.get("bookmakers", []):
-                for o in book.get("markets", [{}])[0].get("outcomes", []):
-                    if not o.get("price") or o["price"] <= 1: continue
-                    edge = _edge_con_modelo(ht, at, o["name"], o["price"])
-                    if edge >= edge_min:
-                        prob_modelo = _prob_modelo_cache(ht, at, o["name"])
-                        vb = {
-                            "partido":          f"{ht} vs {at}",
-                            "liga":             m.get("sport_title", "Liga MX"),
-                            "fecha":            m.get("commence_time", ""),
-                            "resultado":        o["name"],
-                            "casa":             book["title"],
-                            "cuota":            o["price"],
-                            "edge_porcentaje":  edge,
-                            "edge_modelo_pct":  edge,
-                            "prob_modelo_pct":  round(prob_modelo * 100, 1) if prob_modelo else None,
-                            "es_value_bet":     True,
-                        }
-                        if prob_modelo and prob_modelo > 0:
-                            from services.value_engine import kelly_fraccionado
-                            bk = get_bankroll_seguro()
-                            k = kelly_fraccionado(prob_modelo, o["price"], 0.25, bk)
-                            vb["kelly_pct"] = k["kelly_aplicado_pct"]
-                            if "stake_sugerido" in k:
-                                vb["stake_sugerido"] = k["stake_sugerido"]
-                        vb["clasificacion"] = (
-                            "FUERTE" if edge > 7 else "BUENO" if edge > 4 else
-                            "MODERADO" if edge > 2 else "MARGINAL"
-                        )
-                        real.append(vb)
-
-        if real:
+        # ── 1. Intentar datos reales ──
+        data = None
+        error_msg = None
+        if api_key:
             try:
-                from database import db, _execute
-                with db() as conn:
-                    for vb in real[:30]:
-                        _execute(conn,
-                            "INSERT INTO value_bets_log (partido, liga, resultado, casa, cuota, edge_pct) "
-                            "VALUES (?,?,?,?,?,?)",
-                            (vb["partido"], vb["liga"], vb["resultado"], vb["casa"], vb["cuota"], vb["edge_porcentaje"]))
+                r = httpx.get(
+                    f"https://api.the-odds-api.com/v4/sports/{deporte}/odds",
+                    params={"apiKey": api_key, "regions": "eu", "markets": "h2h", "oddsFormat": "decimal"},
+                    timeout=10,
+                )
+                data = r.json()
+                if isinstance(data, dict) and data.get("message"):
+                    error_msg = data["message"]
+                    data = None
             except Exception as e:
-                logging.warning("No se pudo guardar value bets en DB: %s", e)
+                error_msg = str(e)[:200]
+                data = None
+        else:
+            error_msg = "ODDS_API_KEY no configurada"
+
+        # ── 2. Fallback a demo si no hay datos reales ──
+        if not data:
+            partidos = DEMO_MATCHES
+            es_demo = True
+        else:
+            partidos = []
+            for m in data if isinstance(data, list) else []:
+                ht = m.get("home_team","") or ""
+                at = m.get("away_team","") or ""
+                if not ht or not at:
+                    continue
+                odds = {}
+                for book in m.get("bookmakers", []):
+                    for o in book.get("markets", [{}])[0].get("outcomes", []):
+                        name = o.get("name","")
+                        price = o.get("price",0)
+                        if name and price > 1:
+                            odds[name] = min(price, 50.0)
+                if odds:
+                    partidos.append({"home": ht, "away": at, "odds": odds, "liga": m.get("sport_title", deporte)})
+            es_demo = False
+
+        # ── 3. Calcular edge para cada resultado ──
+        real = []
+        for m in partidos:
+            ht, at = m["home"], m["away"]
+            odds = m.get("odds", {})
+            if not odds:
+                continue
+            # Probabilidad implícita promedio del mercado
+            total_inv = sum(1.0 / max(0.01, v) for v in odds.values())
+            for resultado, cuota in odds.items():
+                if cuota <= 1:
+                    continue
+                prob_mercado = (1.0 / cuota) / total_inv if total_inv > 0 else 0.01
+                edge = _edge_simple(prob_mercado, cuota)
+                if edge >= edge_min:
+                    real.append({
+                        "partido":          f"{ht} vs {at}",
+                        "liga":             m.get("liga", deporte),
+                        "fecha":            "",
+                        "resultado":        resultado,
+                        "casa":             "Mercado",
+                        "cuota":            cuota,
+                        "edge_porcentaje":  edge,
+                        "edge_modelo_pct":  edge,
+                        "prob_modelo_pct":  round(prob_mercado * 100, 1),
+                        "es_value_bet":     True,
+                        "clasificacion":    "FUERTE" if edge > 7 else "BUENO" if edge > 4 else "MODERADO" if edge > 2 else "MARGINAL",
+                    })
 
         seen = {}
         for vb in sorted(real, key=lambda x: x["edge_porcentaje"], reverse=True):
@@ -381,18 +364,18 @@ def value_bets():
 
         return jsonify({
             "total_encontrados": len(filtered),
-            "value_bets":        filtered,
-            "es_demo":           False,
-            "total_partidos_analizados": len(data) if isinstance(data, list) else 0,
-            "aviso": None if filtered else f"Sin value bets con edge >= {edge_min}% en este momento",
+            "value_bets":        filtered[:50],
+            "es_demo":           es_demo,
+            "total_partidos_analizados": len(partidos),
+            "aviso": error_msg if error_msg and es_demo else (None if filtered else f"Sin value bets con edge >= {edge_min}%"),
         })
 
     except Exception as e:
         tb = traceback.format_exc()
-        logging.exception("Odds API error\n%s", tb)
-        return jsonify({"total_encontrados": 0, "value_bets": [], "es_demo": False,
+        logging.exception("value_bets fatal\n%s", tb)
+        return jsonify({"total_encontrados": 0, "value_bets": [], "es_demo": True,
                         "error": str(e), "traceback": tb,
-                        "aviso": f"Error: {e}"})
+                        "aviso": f"Modo demo por error: {e}"})
 # ── KELLY ──────────────────────────────────────────────────────────────────────
 @app.route("/api/kelly/calcular",methods=["POST"])
 @login_required
