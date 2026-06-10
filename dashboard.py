@@ -1860,16 +1860,6 @@ async function calcCLVpro() {
 async function initDashboard() {
   document.getElementById('dash-sub').textContent = 'cargando datos en tiempo real...'
 
-    setAPIStatus(true)
-    if(d.calientes?.length) {
-      const h = d.calientes[0], c = d.frios[0]
-      document.getElementById('d-hot').textContent = h.numero
-      document.getElementById('d-hot-s').textContent = `${h.frecuencia_abs} apariciones históricas`
-      document.getElementById('d-cold').textContent = c.numero
-      document.getElementById('d-cold-s').textContent = `${c.frecuencia_abs} apariciones`
-    }
-  } catch { setAPIStatus(false) }
-
   // Progol mini
   try {
     const j = await api('/api/progol/jornada')
