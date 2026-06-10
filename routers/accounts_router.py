@@ -33,7 +33,7 @@ def listar():
     except Exception as e:
         import traceback, logging
         logging.error("Error en /listar cuentas: %s", traceback.format_exc())
-        return jsonify({"error": str(e), "cuentas": []}), 200
+        return jsonify({"error": str(e), "cuentas": []}), 500
 
 
 @accounts_bp.route("/health/<casa_key>")
