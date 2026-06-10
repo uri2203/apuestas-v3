@@ -1,4 +1,4 @@
-"""
+﻿"""
 ApuestasPro v4.3 — Servidor principal.
 """
 
@@ -230,16 +230,18 @@ def progol_ranking():
 
 # ── ODDS / VALUE BETS ──────────────────────────────────────────────────────────
 _pred_cache = {}
+_pred_cache_lock = threading.Lock()
 
 
 def _prob_modelo_cache(ht, at, outcome):
     """Probabilidad del modelo para un outcome (usa cache de _edge_con_modelo)."""
     try:
         key = f"{ht}|{at}"
-        if key not in _pred_cache:
-            from services.progol import predecir_partido
-            _pred_cache[key] = predecir_partido(ht, at)
-        pred = _pred_cache[key]
+        with _pred_cache_lock:
+            if key not in _pred_cache:
+                from services.progol import predecir_partido
+                _pred_cache[key] = predecir_partido(ht, at)
+            pred = _pred_cache[key]
         pm = {ht: pred["local"], at: pred["visitante"], "Draw": pred["empate"]}.get(outcome, 0)
         if not pm:
             for k, v in {ht: pred["local"], at: pred["visitante"], "Draw": pred["empate"]}.items():
@@ -262,10 +264,11 @@ def _edge_con_modelo(ht, at, outcome, price):
     """Calcula edge real: (prob_modelo * cuota - 1) * 100. Cachea predicciones."""
     try:
         key = f"{ht}|{at}"
-        if key not in _pred_cache:
-            from services.progol import predecir_partido
-            _pred_cache[key] = predecir_partido(ht, at)
-        pred = _pred_cache[key]
+        with _pred_cache_lock:
+            if key not in _pred_cache:
+                from services.progol import predecir_partido
+                _pred_cache[key] = predecir_partido(ht, at)
+            pred = _pred_cache[key]
         prob_map = {ht: pred["local"], at: pred["visitante"], "Draw": pred["empate"]}
         mp = prob_map.get(outcome, 0)
         if not mp:
@@ -283,7 +286,8 @@ def value_bets():
         import httpx
         edge_min = float(request.args.get("edge_minimo", 2))
         api_key  = os.getenv("ODDS_API_KEY", "")
-        _pred_cache.clear()
+        with _pred_cache_lock:
+            _pred_cache.clear()
 
         if not api_key:
             return jsonify({
