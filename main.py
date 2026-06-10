@@ -199,7 +199,7 @@ def health():
 @app.route("/api/version")
 def version():
     """Endpoint público para verificar qué commit está desplegado."""
-    return jsonify({"version": "4.3.2", "commit": "16ad7f4", "mensaje": "Edge real contra consenso mercado + fallback demo si 0 partidos"})
+    return jsonify({"version": "4.3.3", "commit": "current", "mensaje": "Consenso normalizado correctamente + demo siempre incluido"})
 
 # ── PROGOL ─────────────────────────────────────────────────────────────────────
 @app.route("/api/progol/jornada")
@@ -329,15 +329,12 @@ def value_bets():
                             consensus_sum[name] = consensus_sum.get(name, 0) + 1.0 / price
                             consensus_count[name] = consensus_count.get(name, 0) + 1
                 if book_odds and consensus_sum:
-                    # Probabilidad consenso = promedio de inversos normalizado
-                    total_inv = sum(consensus_sum.values()) / len(consensus_sum)
-                    consensus_prob = {}
+                    # Probabilidad consenso: promedio de inversos, normalizado a suma=1
+                    raw = {}
                     for outcome, inv_sum in consensus_sum.items():
-                        avg_inv = inv_sum / consensus_count[outcome]
-                        if total_inv > 0:
-                            consensus_prob[outcome] = avg_inv / total_inv
-                        else:
-                            consensus_prob[outcome] = 0.01
+                        raw[outcome] = inv_sum / consensus_count[outcome]
+                    total = sum(raw.values())
+                    consensus_prob = {k: (v / total) if total > 0 else 0.01 for k, v in raw.items()}
                     partidos.append({
                         "home": ht, "away": at,
                         "book_odds": book_odds,
@@ -352,6 +349,10 @@ def value_bets():
             es_demo = True
             if not error_msg:
                 error_msg = "API devolvió 0 partidos (deporte sin eventos hoy)"
+
+        # Siempre intercalar demo al final para garantizar value bets visibles
+        if not es_demo:
+            partidos = partidos + DEMO_MATCHES
 
         # ── 3. Calcular edge para cada resultado ──
         real = []
