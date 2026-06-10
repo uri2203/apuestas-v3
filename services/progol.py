@@ -181,8 +181,8 @@ def _upcoming_desde_odds():
                     "fecha": m.get("commence_time", ""),
                 })
         return partidos
-        except Exception as e:
-            logger.error(f"Progol error: {e}")
+    except Exception as e:
+        logger.error(f"Progol error: {e}")
 
 def generar_jornada_progol(api_key=""):
     """
