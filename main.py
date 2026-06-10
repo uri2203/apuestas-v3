@@ -250,22 +250,22 @@ def get_bankroll_seguro():
         return 0
 
 DEMO_MATCHES = [
-    {"home":"Club América","away":"Chivas","odds":{"1":2.10,"X":3.40,"2":3.80},"liga":"Liga MX"},
-    {"home":"Cruz Azul","away":"Pumas","odds":{"1":1.95,"X":3.50,"2":4.20},"liga":"Liga MX"},
-    {"home":"Tigres","away":"Monterrey","odds":{"1":2.30,"X":3.30,"2":3.10},"liga":"Liga MX"},
-    {"home":"Toluca","away":"Santos","odds":{"1":1.80,"X":3.60,"2":4.80},"liga":"Liga MX"},
-    {"home":"León","away":"Atlas","odds":{"1":2.20,"X":3.35,"2":3.45},"liga":"Liga MX"},
-    {"home":"Pachuca","away":"Necaxa","odds":{"1":1.75,"X":3.70,"2":5.00},"liga":"Liga MX"},
-    {"home":"San Luis","away":"Mazatlán","odds":{"1":2.40,"X":3.25,"2":3.00},"liga":"Liga MX"},
-    {"home":"Juárez","away":"Querétaro","odds":{"1":2.15,"X":3.40,"2":3.60},"liga":"Liga MX"},
-    {"home":"Tijuana","away":"Puebla","odds":{"1":2.05,"X":3.45,"2":3.75},"liga":"Liga MX"},
-    {"home":"América (CAL)","away":"Nacional (URU)","odds":{"1":2.50,"X":3.20,"2":2.80},"liga":"Libertadores"},
+    {"home":"México","away":"Argentina","odds":{"1":3.10,"X":3.30,"2":2.30},"probs":{"1":0.38,"X":0.28,"2":0.34},"liga":"Copa Mundial FIFA 2026"},
+    {"home":"Brasil","away":"Alemania","odds":{"1":2.05,"X":3.50,"2":3.60},"probs":{"1":0.48,"X":0.27,"2":0.25},"liga":"Copa Mundial FIFA 2026"},
+    {"home":"España","away":"Inglaterra","odds":{"1":2.60,"X":3.20,"2":2.90},"probs":{"1":0.42,"X":0.28,"2":0.30},"liga":"Copa Mundial FIFA 2026"},
+    {"home":"Club América","away":"Chivas","odds":{"1":2.10,"X":3.40,"2":3.80},"probs":{"1":0.52,"X":0.26,"2":0.22},"liga":"Liga MX"},
+    {"home":"Cruz Azul","away":"Pumas","odds":{"1":1.95,"X":3.50,"2":4.20},"probs":{"1":0.44,"X":0.28,"2":0.28},"liga":"Liga MX"},
+    {"home":"Tigres","away":"Monterrey","odds":{"1":2.30,"X":3.30,"2":3.10},"probs":{"1":0.38,"X":0.28,"2":0.34},"liga":"Liga MX"},
+    {"home":"Toluca","away":"Santos","odds":{"1":1.80,"X":3.60,"2":4.80},"probs":{"1":0.50,"X":0.28,"2":0.22},"liga":"Liga MX"},
+    {"home":"León","away":"Atlas","odds":{"1":2.20,"X":3.35,"2":3.45},"probs":{"1":0.48,"X":0.25,"2":0.27},"liga":"Liga MX"},
+    {"home":"Pachuca","away":"Necaxa","odds":{"1":1.75,"X":3.70,"2":5.00},"probs":{"1":0.55,"X":0.25,"2":0.20},"liga":"Liga MX"},
+    {"home":"Argentina","away":"Francia","odds":{"1":2.30,"X":3.30,"2":3.20},"probs":{"1":0.45,"X":0.27,"2":0.28},"liga":"Copa Mundial FIFA 2026"},
 ]
 
-def _edge_simple(prob_implícita, cuota):
-    """Edge = (cuota * prob - 1) * 100. prob se infiere del mercado."""
+def _edge_simple(prob_real, cuota):
+    """Edge = (cuota * prob - 1) * 100."""
     try:
-        return round((cuota * prob_implícita - 1) * 100, 1)
+        return round((cuota * prob_real - 1) * 100, 1)
     except Exception:
         return 0.0
 
@@ -337,15 +337,18 @@ def value_bets():
             ht, at = m["home"], m["away"]
             odds = m.get("odds", {})
             casas = m.get("casas", {})
+            probs_modelo = m.get("probs", None)
             if not odds:
                 continue
-            # Probabilidad implícita promedio del mercado (sin vig)
-            total_inv = sum(1.0 / max(0.01, v) for v in odds.values())
             for resultado, cuota in odds.items():
                 if cuota <= 1:
                     continue
-                prob_mercado = (1.0 / cuota) / total_inv if total_inv > 0 else 0.01
-                edge = _edge_simple(prob_mercado, cuota)
+                if probs_modelo:
+                    prob_real = probs_modelo.get(resultado, 0)
+                else:
+                    total_inv = sum(1.0 / max(0.01, v) for v in odds.values())
+                    prob_real = (1.0 / cuota) / total_inv if total_inv > 0 else 0.01
+                edge = _edge_simple(prob_real, cuota)
                 if edge >= edge_min:
                     real.append({
                         "partido":          f"{ht} vs {at}",
@@ -356,7 +359,7 @@ def value_bets():
                         "cuota":            cuota,
                         "edge_porcentaje":  edge,
                         "edge_modelo_pct":  edge,
-                        "prob_modelo_pct":  round(prob_mercado * 100, 1),
+                        "prob_modelo_pct":  round(prob_real * 100, 1),
                         "es_value_bet":     True,
                         "clasificacion":    "FUERTE" if edge > 7 else "BUENO" if edge > 4 else "MODERADO" if edge > 2 else "MARGINAL",
                     })
