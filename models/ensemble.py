@@ -3,6 +3,7 @@ Ensemble model: combina Dixon-Coles, ELO y Poisson con pesos.
 Produce predicción final con intervalos de confianza.
 """
 from models.dixon_coles import DixonColesModel
+import os
 from models.elo import ELOModel
 import math
 import random
