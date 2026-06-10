@@ -20,8 +20,9 @@ from routers.kelly import router as kelly_bp
 from routers.odds import router as odds_bp
 
 if not logging.getLogger().hasHandlers():
-    if not logging.getLogger().hasHandlers():
-    logging.basicConfig(level=logging.INFO)lask(__name__)
+    logging.basicConfig(level=logging.INFO)
+
+app = Flask(__name__)
 
 # ── Blueprints ─────────────────────────────────────────────────────────────────
 for bp in [auth_bp, telegram_bp, bankroll_bp, mercados_bp, ml_bp, ligas_bp, predicciones_bp, progol_opt_bp, accounts_bp]:
