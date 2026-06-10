@@ -199,7 +199,7 @@ def health():
 @app.route("/api/version")
 def version():
     """Endpoint público para verificar qué commit está desplegado."""
-    return jsonify({"version": "4.3.3", "commit": "d30f395", "mensaje": "Consenso normalizado correctamente + demo siempre incluido"})
+    return jsonify({"version": "4.3.4", "commit": "current", "mensaje": "Solo datos reales — edge = mejor cuota vs consenso del mercado"})
 
 # ── PROGOL ─────────────────────────────────────────────────────────────────────
 @app.route("/api/progol/jornada")
@@ -304,105 +304,73 @@ def value_bets():
         else:
             error_msg = "ODDS_API_KEY no configurada"
 
-        # ── 2. Fallback a demo si no hay datos reales ──
+        # ── 2. Sin demo — solo datos reales ──
         if not data:
-            partidos = DEMO_MATCHES
-            es_demo = True
-        else:
-            partidos = []
-            for m in data if isinstance(data, list) else []:
-                ht = m.get("home_team","") or ""
-                at = m.get("away_team","") or ""
-                if not ht or not at:
-                    continue
-                # Consenso del mercado: probabilidad promedio entre todas las casas
-                book_odds = []  # [{resultado, cuota, casa}, ...]
-                consensus_sum = {}
-                consensus_count = {}
-                for book in m.get("bookmakers", []):
-                    casa = book.get("title","")
-                    for o in book.get("markets", [{}])[0].get("outcomes", []):
-                        name = o.get("name","")
-                        price = o.get("price",0)
-                        if name and price > 1:
-                            book_odds.append({"res": name, "cuota": min(price, 50.0), "casa": casa})
-                            consensus_sum[name] = consensus_sum.get(name, 0) + 1.0 / price
-                            consensus_count[name] = consensus_count.get(name, 0) + 1
-                if book_odds and consensus_sum:
-                    # Probabilidad consenso: promedio de inversos, normalizado a suma=1
-                    raw = {}
-                    for outcome, inv_sum in consensus_sum.items():
-                        raw[outcome] = inv_sum / consensus_count[outcome]
-                    total = sum(raw.values())
-                    consensus_prob = {k: (v / total) if total > 0 else 0.01 for k, v in raw.items()}
-                    partidos.append({
-                        "home": ht, "away": at,
-                        "book_odds": book_odds,
-                        "consensus": consensus_prob,
-                        "liga": m.get("sport_title", deporte),
-                    })
-            es_demo = False
+            return jsonify({
+                "total_encontrados": 0, "value_bets": [],
+                "es_demo": False, "total_partidos_analizados": 0,
+                "aviso": error_msg or "ODDS_API_KEY no configurada",
+            })
 
-        # Si datos reales devolvieron 0 partidos parseables, caer a demo
-        if not es_demo and not partidos:
-            partidos = DEMO_MATCHES
-            es_demo = True
-            if not error_msg:
-                error_msg = "API devolvió 0 partidos (deporte sin eventos hoy)"
+        partidos = []
+        for m in data if isinstance(data, list) else []:
+            ht = m.get("home_team","") or ""
+            at = m.get("away_team","") or ""
+            if not ht or not at:
+                continue
+            # Colectar odds de todas las casas
+            consensus_sum = {}
+            consensus_count = {}
+            best_per_outcome = {}  # {resultado: {"cuota": X, "casa": "..."}}
+            for book in m.get("bookmakers", []):
+                casa = book.get("title","")
+                for o in book.get("markets", [{}])[0].get("outcomes", []):
+                    name = o.get("name","")
+                    price = o.get("price", 0)
+                    if not name or price <= 1:
+                        continue
+                    consensus_sum[name] = consensus_sum.get(name, 0) + 1.0 / price
+                    consensus_count[name] = consensus_count.get(name, 0) + 1
+                    prev = best_per_outcome.get(name)
+                    if not prev or price > prev["cuota"]:
+                        best_per_outcome[name] = {"cuota": min(price, 50.0), "casa": casa}
+            if consensus_sum and best_per_outcome:
+                # Probabilidad consenso normalizada
+                raw = {}
+                for outcome, inv_sum in consensus_sum.items():
+                    raw[outcome] = inv_sum / consensus_count[outcome]
+                total = sum(raw.values())
+                consensus = {k: (v / total) if total > 0 else 0.01 for k, v in raw.items()}
+                partidos.append({
+                    "home": ht, "away": at,
+                    "best": best_per_outcome,
+                    "consensus": consensus,
+                    "liga": m.get("sport_title", deporte),
+                })
 
-        # Siempre intercalar demo al final para garantizar value bets visibles
-        if not es_demo:
-            partidos = partidos + DEMO_MATCHES
-
-        # ── 3. Calcular edge para cada resultado ──
+        # ── 3. Calcular edge: mejor cuota vs consenso ──
         real = []
         for m in partidos:
             ht, at = m["home"], m["away"]
-            book_odds = m.get("book_odds", None)
-            odds_demo = m.get("odds", None)
-            probs = m.get("probs", None) or m.get("consensus", None)
-            if not book_odds and not odds_demo:
-                continue
-            if book_odds:
-                # Datos reales: cada (casa, resultado) contra el consenso
-                for bo in book_odds:
-                    prob = (probs or {}).get(bo["res"], 0.01)
-                    edge = _edge_simple(prob, bo["cuota"])
-                    if edge >= edge_min:
-                        real.append({
-                            "partido":          f"{ht} vs {at}",
-                            "liga":             m.get("liga", deporte),
-                            "fecha":            "",
-                            "resultado":        bo["res"],
-                            "casa":             bo["casa"],
-                            "cuota":            bo["cuota"],
-                            "edge_porcentaje":  edge,
-                            "edge_modelo_pct":  edge,
-                            "prob_modelo_pct":  round(prob * 100, 1),
-                            "es_value_bet":     True,
-                            "clasificacion":    "FUERTE" if edge > 7 else "BUENO" if edge > 4 else "MODERADO" if edge > 2 else "MARGINAL",
-                        })
-            elif odds_demo:
-                # Datos demo: usar probabilidades del modelo
-                for resultado, cuota in odds_demo.items():
-                    if cuota <= 1:
-                        continue
-                    prob = (probs or {}).get(resultado, 0.01)
-                    edge = _edge_simple(prob, cuota)
-                    if edge >= edge_min:
-                        real.append({
-                            "partido":          f"{ht} vs {at}",
-                            "liga":             m.get("liga", deporte),
-                            "fecha":            "",
-                            "resultado":        resultado,
-                            "casa":             "Mercado",
-                            "cuota":            cuota,
-                            "edge_porcentaje":  edge,
-                            "edge_modelo_pct":  edge,
-                            "prob_modelo_pct":  round(prob * 100, 1),
-                            "es_value_bet":     True,
-                            "clasificacion":    "FUERTE" if edge > 7 else "BUENO" if edge > 4 else "MODERADO" if edge > 2 else "MARGINAL",
-                        })
+            best = m["best"]
+            consensus = m["consensus"]
+            for resultado, info in best.items():
+                prob = consensus.get(resultado, 0.01)
+                edge = _edge_simple(prob, info["cuota"])
+                if edge >= edge_min:
+                    real.append({
+                        "partido":          f"{ht} vs {at}",
+                        "liga":             m.get("liga", deporte),
+                        "fecha":            "",
+                        "resultado":        resultado,
+                        "casa":             info["casa"],
+                        "cuota":            info["cuota"],
+                        "edge_porcentaje":  edge,
+                        "edge_modelo_pct":  edge,
+                        "prob_modelo_pct":  round(prob * 100, 1),
+                        "es_value_bet":     True,
+                        "clasificacion":    "FUERTE" if edge > 7 else "BUENO" if edge > 4 else "MODERADO" if edge > 2 else "MARGINAL",
+                    })
 
         seen = {}
         for vb in sorted(real, key=lambda x: x["edge_porcentaje"], reverse=True):
@@ -414,17 +382,16 @@ def value_bets():
         return jsonify({
             "total_encontrados": len(filtered),
             "value_bets":        filtered[:50],
-            "es_demo":           es_demo,
+            "es_demo":           False,
             "total_partidos_analizados": len(partidos),
-            "aviso": error_msg if error_msg and es_demo else (None if filtered else f"Sin value bets con edge >= {edge_min}%"),
+            "aviso": None if filtered else f"Sin value bets con edge >= {edge_min}%",
         })
 
     except Exception as e:
         tb = traceback.format_exc()
         logging.exception("value_bets fatal\n%s", tb)
-        return jsonify({"total_encontrados": 0, "value_bets": [], "es_demo": True,
-                        "error": str(e), "traceback": tb,
-                        "aviso": f"Modo demo por error: {e}"})
+        return jsonify({"total_encontrados": 0, "value_bets": [], "es_demo": False,
+                        "error": str(e), "traceback": tb})
 # ── KELLY ──────────────────────────────────────────────────────────────────────
 @app.route("/api/kelly/calcular",methods=["POST"])
 @login_required
