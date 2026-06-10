@@ -315,15 +315,20 @@ def value_bets():
                 at = m.get("away_team","") or ""
                 if not ht or not at:
                     continue
-                odds = {}
+                # Mejor odds por resultado + casa que la ofrece
+                best = {}
                 for book in m.get("bookmakers", []):
                     for o in book.get("markets", [{}])[0].get("outcomes", []):
                         name = o.get("name","")
                         price = o.get("price",0)
                         if name and price > 1:
-                            odds[name] = min(price, 50.0)
-                if odds:
-                    partidos.append({"home": ht, "away": at, "odds": odds, "liga": m.get("sport_title", deporte)})
+                            prev = best.get(name)
+                            if not prev or price > prev["cuota"]:
+                                best[name] = {"cuota": min(price, 50.0), "casa": book.get("title","")}
+                if best:
+                    odds = {k: v["cuota"] for k, v in best.items()}
+                    casas = {k: v["casa"] for k, v in best.items()}
+                    partidos.append({"home": ht, "away": at, "odds": odds, "casas": casas, "liga": m.get("sport_title", deporte)})
             es_demo = False
 
         # ── 3. Calcular edge para cada resultado ──
@@ -331,9 +336,10 @@ def value_bets():
         for m in partidos:
             ht, at = m["home"], m["away"]
             odds = m.get("odds", {})
+            casas = m.get("casas", {})
             if not odds:
                 continue
-            # Probabilidad implícita promedio del mercado
+            # Probabilidad implícita promedio del mercado (sin vig)
             total_inv = sum(1.0 / max(0.01, v) for v in odds.values())
             for resultado, cuota in odds.items():
                 if cuota <= 1:
@@ -346,7 +352,7 @@ def value_bets():
                         "liga":             m.get("liga", deporte),
                         "fecha":            "",
                         "resultado":        resultado,
-                        "casa":             "Mercado",
+                        "casa":             casas.get(resultado, "Mercado"),
                         "cuota":            cuota,
                         "edge_porcentaje":  edge,
                         "edge_modelo_pct":  edge,
