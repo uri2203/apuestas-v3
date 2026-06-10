@@ -994,8 +994,9 @@ const API = ''  // mismo servidor
 
 async function api(path) {
   const r = await fetch(API + path)
-  if (!r.ok) throw new Error(r.status)
-  return r.json()
+  const body = await r.json().catch(() => null)
+  if (!r.ok) throw new Error(body?.error || r.status)
+  return body
 }
 
 function setAPIStatus(ok) {
@@ -2061,7 +2062,8 @@ async function loadVB() {
 
     // Error de API — mostrar mensaje real
     if (d.error || d.es_demo) {
-      document.getElementById('vb-body').innerHTML = `<tr><td colspan="6" style="padding:16px;font-family:var(--mono);font-size:11px;color:var(--gold)">${d.aviso || d.error}</td></tr>`
+      const tb = d.traceback ? `<details style="margin-top:8px;font-size:10px;color:var(--red)"><summary>Ver traceback</summary><pre style="white-space:pre-wrap;font-size:9px;max-height:200px;overflow:auto;background:var(--bg2);padding:8px;border-radius:4px;margin:4px 0 0;text-align:left">${d.traceback}</pre></details>` : ''
+      document.getElementById('vb-body').innerHTML = `<tr><td colspan="6" style="padding:16px;font-family:var(--mono);font-size:11px;color:var(--gold)">${d.aviso || d.error}${tb}</td></tr>`
       document.getElementById('vb-count').textContent = '0'
       document.getElementById('vb-edge').textContent  = 'sin datos'
       document.getElementById('vb-best').textContent  = '—'
