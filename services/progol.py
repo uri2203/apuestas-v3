@@ -8,10 +8,10 @@ import os
 from models.ensemble import EnsembleModel
 from models.dixon_coles import DixonColesModel
 from models.elo import ELOModel
-from services.features import construir_features_completo
-from services.api_football import (
 import logging
 logger = logging.getLogger(__name__)
+from services.features import construir_features_completo
+from services.api_football import (
     get_fixtures_liga, get_upcoming_fixtures,
     get_standings, LIGAS
 )
