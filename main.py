@@ -279,22 +279,21 @@ def _edge_con_modelo(ht, at, outcome, price):
 @app.route("/api/odds/value-bets")
 @login_required
 def value_bets():
-    import httpx
-    edge_min = float(request.args.get("edge_minimo", 2))
-    api_key  = os.getenv("ODDS_API_KEY", "")
-    _pred_cache.clear()  # limpiar cache de predicciones
-
-    # Sin API key — error claro, sin datos demo
-    if not api_key:
-        return jsonify({
-            "total_encontrados": 0,
-            "value_bets": [],
-            "es_demo": True,
-            "error": "ODDS_API_KEY no configurada",
-            "aviso": "Configura ODDS_API_KEY en Render → Environment para obtener value bets reales",
-        })
-
     try:
+        import httpx
+        edge_min = float(request.args.get("edge_minimo", 2))
+        api_key  = os.getenv("ODDS_API_KEY", "")
+        _pred_cache.clear()
+
+        if not api_key:
+            return jsonify({
+                "total_encontrados": 0,
+                "value_bets": [],
+                "es_demo": True,
+                "error": "ODDS_API_KEY no configurada",
+                "aviso": "Configura ODDS_API_KEY en Render \u2192 Environment para obtener value bets reales",
+            })
+
         deporte = request.args.get("deporte", "soccer_mexico_ligamx")
         r = httpx.get(
             f"https://api.the-odds-api.com/v4/sports/{deporte}/odds",
@@ -303,7 +302,6 @@ def value_bets():
         )
         data = r.json()
 
-        # Error de API (cuota expirada, plan agotado, etc.)
         if isinstance(data, dict) and data.get("message"):
             return jsonify({
                 "total_encontrados": 0,
@@ -314,8 +312,6 @@ def value_bets():
             })
 
         real = []
-        # Cache de predicciones por partido (evita recalcular el modelo por cada cuota)
-        pred_cache = {}
         for m in data if isinstance(data, list) else []:
             ht, at = m.get("home_team",""), m.get("away_team","")
             if not ht or not at: continue
@@ -324,7 +320,6 @@ def value_bets():
                     if not o.get("price") or o["price"] <= 1: continue
                     edge = _edge_con_modelo(ht, at, o["name"], o["price"])
                     if edge >= edge_min:
-                        # Análisis profesional con Kelly
                         prob_modelo = _prob_modelo_cache(ht, at, o["name"])
                         vb = {
                             "partido":          f"{ht} vs {at}",
@@ -338,7 +333,6 @@ def value_bets():
                             "prob_modelo_pct":  round(prob_modelo * 100, 1) if prob_modelo else None,
                             "es_value_bet":     True,
                         }
-                        # Kelly stake si tenemos bankroll
                         if prob_modelo and prob_modelo > 0:
                             from services.value_engine import kelly_fraccionado
                             bk = get_bankroll_seguro()
@@ -347,12 +341,11 @@ def value_bets():
                             if "stake_sugerido" in k:
                                 vb["stake_sugerido"] = k["stake_sugerido"]
                         vb["clasificacion"] = (
-                            "🔥 FUERTE" if edge > 7 else "✅ BUENO" if edge > 4 else
-                            "👍 MODERADO" if edge > 2 else "⚠️ MARGINAL"
+                            "FUERTE" if edge > 7 else "BUENO" if edge > 4 else
+                            "MODERADO" if edge > 2 else "MARGINAL"
                         )
                         real.append(vb)
 
-        # Guardar todos los value bets en UNA sola conexión (evita saturar el pool)
         if real:
             try:
                 from database import db, _execute
@@ -365,7 +358,6 @@ def value_bets():
             except Exception as e:
                 logging.warning("No se pudo guardar value bets en DB: %s", e)
 
-        # Deduplicar: mejor cuota por partido+resultado
         seen = {}
         for vb in sorted(real, key=lambda x: x["edge_porcentaje"], reverse=True):
             key = f"{vb['partido']}|{vb['resultado']}"
@@ -383,12 +375,11 @@ def value_bets():
 
     except httpx.TimeoutException:
         return jsonify({"total_encontrados": 0, "value_bets": [], "es_demo": False,
-                        "error": "Timeout al conectar con Odds API", "aviso": "La API tardó demasiado. Intenta de nuevo."})
+                        "error": "Timeout al conectar con Odds API", "aviso": "La API tard\u00f3 demasiado. Intenta de nuevo."})
     except Exception as e:
-        logging.error("Odds API error: %s", e)
+        logging.exception("Odds API error")
         return jsonify({"total_encontrados": 0, "value_bets": [], "es_demo": False,
                         "error": str(e), "aviso": f"Error: {e}"})
-
 # ── KELLY ──────────────────────────────────────────────────────────────────────
 @app.route("/api/kelly/calcular",methods=["POST"])
 @login_required
@@ -777,3 +768,4 @@ register_webhook(os.getenv("RENDER_EXTERNAL_URL",""))
 
 if __name__=="__main__":
     app.run(host="0.0.0.0",port=int(os.getenv("PORT",8000)))
+
