@@ -1030,13 +1030,15 @@ function go(btn, id) {
   else if(id==='kelly') calcKelly()
   else if(id==='alertas') loadAlertas()
   else if(id==='bankroll') loadBankroll()
-  else if(id==='mercados') {}
-  else if(id==='hedge') {}
-  else if(id==='progolopt') {}
-  else if(id==='mlmodel') {}
-  else if(id==='ligas') {}
+  else if(id==='progol') loadProgol()
+  else if(id==='nlp') { loadNoticias(); loadAlertas('nlp-alertas') }
+  else if(id==='valuepro') calcValuePro()
+  else if(id==='mercados') loadMercados()
+  else if(id==='hedge') calcHedge()
+  else if(id==='progolopt') loadProgolOpt()
+  else if(id==='mlmodel') loadML()
+  else if(id==='ligas') loadLiga()
   else if(id==='cuentas') loadCuentas()
-  else if(id==='valuepro') {}
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
