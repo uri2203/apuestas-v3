@@ -315,54 +315,86 @@ def value_bets():
                 at = m.get("away_team","") or ""
                 if not ht or not at:
                     continue
-                # Mejor odds por resultado + casa que la ofrece
-                best = {}
+                # Consenso del mercado: probabilidad promedio entre todas las casas
+                book_odds = []  # [{resultado, cuota, casa}, ...]
+                consensus_sum = {}
+                consensus_count = {}
                 for book in m.get("bookmakers", []):
+                    casa = book.get("title","")
                     for o in book.get("markets", [{}])[0].get("outcomes", []):
                         name = o.get("name","")
                         price = o.get("price",0)
                         if name and price > 1:
-                            prev = best.get(name)
-                            if not prev or price > prev["cuota"]:
-                                best[name] = {"cuota": min(price, 50.0), "casa": book.get("title","")}
-                if best:
-                    odds = {k: v["cuota"] for k, v in best.items()}
-                    casas = {k: v["casa"] for k, v in best.items()}
-                    partidos.append({"home": ht, "away": at, "odds": odds, "casas": casas, "liga": m.get("sport_title", deporte)})
+                            book_odds.append({"res": name, "cuota": min(price, 50.0), "casa": casa})
+                            consensus_sum[name] = consensus_sum.get(name, 0) + 1.0 / price
+                            consensus_count[name] = consensus_count.get(name, 0) + 1
+                if book_odds and consensus_sum:
+                    # Probabilidad consenso = promedio de inversos normalizado
+                    total_inv = sum(consensus_sum.values()) / len(consensus_sum)
+                    consensus_prob = {}
+                    for outcome, inv_sum in consensus_sum.items():
+                        avg_inv = inv_sum / consensus_count[outcome]
+                        if total_inv > 0:
+                            consensus_prob[outcome] = avg_inv / total_inv
+                        else:
+                            consensus_prob[outcome] = 0.01
+                    partidos.append({
+                        "home": ht, "away": at,
+                        "book_odds": book_odds,
+                        "consensus": consensus_prob,
+                        "liga": m.get("sport_title", deporte),
+                    })
             es_demo = False
 
         # ── 3. Calcular edge para cada resultado ──
         real = []
         for m in partidos:
             ht, at = m["home"], m["away"]
-            odds = m.get("odds", {})
-            casas = m.get("casas", {})
-            probs_modelo = m.get("probs", None)
-            if not odds:
+            book_odds = m.get("book_odds", None)
+            odds_demo = m.get("odds", None)
+            probs = m.get("probs", None) or m.get("consensus", None)
+            if not book_odds and not odds_demo:
                 continue
-            for resultado, cuota in odds.items():
-                if cuota <= 1:
-                    continue
-                if probs_modelo:
-                    prob_real = probs_modelo.get(resultado, 0)
-                else:
-                    total_inv = sum(1.0 / max(0.01, v) for v in odds.values())
-                    prob_real = (1.0 / cuota) / total_inv if total_inv > 0 else 0.01
-                edge = _edge_simple(prob_real, cuota)
-                if edge >= edge_min:
-                    real.append({
-                        "partido":          f"{ht} vs {at}",
-                        "liga":             m.get("liga", deporte),
-                        "fecha":            "",
-                        "resultado":        resultado,
-                        "casa":             casas.get(resultado, "Mercado"),
-                        "cuota":            cuota,
-                        "edge_porcentaje":  edge,
-                        "edge_modelo_pct":  edge,
-                        "prob_modelo_pct":  round(prob_real * 100, 1),
-                        "es_value_bet":     True,
-                        "clasificacion":    "FUERTE" if edge > 7 else "BUENO" if edge > 4 else "MODERADO" if edge > 2 else "MARGINAL",
-                    })
+            if book_odds:
+                # Datos reales: cada (casa, resultado) contra el consenso
+                for bo in book_odds:
+                    prob = (probs or {}).get(bo["res"], 0.01)
+                    edge = _edge_simple(prob, bo["cuota"])
+                    if edge >= edge_min:
+                        real.append({
+                            "partido":          f"{ht} vs {at}",
+                            "liga":             m.get("liga", deporte),
+                            "fecha":            "",
+                            "resultado":        bo["res"],
+                            "casa":             bo["casa"],
+                            "cuota":            bo["cuota"],
+                            "edge_porcentaje":  edge,
+                            "edge_modelo_pct":  edge,
+                            "prob_modelo_pct":  round(prob * 100, 1),
+                            "es_value_bet":     True,
+                            "clasificacion":    "FUERTE" if edge > 7 else "BUENO" if edge > 4 else "MODERADO" if edge > 2 else "MARGINAL",
+                        })
+            elif odds_demo:
+                # Datos demo: usar probabilidades del modelo
+                for resultado, cuota in odds_demo.items():
+                    if cuota <= 1:
+                        continue
+                    prob = (probs or {}).get(resultado, 0.01)
+                    edge = _edge_simple(prob, cuota)
+                    if edge >= edge_min:
+                        real.append({
+                            "partido":          f"{ht} vs {at}",
+                            "liga":             m.get("liga", deporte),
+                            "fecha":            "",
+                            "resultado":        resultado,
+                            "casa":             "Mercado",
+                            "cuota":            cuota,
+                            "edge_porcentaje":  edge,
+                            "edge_modelo_pct":  edge,
+                            "prob_modelo_pct":  round(prob * 100, 1),
+                            "es_value_bet":     True,
+                            "clasificacion":    "FUERTE" if edge > 7 else "BUENO" if edge > 4 else "MODERADO" if edge > 2 else "MARGINAL",
+                        })
 
         seen = {}
         for vb in sorted(real, key=lambda x: x["edge_porcentaje"], reverse=True):
