@@ -80,8 +80,8 @@ def optimizar(partidos, ventana_min=40):
             "pesos_recomendados": {"dc": 0.50, "elo": 0.30, "poisson": 0.20},
         }
     # Limitar a últimos 100 partidos para velocidad (evita timeout Render)
-    if len(partidos) > 100:
-        partidos = partidos[-100:]
+    if len(partidos) > 500:
+        partidos = partidos[-500:]
 
     # Combinaciones a probar (suman 1.0)
     combinaciones = [
