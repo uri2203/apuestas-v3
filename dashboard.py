@@ -267,8 +267,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
 <div id="s-dashboard" class="section on">
   <div class="ph"><div class="ph-title">Dashboard</div><div class="ph-sub" id="dash-sub">cargando datos en tiempo real...</div></div>
   <div class="sg">
-    <div class="sc"><div class="sc-glow" style="background:var(--green)"></div><div class="sc-lbl">Número más caliente</div><div class="sc-val" style="color:var(--gold)" id="d-hot">—</div><div class="sc-sub" id="d-hot-s">cargando API...</div></div>
-    <div class="sc"><div class="sc-glow" style="background:var(--teal)"></div><div class="sc-lbl">Número más frío</div><div class="sc-val" style="color:var(--teal)" id="d-cold">—</div><div class="sc-sub" id="d-cold-s">cargando API...</div></div>
     <div class="sc"><div class="sc-glow" style="background:var(--gold)"></div><div class="sc-lbl">Value bets activos</div><div class="sc-val" style="color:var(--green)" id="dash-vb-count">—</div><div class="sc-sub" id="dash-vb-edge">cargando...</div></div>
   </div>
   <div class="g2">
