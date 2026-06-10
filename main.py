@@ -199,7 +199,7 @@ def health():
 @app.route("/api/version")
 def version():
     """Endpoint público para verificar qué commit está desplegado."""
-    return jsonify({"version": "4.3.3", "commit": "current", "mensaje": "Consenso normalizado correctamente + demo siempre incluido"})
+    return jsonify({"version": "4.3.3", "commit": "d30f395", "mensaje": "Consenso normalizado correctamente + demo siempre incluido"})
 
 # ── PROGOL ─────────────────────────────────────────────────────────────────────
 @app.route("/api/progol/jornada")
