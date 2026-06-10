@@ -121,6 +121,7 @@ def matriz_hedging(
 # ── ARBITRAJE ─────────────────────────────────────────────────────────────────
 
 def detectar_arbitraje(cuotas: dict, bankroll: float = 1000.0) -> dict:
+    if cuota_hedge <= 1 or cuota_back <= 1: return {"error": "Las cuotas deben ser mayores a 1"}
     """
     Detecta y calcula arbitraje en un mercado 1X2 o 2-way.
 
