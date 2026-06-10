@@ -282,10 +282,6 @@ def monte_carlo_partido(
             "prob_ambos_anotan_pct": round(
                 sum(1 for sg, ga in zip(goles_totales, spreads) if sg > 0 and abs(ga) < sg) / max(n, 1) * 100, 1
             ) if goles_totales else 0,
-                sum(1 for s in spreads if abs(s) < goles_totales[i] and goles_totales[i] > 0
-                    for i, _ in enumerate([s]))
-                / n * 100, 1
-            ) if spreads else 0,
         },
         "notas": "Cuotas justas generadas por simulación Poisson — compara vs casas para detectar value",
     }
