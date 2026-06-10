@@ -2,7 +2,7 @@
 ApuestasPro v4.3 — Servidor principal.
 """
 
-import math, os, json, logging, time, queue
+import math, os, json, logging, time, queue, threading
 from flask import Flask, jsonify, request, Response, stream_with_context
 from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -16,7 +16,8 @@ from routers.ml_router import ml_bp, ligas_bp, predicciones_bp
 from routers.progol_optimizer_router import progol_opt_bp
 from routers.accounts_router import accounts_bp
 
-logging.basicConfig(level=logging.INFO)
+if not logging.getLogger().hasHandlers():
+    logging.basicConfig(level=logging.INFO)
 app = Flask(__name__)
 
 # ── Blueprints ─────────────────────────────────────────────────────────────────
@@ -39,7 +40,8 @@ def _broadcast(evento: dict):
     import json as _json
     data = f"data: {_json.dumps(evento)}\n\n"
     dead = []
-    for q in _sse_clients:
+    with _sse_lock:
+        for q in list(_sse_clients):
         try:
             q.put_nowait(data)
         except Exception:
@@ -765,7 +767,10 @@ def value_analizar():
     """Análisis profesional de value de una apuesta específica."""
     from services.value_engine import analizar_value
     prob   = float(request.args.get("prob", 0)) / 100  # viene en %
-    cuota  = float(request.args.get("cuota", 2.0))
+    cuota_str = request.args.get('cuota', '')
+    if not cuota_str:
+        return jsonify({"error": "Falta parametro cuota"}), 400
+    cuota = float(cuota_str)
     pinn   = request.args.get("pinnacle")
     bk     = float(request.args.get("bankroll", 0)) or get_bankroll_seguro()
     frac   = float(request.args.get("fraccion", 0.25))
