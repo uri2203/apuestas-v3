@@ -1044,15 +1044,6 @@ function go(btn, id) {
 // ═══════════════════════════════════════════════════════════════════════════
 // DATOS LOCALES (fallback)
 // ═══════════════════════════════════════════════════════════════════════════
-const FREQ_LOCAL = Array.from({length:56},(_,i) => {
-  const ov = {38:312,23:290,22:278,15:265,47:258,7:95,14:88,3:91,51:97,29:102}
-  return {n:i+1, f:ov[i+1]??Math.floor(Math.abs(Math.sin((i+1)*7.3)*60)+155)}
-})
-const SRT = [...FREQ_LOCAL].sort((a,b) => b.f-a.f)
-const HOT  = SRT.slice(0,10).map(d=>d.n)
-const COLD = [...FREQ_LOCAL].sort((a,b) => a.f-b.f).slice(0,10).map(d=>d.n)
-const MAXF = SRT[0].f, MINF = SRT[SRT.length-1].f
-
 // ═══════════════════════════════════════════════════════════════════════════
 // DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════
