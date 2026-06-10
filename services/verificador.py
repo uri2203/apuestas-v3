@@ -53,7 +53,8 @@ def verificar_automatico(api_key: str = "") -> dict:
                 if not fecha: continue
                 r = httpx.get("https://v3.football.api-sports.io/fixtures",
                     params={"date": fecha, "league": 262, "status": "FT"},
-                    headers={"x-apisports-key": api_key}, timeout=12)
+                    api_host = os.getenv("SPORTS_API_HOST", "v3.football.api-sports.io")
+    headers={"x-apisports-key": api_key, "x-rapidapi-key": api_key, "x-rapidapi-host": api_host}, timeout=12)
                 for f in r.json().get("response", []):
                     ht = f.get("teams",{}).get("home",{}).get("name","")
                     at = f.get("teams",{}).get("away",{}).get("name","")
