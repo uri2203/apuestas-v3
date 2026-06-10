@@ -280,6 +280,8 @@ def monte_carlo_partido(
             "prob_over_2_5_pct": round(prob_over25 * 100, 1),
             "prob_over_1_5_pct": round(sum(1 for g in goles_totales if g > 1.5) / n * 100, 1),
             "prob_ambos_anotan_pct": round(
+                sum(1 for sg, ga in zip(goles_totales, spreads) if sg > 0 and abs(ga) < sg) / max(n, 1) * 100, 1
+            ) if goles_totales else 0,
                 sum(1 for s in spreads if abs(s) < goles_totales[i] and goles_totales[i] > 0
                     for i, _ in enumerate([s]))
                 / n * 100, 1
