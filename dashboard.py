@@ -231,7 +231,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
   <button class="nav-btn on" onclick="go(this,'dashboard')"><span class="nav-icon">◈</span>Dashboard</button>
 
   <div class="nav-label">Loterías</div>
-  <button class="nav-btn" onclick="go(this,'melate')"><span class="nav-icon">⬡</span>Melate <span class="nb nb-gold">6/56</span></button>
 
   <div class="nav-label">Fútbol</div>
   <button class="nav-btn" onclick="go(this,'progol')"><span class="nav-icon">⚽</span>Progol <span class="nb nb-green">DC+ELO</span></button>
@@ -268,7 +267,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
 <div id="s-dashboard" class="section on">
   <div class="ph"><div class="ph-title">Dashboard</div><div class="ph-sub" id="dash-sub">cargando datos en tiempo real...</div></div>
   <div class="sg">
-    <div class="sc"><div class="sc-glow" style="background:var(--purple)"></div><div class="sc-lbl">Sorteos Melate analizados</div><div class="sc-val" style="color:var(--purple2)">3,847</div><div class="sc-sub">Desde 1996 — histórico completo</div></div>
     <div class="sc"><div class="sc-glow" style="background:var(--green)"></div><div class="sc-lbl">Número más caliente</div><div class="sc-val" style="color:var(--gold)" id="d-hot">—</div><div class="sc-sub" id="d-hot-s">cargando API...</div></div>
     <div class="sc"><div class="sc-glow" style="background:var(--teal)"></div><div class="sc-lbl">Número más frío</div><div class="sc-val" style="color:var(--teal)" id="d-cold">—</div><div class="sc-sub" id="d-cold-s">cargando API...</div></div>
     <div class="sc"><div class="sc-glow" style="background:var(--gold)"></div><div class="sc-lbl">Value bets activos</div><div class="sc-val" style="color:var(--green)" id="dash-vb-count">—</div><div class="sc-sub" id="dash-vb-edge">cargando...</div></div>
@@ -291,7 +289,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
     <div class="panel">
       <div class="ph2"><span class="pt">Accesos rápidos</span></div>
       <div class="pb" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <button class="btn btn-g" onclick="go(document.querySelector('[onclick*=melate]'),'melate')" style="flex-direction:column;gap:4px;padding:14px 8px"><span style="font-size:18px;color:var(--gold)">⬡</span><span style="font-size:11px">Análisis Melate</span></button>
         <button class="btn btn-g" onclick="go(document.querySelector('[onclick*=progol]'),'progol')" style="flex-direction:column;gap:4px;padding:14px 8px"><span style="font-size:18px;color:var(--green)">⚽</span><span style="font-size:11px">Progol DC+ELO</span></button>
         <button class="btn btn-g" onclick="go(document.querySelector('[onclick*=sharp]'),'sharp')" style="flex-direction:column;gap:4px;padding:14px 8px"><span style="font-size:18px;color:var(--gold)">⚡</span><span style="font-size:11px">Sharp Money</span></button>
         <button class="btn btn-g" onclick="go(document.querySelector('[onclick*=nlp]'),'nlp')" style="flex-direction:column;gap:4px;padding:14px 8px"><span style="font-size:18px;color:var(--red)">📡</span><span style="font-size:11px">NLP Lesiones</span></button>
@@ -300,53 +297,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
   </div>
 </div>
 
-<div id="s-melate" class="section">
-  <div class="ph"><div class="ph-title">Melate · Loterías</div><div class="ph-sub">análisis estadístico · histórico 3,847 sorteos · frecuencias en tiempo real via API</div></div>
-  <div class="sg">
-    <div class="sc"><div class="sc-glow" style="background:var(--gold)"></div><div class="sc-lbl">Más frecuente</div><div class="sc-val" style="color:var(--gold)" id="m-hot">—</div><div class="sc-sub" id="m-hot-s">cargando...</div></div>
-    <div class="sc"><div class="sc-glow" style="background:var(--teal)"></div><div class="sc-lbl">Más frío</div><div class="sc-val" style="color:var(--teal)" id="m-cold">—</div><div class="sc-sub" id="m-cold-s">cargando...</div></div>
-    <div class="sc"><div class="sc-glow" style="background:var(--purple)"></div><div class="sc-lbl">Prob. acertar 6/6</div><div class="sc-val" style="color:var(--purple2);font-size:14px">1:4,096,720</div><div class="sc-sub">0.0000244%</div></div>
-    <div class="sc"><div class="sc-glow" style="background:var(--green)"></div><div class="sc-lbl">Sorteos históricos</div><div class="sc-val" style="color:var(--green)">3,847</div><div class="sc-sub">Desde 1996</div></div>
-  </div>
-  <div class="g2">
-    <div class="panel">
-      <div class="ph2"><span class="pt">Frecuencias top 15 <span class="chip cp">API</span></span></div>
-      <div class="pb" id="m-bars"><div class="loading"><div class="dot"></div><div class="dot"></div><div class="dot"></div>Cargando desde API...</div></div>
-    </div>
-    <div class="panel">
-      <div class="ph2"><span class="pt">Mapa de calor 1–56 <span class="chip cy">Heatmap</span></span></div>
-      <div class="pb">
-        <div class="hm" id="m-hm"></div>
-        <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
-          <div style="flex:1;height:3px;background:linear-gradient(90deg,rgba(45,212,191,.5),rgba(124,109,250,.5),rgba(240,180,41,.6));border-radius:2px"></div>
-          <span style="font-size:9px;font-family:var(--mono);color:var(--muted)">Frío → Caliente</span>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div class="panel">
-    <div class="ph2">
-      <span class="pt">Generador estadístico <span class="chip cg">DC+Frecuencias</span></span>
-      <div style="display:flex;gap:6px">
-        <button class="btn btn-g" onclick="genCombs(1)" style="padding:5px 12px;font-size:11px">1 combo</button>
-        <button class="btn btn-p" onclick="genCombs(5)" style="padding:5px 12px;font-size:11px">Generar 5</button>
-      </div>
-    </div>
-    <div class="pb">
-      <div class="pills">
-        <button class="pill on" onclick="setM(this,'balanced')">Balanceado</button>
-        <button class="pill" onclick="setM(this,'hot')">Calientes</button>
-        <button class="pill" onclick="setM(this,'cold')">Fríos</button>
-        <button class="pill" onclick="setM(this,'random')">Aleatorio</button>
-      </div>
-      <div id="gen-out"><p style="color:var(--muted);font-size:12px;font-family:var(--mono)">Pulsa "Generar 5" para ver combinaciones basadas en frecuencias históricas.</p></div>
-    </div>
-  </div>
-  <div class="g2">
-    <div class="panel"><div class="ph2"><span class="pt">Calientes <span class="chip cy">Top 10</span></span></div><div class="pb"><div class="balls" id="hot-b"><div class="loading"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div></div></div>
-    <div class="panel"><div class="ph2"><span class="pt">Fríos <span class="chip ct">Top 10</span></span></div><div class="pb"><div class="balls" id="cold-b"><div class="loading"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div></div></div>
-  </div>
-</div>
 
 <div id="s-progol" class="section">
   <div class="ph"><div class="ph-title">Progol · Jornada</div><div class="ph-sub">Dixon-Coles 50% + ELO 30% + Poisson 20% · precisión 55-62% · datos reales ESPN</div></div>
@@ -642,7 +592,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
     <div class="sc"><div class="sc-glow" style="background:var(--gold)"></div><div class="sc-lbl">Urgentes</div><div class="sc-val" style="color:var(--gold)">4</div><div class="sc-sub">Acción inmediata</div></div>
     <div class="sc"><div class="sc-glow" style="background:var(--green)"></div><div class="sc-lbl">Value bets</div><div class="sc-val" style="color:var(--green)" id="vb-count2">—</div><div class="sc-sub" id="vb-edge2">cargando...</div></div>
     <div class="sc"><div class="sc-glow" style="background:var(--purple)"></div><div class="sc-lbl">Sharp moves</div><div class="sc-val" style="color:var(--purple2)">3</div><div class="sc-sub">Últimas 2 horas</div></div>
-    <div class="sc"><div class="sc-glow" style="background:var(--teal)"></div><div class="sc-lbl">Próximo sorteo</div><div class="sc-val" style="color:var(--teal)">Hoy</div><div class="sc-sub">Melate 21:00 CDMX</div></div>
+    <div class="sc"><div class="sc-glow" style="background:var(--teal)"></div><div class="sc-lbl">Proximo evento</div><div class="sc-val" style="color:var(--teal)">Hoy</div><div class="sc-sub">Value Bets activas</div></div>
   </div>
   <div class="panel">
     <div class="ph2"><span class="pt">Feed en tiempo real <span class="chip cg">LIVE</span></span>
@@ -1077,7 +1027,6 @@ function go(btn, id) {
   }
   // Ejecutar acción de carga según sección
   if(id==='dashboard') initDashboard()
-  else if(id==='melate') initMelate()
   else if(id==='odds') { loadVB(); calcEV() }
   else if(id==='clv') { calcCLV(); renderCLVT() }
   else if(id==='kelly') calcKelly()
@@ -1911,9 +1860,6 @@ async function calcCLVpro() {
 async function initDashboard() {
   document.getElementById('dash-sub').textContent = 'cargando datos en tiempo real...'
 
-  // Frecuencias Melate
-  try {
-    const d = await api('/api/melate/frecuencias?limite=500')
     setAPIStatus(true)
     if(d.calientes?.length) {
       const h = d.calientes[0], c = d.frios[0]
@@ -1985,81 +1931,6 @@ async function initDashboard() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// MELATE
-// ═══════════════════════════════════════════════════════════════════════════
-let apiFreqData = null
-let genMode = 'balanced'
-
-async function initMelate() {
-  let freq = FREQ_LOCAL, hot = HOT, cold = COLD
-
-  try {
-    const d = await api('/api/melate/frecuencias?limite=500')
-    setAPIStatus(true)
-    apiFreqData = d
-    const sf = Object.entries(d.frecuencias).map(([n,v])=>({n:parseInt(n),f:v.frecuencia_abs})).sort((a,b)=>b.f-a.f)
-    freq = sf
-    hot  = d.calientes.slice(0,10).map(x=>x.numero)
-    cold = d.frios.slice(0,10).map(x=>x.numero)
-
-    document.getElementById('m-hot').textContent = d.calientes[0].numero
-    document.getElementById('m-hot-s').textContent = `${d.calientes[0].frecuencia_abs} apariciones`
-    document.getElementById('m-cold').textContent = d.frios[0].numero
-    document.getElementById('m-cold-s').textContent = `${d.frios[0].frecuencia_abs} apariciones`
-  } catch {
-    setAPIStatus(false)
-    document.getElementById('m-hot').textContent = SRT[0].n
-    document.getElementById('m-hot-s').textContent = `${SRT[0].f} apariciones (local)`
-    document.getElementById('m-cold').textContent = SRT[SRT.length-1].n
-    document.getElementById('m-cold-s').textContent = `${SRT[SRT.length-1].f} apariciones (local)`
-  }
-
-  renderBars(freq)
-  renderHM(freq)
-  document.getElementById('hot-b').innerHTML  = hot.map(n=>`<div class="ball bh">${n}</div>`).join('')
-  document.getElementById('cold-b').innerHTML = cold.map(n=>`<div class="ball bc">${n}</div>`).join('')
-}
-
-function renderBars(arr) {
-  const top = arr.slice(0,15), mx = top[0].f
-  document.getElementById('m-bars').innerHTML = top.map(d=>`
-    <div class="fb">
-      <span class="fb-l">${d.n}</span>
-      <div class="fb-t"><div class="fb-f" style="width:${Math.round(d.f/mx*100)}%;background:${d.f>280?'var(--gold)':d.f<110?'var(--teal)':'var(--purple)'}"></div></div>
-      <span class="fb-v">${d.f}</span>
-    </div>`).join('')
-}
-
-function renderHM(arr) {
-  const mx = Math.max(...arr.map(d=>d.f)), mn = Math.min(...arr.map(d=>d.f))
-  const sorted = [...arr].sort((a,b)=>a.n-b.n)
-  document.getElementById('m-hm').innerHTML = sorted.map(d=>{
-    const p=(d.f-mn)/(mx-mn), r=Math.round(p*180+30), g=Math.round((1-p)*150+20)
-    return `<div class="hm-c" title="${d.n}: ${d.f}×" style="background:rgba(${r},${g},40,.6);color:rgba(255,255,255,${p>.5?.9:.5})">${d.n}</div>`
-  }).join('')
-}
-
-function setM(btn, m) {
-  document.querySelectorAll('.pills .pill').forEach(p=>p.classList.remove('on'))
-  btn.classList.add('on'); genMode = m
-}
-
-function pick(n=6) {
-  const sorted = apiFreqData
-    ? Object.entries(apiFreqData.frecuencias).map(([k,v])=>({n:parseInt(k),f:v.frecuencia_abs})).sort((a,b)=>b.f-a.f)
-    : SRT
-  const hot  = sorted.slice(0,20).map(d=>d.n)
-  const cold = sorted.slice(-20).map(d=>d.n)
-  const pool = genMode==='hot'?hot:genMode==='cold'?cold:Array.from({length:56},(_,i)=>i+1)
-  const out = new Set()
-  while(out.size<n) out.add(pool[Math.floor(Math.random()*pool.length)])
-  return [...out].sort((a,b)=>a-b)
-}
-
-async function genCombs(n) {
-  let combis = []
-  try {
-    const d = await api(`/api/melate/generar?modo=${genMode}&cantidad=${n}`)
     if(d.combinaciones) combis = d.combinaciones.map(c=>c.numeros)
   } catch {}
   if(!combis.length) combis = Array.from({length:n},()=>pick())
@@ -2530,9 +2401,7 @@ const ALERTS_DATA=[
   {t:'g',x:'Arbitraje confirmado: Tigres vs Monterrey +3.4% garantizado en 2 casas',g:'hace 15 min'},
   {t:'w',x:'Value bet: Toluca ML · Edge +10.0% — STRONG VALUE, apostar antes de que corrija',g:'hace 22 min'},
   {t:'g',x:'NLP: Henry Martín descartado para el Clásico — lesión muscular confirmada',g:'hace 35 min'},
-  {t:'i',x:'Número 38 de Melate: 312 apariciones históricas — el más frecuente del sistema',g:'hace 1h'},
   {t:'s',x:'Steam move: Cruz Azul -0.5 → -1.0 en 4 casas en 8 minutos — sindicato sharp',g:'hace 1.5h'},
-  {t:'i',x:'Sorteo Melate esta noche 21:00 CDMX — actualiza tu análisis antes',g:'hace 2h'},
 ]
 
 async function loadAlertas(target='alertas-feed') {
