@@ -196,6 +196,7 @@ def enviar_resumen_diario_completo() -> None:
             vbs = rows_to_list(conn.execute(
                 "SELECT * FROM value_bets_log ORDER BY id DESC LIMIT 5"
             ).fetchall())
+            cursor.close()
 
         email_resumen_diario(stats, vbs, predicciones)
     except Exception as e:
