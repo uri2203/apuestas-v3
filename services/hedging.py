@@ -1,4 +1,4 @@
-"""
+﻿"""
 Hedging (cobertura) y Arbitraje.
 
 - Hedging garantizado:  asegurar ganancia tras apuesta ganadora en vivo
@@ -121,7 +121,8 @@ def matriz_hedging(
 # ── ARBITRAJE ─────────────────────────────────────────────────────────────────
 
 def detectar_arbitraje(cuotas: dict, bankroll: float = 1000.0) -> dict:
-    if cuota_hedge <= 1 or cuota_back <= 1: return {"error": "Las cuotas deben ser mayores a 1"}
+    if any(c <= 1 for c in cuotas.values()):
+        return {"error": "Las cuotas deben ser mayores a 1"}
     """
     Detecta y calcula arbitraje en un mercado 1X2 o 2-way.
 
@@ -199,3 +200,4 @@ def calcular_dutching(selecciones: list, bankroll: float = 1000.0) -> dict:
         "roi_pct":            round(ganancia_neta / bankroll * 100, 2),
         "suma_probabilidades": round(suma_imp, 4),
     }
+
