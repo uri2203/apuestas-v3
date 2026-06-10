@@ -25,6 +25,13 @@ if not logging.getLogger().hasHandlers():
 
 app = Flask(__name__)
 
+@app.errorhandler(Exception)
+def _unhandled_error(e):
+    import traceback
+    tb = traceback.format_exc()
+    logging.exception("Unhandled exception: %s", e)
+    return jsonify({"error": str(e), "traceback": tb}), 500
+
 # ── Blueprints ─────────────────────────────────────────────────────────────────
 for bp in [auth_bp, telegram_bp, bankroll_bp, mercados_bp, ml_bp, ligas_bp, predicciones_bp, progol_opt_bp, accounts_bp]:
     app.register_blueprint(bp)
