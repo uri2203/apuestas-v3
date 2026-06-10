@@ -17,8 +17,8 @@ from routers.progol_optimizer_router import progol_opt_bp
 from routers.accounts_router import accounts_bp
 
 if not logging.getLogger().hasHandlers():
-    logging.basicConfig(level=logging.INFO)
-app = Flask(__name__)
+    if not logging.getLogger().hasHandlers():
+    logging.basicConfig(level=logging.INFO)lask(__name__)
 
 # ── Blueprints ─────────────────────────────────────────────────────────────────
 for bp in [auth_bp, telegram_bp, bankroll_bp, mercados_bp, ml_bp, ligas_bp, predicciones_bp, progol_opt_bp, accounts_bp]:
@@ -34,12 +34,13 @@ except Exception as e:
 
 # ── SSE — cola de eventos en tiempo real ──────────────────────────────────────
 _sse_clients: list[queue.Queue] = []
+_sse_lock = threading.Lock()
 
 def _broadcast(evento: dict):
     """Envía un evento a todos los clientes SSE conectados."""
-    import json as _json
-    data = f"data: {_json.dumps(evento)}\n\n"
+        data = f"data: {json.dumps(evento)}\n\n"
     dead = []
+    with _sse_lock:
     with _sse_lock:
         for q in list(_sse_clients):
         try:
@@ -47,14 +48,16 @@ def _broadcast(evento: dict):
         except Exception:
             dead.append(q)
     for q in dead:
-        _sse_clients.remove(q)
+        with _sse_lock:
+            _sse_clients.remove(q)
 
 @app.route("/api/eventos")
 @login_required
 def sse_eventos():
     """Server-Sent Events: el dashboard recibe alertas en tiempo real."""
     q = queue.Queue()
-    _sse_clients.append(q)
+    with _sse_lock:
+        _sse_clients.append(q)
 
     def stream():
         try:
@@ -66,7 +69,8 @@ def sse_eventos():
                 except queue.Empty:
                     yield ": heartbeat\n\n"
         except GeneratorExit:
-            _sse_clients.remove(q)
+            with _sse_lock:
+                _sse_clients.remove(q)
 
     return Response(
         stream_with_context(stream()),
@@ -179,58 +183,6 @@ def health():
 
     return jsonify(estado)
 
-# ── MELATE ─────────────────────────────────────────────────────────────────────
-FREQ_MELATE = {
-    1:179,2:168,3:152,4:185,5:171,6:193,7:142,8:188,9:175,10:164,
-    11:182,12:177,13:169,14:148,15:205,16:183,17:176,18:191,19:162,20:178,
-    21:186,22:218,23:231,24:174,25:181,26:167,27:189,28:172,29:165,30:187,
-    31:173,32:196,33:158,34:184,35:170,36:179,37:163,38:247,39:155,40:190,
-    41:177,42:185,43:168,44:174,45:199,46:161,47:183,48:169,49:176,50:158,
-    51:144,52:172,53:180,54:165,55:187,56:171,
-}
-
-@app.route("/api/melate/frecuencias")
-@login_required
-def melate_frecuencias():
-    sf = sorted(FREQ_MELATE.items(), key=lambda x: x[1], reverse=True)
-    return jsonify({
-        "sorteos_analizados": 3847,
-        "frecuencias": {str(n): {"frecuencia_abs": f} for n, f in FREQ_MELATE.items()},
-        "calientes": [{"numero": n, "frecuencia_abs": f} for n, f in sf[:10]],
-        "frios":     [{"numero": n, "frecuencia_abs": f} for n, f in sf[-10:]],
-    })
-
-@app.route("/api/melate/generar")
-@login_required
-def melate_generar():
-    import random
-    modo = request.args.get("modo","balanced")
-    cantidad = int(request.args.get("cantidad",5))
-    sf = sorted(FREQ_MELATE.items(), key=lambda x: x[1], reverse=True)
-    hot=[n for n,_ in sf[:20]]; cold=[n for n,_ in sf[-20:]]
-    pool = hot if modo=="hot" else cold if modo=="cold" else list(range(1,57))
-    return jsonify({"combinaciones":[
-        {"combinacion":i+1,"numeros":sorted(random.sample(pool,min(6,len(pool)))),"modo":modo}
-        for i in range(cantidad)
-    ]})
-
-@app.route("/api/melate/probabilidades")
-def melate_probabilidades():
-    t = math.comb(56,6)
-    return jsonify({"total_combinaciones":t,"prob_1_en":t})
-
-@app.route("/api/melate/ultimo-resultado")
-@login_required
-def melate_ultimo():
-    import random
-    return jsonify({"juego":"Melate","numeros":sorted(random.sample(range(1,57),6)),"fecha":"2025-04-25"})
-
-@app.route("/api/melate/racha/<int:numero>")
-@login_required
-def melate_racha(numero):
-    import random
-    return jsonify({"numero":numero,"sorteos_sin_salir":random.randint(1,80),"maxima_racha":84})
-
 # ── PROGOL ─────────────────────────────────────────────────────────────────────
 @app.route("/api/progol/jornada")
 @login_required
@@ -250,9 +202,9 @@ def progol_partido():
 def progol_partido_completo():
     from services.progol import predecir_partido
     home=request.args.get("home","Club América"); away=request.args.get("away","Guadalajara")
-    try: les_local=json.loads(request.args.get("lesiones_local","[]").replace("'",'"'))
+    try: les_local=json.loads(request.args.get("lesiones_local","[]).replace("'",'"'))
     except: les_local=[]
-    try: les_visita=json.loads(request.args.get("lesiones_visitante","[]").replace("'",'"'))
+    try: les_visita=json.loads(request.args.get("lesiones_visitante","[]).replace("'",'"'))
     except: les_visita=[]
     return jsonify(predecir_partido(
         home,away,
@@ -692,8 +644,7 @@ def diag_football():
     # Test 3: llamada cruda a la API para ver respuesta completa
     try:
         base = RAPID_BASE if len(api_key) > 40 else API_BASE
-        from datetime import datetime, timedelta
-        hoy = datetime.now()
+                hoy = datetime.now()
         r = httpx.get(base + "/fixtures", params={
             "league": LIGAS["liga_mx"],
             "season": current_season(),
