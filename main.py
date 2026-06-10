@@ -374,9 +374,6 @@ def value_bets():
             "aviso": None if filtered else f"Sin value bets con edge >= {edge_min}% en este momento",
         })
 
-    except httpx.TimeoutException:
-        return jsonify({"total_encontrados": 0, "value_bets": [], "es_demo": False,
-                        "error": "Timeout al conectar con Odds API", "aviso": "La API tard\u00f3 demasiado. Intenta de nuevo."})
     except Exception as e:
         logging.exception("Odds API error")
         return jsonify({"total_encontrados": 0, "value_bets": [], "es_demo": False,
