@@ -15,6 +15,9 @@ from routers.mercados_router import mercados_bp
 from routers.ml_router import ml_bp, ligas_bp, predicciones_bp
 from routers.progol_optimizer_router import progol_opt_bp
 from routers.accounts_router import accounts_bp
+from routers.avanzado import router as avanzado_bp
+from routers.kelly import router as kelly_bp
+from routers.odds import router as odds_bp
 
 if not logging.getLogger().hasHandlers():
     if not logging.getLogger().hasHandlers():
@@ -23,6 +26,9 @@ if not logging.getLogger().hasHandlers():
 # ── Blueprints ─────────────────────────────────────────────────────────────────
 for bp in [auth_bp, telegram_bp, bankroll_bp, mercados_bp, ml_bp, ligas_bp, predicciones_bp, progol_opt_bp, accounts_bp]:
     app.register_blueprint(bp)
+app.register_blueprint(avanzado_bp, url_prefix="/api")
+app.register_blueprint(kelly_bp, url_prefix="/api")
+app.register_blueprint(odds_bp, url_prefix="/api")
 
 # ── Base de datos ──────────────────────────────────────────────────────────────
 init_db()
