@@ -1,3 +1,5 @@
+healthCheckPath: /api/health
+
 services:
   - type: web
     name: apuestaspro
@@ -24,6 +26,12 @@ services:
       - key: TELEGRAM_TOKEN
         sync: false
       - key: TELEGRAM_CHAT_ID
+      - key: SPORTSDB_KEY
+        sync: false
+      - key: SPORTS_API_KEY
+        sync: false
+      - key: SPORTS_API_HOST
+        value: "v3.football.api-sports.io"
         sync: false
       - key: TELEGRAM_WEBHOOK_SECRET
         sync: false
