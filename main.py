@@ -99,6 +99,7 @@ def dashboard():
     return HTML, 200, {"Content-Type": "text/html; charset=utf-8"}
 
 @app.route("/health")
+@app.route("/api/health")
 def health():
     """Diagnóstico completo del sistema — público, nunca falla."""
     estado = {
@@ -194,6 +195,11 @@ def health():
     estado["modo"] = "REAL" if (db_ok and os.getenv("API_FOOTBALL_KEY")) else "PARCIAL" if db_ok else "ERROR_DB"
 
     return jsonify(estado)
+
+@app.route("/api/version")
+def version():
+    """Endpoint público para verificar qué commit está desplegado."""
+    return jsonify({"version": "4.3.1", "commit": "8c74161", "mensaje": "Value Bets con errorhandler global + traceback"})
 
 # ── PROGOL ─────────────────────────────────────────────────────────────────────
 @app.route("/api/progol/jornada")
