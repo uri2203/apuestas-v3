@@ -46,15 +46,14 @@ _sse_lock = threading.Lock()
 
 def _broadcast(evento: dict):
     """Envía un evento a todos los clientes SSE conectados."""
-        data = f"data: {json.dumps(evento)}\n\n"
+    data = f"data: {json.dumps(evento)}\n\n"
     dead = []
-    with _sse_lock:
     with _sse_lock:
         for q in list(_sse_clients):
-        try:
-            q.put_nowait(data)
-        except Exception:
-            dead.append(q)
+            try:
+                q.put_nowait(data)
+            except Exception:
+                dead.append(q)
     for q in dead:
         with _sse_lock:
             _sse_clients.remove(q)
