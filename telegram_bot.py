@@ -1,4 +1,4 @@
-"""
+﻿"""
 Bot de Telegram — Blueprint Flask.
 
 Mejoras vs versión original:
@@ -102,8 +102,7 @@ def _dispatch(text: str) -> None:
         _cmd_status()
     elif text in ("/valuebet", "/vb"):
         _cmd_vb()
-    elif text == "/melate":
-        _cmd_melate()
+    # elif text == "/melate":  # removed
     elif text in ("/help", "/ayuda"):
         _cmd_help()
 
@@ -168,19 +167,6 @@ def _cmd_vb() -> None:
     except Exception as e:
         telegram_send(f"Error obteniendo value bets: {e}")
 
-
-def _cmd_melate() -> None:
-    from services.estadisticas import numeros_calientes, numeros_frios
-    from main import FREQ_MELATE
-    freq = {n: {"frecuencia_abs": f} for n, f in FREQ_MELATE.items()}
-    hot  = " ".join(str(e["numero"]) for e in numeros_calientes(freq, 5))
-    cold = " ".join(str(e["numero"]) for e in numeros_frios(freq, 5))
-    telegram_send(
-        f"<b>Melate — Análisis</b>\n\n"
-        f"🔥 Calientes: {hot}\n"
-        f"❄️ Fríos: {cold}\n\n"
-        f"Prob. 6/6: 1 en 4,096,720"
-    )
 
 
 def _cmd_help() -> None:
@@ -259,3 +245,4 @@ def alerta_nlp() -> None:
                     telegram_send(msg)
     except Exception as e:
         logger.error("alerta_nlp: %s", e)
+
