@@ -199,7 +199,7 @@ def health():
 @app.route("/api/version")
 def version():
     """Endpoint público para verificar qué commit está desplegado."""
-    return jsonify({"version": "4.3.1", "commit": "8c74161", "mensaje": "Value Bets con errorhandler global + traceback"})
+    return jsonify({"version": "4.3.2", "commit": "16ad7f4", "mensaje": "Edge real contra consenso mercado + fallback demo si 0 partidos"})
 
 # ── PROGOL ─────────────────────────────────────────────────────────────────────
 @app.route("/api/progol/jornada")
@@ -345,6 +345,13 @@ def value_bets():
                         "liga": m.get("sport_title", deporte),
                     })
             es_demo = False
+
+        # Si datos reales devolvieron 0 partidos parseables, caer a demo
+        if not es_demo and not partidos:
+            partidos = DEMO_MATCHES
+            es_demo = True
+            if not error_msg:
+                error_msg = "API devolvió 0 partidos (deporte sin eventos hoy)"
 
         # ── 3. Calcular edge para cada resultado ──
         real = []
