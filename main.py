@@ -208,9 +208,9 @@ def progol_partido():
 def progol_partido_completo():
     from services.progol import predecir_partido
     home=request.args.get("home","Club América"); away=request.args.get("away","Guadalajara")
-    try: les_local=json.loads(request.args.get("lesiones_local","[]).replace("'",'"'))
+    try: les_local=json.loads(request.args.get("lesiones_local","[]").replace("'",'"'))
     except: les_local=[]
-    try: les_visita=json.loads(request.args.get("lesiones_visitante","[]).replace("'",'"'))
+    try: les_visita=json.loads(request.args.get("lesiones_visitante","[]").replace("'",'"'))
     except: les_visita=[]
     return jsonify(predecir_partido(
         home,away,
