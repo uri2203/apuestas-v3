@@ -3,6 +3,7 @@ ApuestasPro v4.3 — Servidor principal.
 """
 
 import math, os, json, logging, time, queue, threading
+from datetime import datetime, timedelta
 from flask import Flask, jsonify, request, Response, stream_with_context
 from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -651,7 +652,7 @@ def diag_football():
     # Test 3: llamada cruda a la API para ver respuesta completa
     try:
         base = RAPID_BASE if len(api_key) > 40 else API_BASE
-                hoy = datetime.now()
+        hoy = datetime.now()
         r = httpx.get(base + "/fixtures", params={
             "league": LIGAS["liga_mx"],
             "season": current_season(),
@@ -763,8 +764,7 @@ def _verificacion_auto():
         logging.info("Verificación auto: %s",r)
 
 def _resumen_diario():
-    from services.email_alerts import enviar_resumen_diario_completo
-    enviar_resumen_diario_completo()
+    logging.info("Resumen diario: no implementado (pendiente)")
 
 scheduler=BackgroundScheduler()
 scheduler.add_job(_alerta_vb_con_broadcast,   "interval", hours=3,  id="vb_alert")
