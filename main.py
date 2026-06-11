@@ -1499,12 +1499,15 @@ def journal_csv():
                     headers={"Content-Disposition": "attachment; filename=journal.csv"})
 
 
-# ── DASHBOARD V2 ──────────────────────────────────────────────────────────────
-@app.route("/v2")
+# ── MÓDULOS (páginas individuales) ──────────────────────────────────────────
+@app.route("/panel/<module_name>")
 @login_required
-def dashboard_v2():
-    from dashboard_v2 import HTML as V2_HTML
-    return V2_HTML, 200, {"Content-Type": "text/html; charset=utf-8"}
+def modulo_page(module_name):
+    from dashboard import MODULES
+    entry = MODULES.get(module_name)
+    if not entry:
+        return "Módulo no encontrado", 404
+    return entry[1], 200, {"Content-Type": "text/html; charset=utf-8"}
 
 
 # ── SCHEDULER ──────────────────────────────────────────────────────────────────

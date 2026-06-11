@@ -1,4 +1,76 @@
-HTML = r"""<!DOCTYPE html>
+"""
+Dashboard — Landing page + módulos individuales con control de ventana.
+"""
+import json
+
+# ── Estilos compartidos ──────────────────────────────────────────────────
+SHARED_CSS = r"""
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#07080b;--bg2:#0d0e14;--bg3:#13151e;--bg4:#1a1d2b;--surface:rgba(255,255,255,0.03);--surface-hover:rgba(255,255,255,0.06);--border:rgba(255,255,255,0.06);--border-hover:rgba(255,255,255,0.12);--text:#e8eaf0;--text2:#8b8fa3;--text3:#535766;--accent:#6c5ce7;--accent2:#a29bfe;--green:#00cec9;--green-bg:rgba(0,206,201,0.1);--red:#ff7675;--red-bg:rgba(255,118,117,0.1);--gold:#fdcb6e;--gold-bg:rgba(253,203,110,0.1);--blue:#74b9ff;--blue-bg:rgba(116,185,255,0.1);--shadow:0 2px 12px rgba(0,0,0,.4);--radius:14px;--radius-sm:8px}
+.light{--bg:#f0f2f5;--bg2:#ffffff;--bg3:#f8f9fb;--bg4:#eef0f4;--surface:rgba(0,0,0,0.02);--surface-hover:rgba(0,0,0,0.04);--border:rgba(0,0,0,0.08);--border-hover:rgba(0,0,0,0.15);--text:#1a1d2e;--text2:#5a5e72;--text3:#9a9eb0;--shadow:0 2px 12px rgba(0,0,0,.08)}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Inter',system-ui,-apple-system,sans-serif;font-size:13px;-webkit-font-smoothing:antialiased}
+.mono{font-family:'JetBrains Mono',monospace}
+a{color:var(--accent2);text-decoration:none}
+
+/* WINDOW FRAME */
+.win-frame{display:flex;flex-direction:column;height:100vh;background:var(--bg2)}
+.win-titlebar{display:flex;align-items:center;padding:0 16px;height:44px;background:var(--bg3);border-bottom:1px solid var(--border);flex-shrink:0;gap:8px;-webkit-app-region:drag}
+.win-titlebar .win-dots{display:flex;gap:6px;-webkit-app-region:no-drag}
+.win-titlebar .win-dot{width:12px;height:12px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:7px;color:transparent;transition:.15s}
+.win-titlebar .win-dot:hover{color:rgba(0,0,0,.5)}
+.win-dot.close{background:#ff5f57}.win-dot.minimize{background:#febc2e}.win-dot.maximize{background:#28c840}
+.win-titlebar .win-title{font-size:12px;font-weight:600;color:var(--text2);margin-left:8px;flex:1}
+.win-titlebar .win-nav{display:flex;gap:4px;-webkit-app-region:no-drag}
+.win-titlebar .win-nav a{padding:4px 10px;border-radius:5px;font-size:11px;color:var(--text2);background:var(--surface);transition:.2s}
+.win-titlebar .win-nav a:hover{background:var(--surface-hover);color:var(--text)}
+.win-content{flex:1;overflow-y:auto;padding:20px 24px}
+.win-content::-webkit-scrollbar{width:6px}
+.win-content::-webkit-scrollbar-track{background:transparent}
+.win-content::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* LOADING */
+.loading{text-align:center;padding:60px 20px;color:var(--text2)}
+.spinner{width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* NOTIFICATIONS */
+.toast{position:fixed;bottom:20px;right:20px;padding:10px 18px;border-radius:var(--radius-sm);background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:12px;z-index:9999;box-shadow:var(--shadow);animation:slideUp .3s ease;max-width:360px}
+.toast.ok{border-color:var(--green)}.toast.err{border-color:var(--red)}.toast.info{border-color:var(--accent)}
+@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+
+/* KPI CARDS */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:24px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;transition:.2s}
+.kpi:hover{border-color:var(--border-hover);background:var(--surface-hover)}
+.kpi .label{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:4px}
+.kpi .value{font-size:22px;font-weight:700;font-family:'JetBrains Mono',monospace}
+.kpi .value.green{color:var(--green)}.kpi .value.red{color:var(--red)}.kpi .value.gold{color:var(--gold)}
+.kpi .sub{font-size:10px;color:var(--text2);margin-top:2px}
+
+/* MODULE GRID */
+.module-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;max-width:860px;margin:0 auto}
+.module-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 16px;text-align:center;cursor:pointer;transition:.25s}
+.module-card:hover{background:var(--surface-hover);border-color:var(--border-hover);transform:translateY(-2px);box-shadow:var(--shadow)}
+.module-card .icon{font-size:28px;margin-bottom:8px;display:block}
+.module-card .name{font-size:12px;font-weight:600;margin-bottom:4px}
+.module-card .desc{font-size:10px;color:var(--text2);line-height:1.4}
+.module-card .badge{position:absolute;top:-6px;right:-6px;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:var(--red);color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(255,118,117,.4)}
+.module-card{position:relative}
+
+/* CHARTS */
+.chart-container{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px}
+.chart-container canvas{width:100%!important;max-height:280px}
+
+/* TABLES */
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--border)}
+th{color:var(--text3);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.3px}
+td{color:var(--text2)}
+tr:hover td{background:var(--surface-hover)}
+"""
+
+# ── Landing page ─────────────────────────────────────────────────────────
+LANDING_HTML = r"""<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8"/>
@@ -7,398 +79,494 @@ HTML = r"""<!DOCTYPE html>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
 <style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#07080b;--bg2:#0d0e14;--bg3:#13151e;--bg4:#1a1d2b;--surface:rgba(255,255,255,0.03);--surface-hover:rgba(255,255,255,0.06);--border:rgba(255,255,255,0.06);--border-hover:rgba(255,255,255,0.12);--text:#e8eaf0;--text2:#8b8fa3;--text3:#535766;--accent:#6c5ce7;--accent2:#a29bfe;--green:#00cec9;--green-bg:rgba(0,206,201,0.1);--red:#ff7675;--red-bg:rgba(255,118,117,0.1);--gold:#fdcb6e;--gold-bg:rgba(253,203,110,0.1);--purple-bg:rgba(108,92,231,0.12);--shadow:0 2px 8px rgba(0,0,0,.3),0 8px 32px rgba(0,0,0,.2);--radius:12px;--radius-sm:8px}
-.light{--bg:#f0f2f5;--bg2:#ffffff;--bg3:#f8f9fb;--bg4:#eef0f4;--surface:rgba(0,0,0,0.02);--surface-hover:rgba(0,0,0,0.04);--border:rgba(0,0,0,0.08);--border-hover:rgba(0,0,0,0.15);--text:#1a1d2e;--text2:#5a5e72;--text3:#9a9eb0;--shadow:0 2px 8px rgba(0,0,0,.08),0 8px 32px rgba(0,0,0,.05)}
-html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;font-size:13px;overflow:hidden;-webkit-font-smoothing:antialiased}
-.mono{font-family:'JetBrains Mono',monospace}
-
-/* TOP BAR */
-.topbar{display:flex;align-items:center;padding:0 20px;height:50px;background:var(--bg2);border-bottom:1px solid var(--border);gap:12px;flex-shrink:0;z-index:100}
-.logo{font-size:15px;font-weight:800;letter-spacing:-.3px;display:flex;align-items:center;gap:5px;margin-right:8px}
+""" + SHARED_CSS + r"""
+.landing{max-width:960px;margin:0 auto;padding:0 20px}
+.hero{text-align:center;padding:50px 20px 30px}
+.hero h1{font-size:34px;font-weight:800;letter-spacing:-1px;margin-bottom:8px}
+.hero h1 em{color:var(--accent);font-style:normal}
+.hero p{color:var(--text2);font-size:14px;max-width:520px;margin:0 auto;line-height:1.6}
+.hero .version{font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace;margin-top:10px}
+.hero .version span{color:var(--accent)}
+.section-title{font-size:15px;font-weight:700;margin:24px 0 14px;display:flex;align-items:center;gap:8px}
+.section-title small{font-size:11px;font-weight:400;color:var(--text3)}
+.topbar{display:flex;align-items:center;padding:0 20px;height:48px;background:var(--bg2);border-bottom:1px solid var(--border);gap:10px}
+.logo{font-size:15px;font-weight:800;letter-spacing:-.3px;display:flex;align-items:center;gap:5px}
 .logo em{color:var(--accent);font-style:normal}
-.logo small{font-size:8px;color:var(--text3);font-weight:500;text-transform:uppercase;letter-spacing:1px}
-.topbar-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.logo small{font-size:7px;color:var(--text3);font-weight:500;text-transform:uppercase;letter-spacing:1px}
+.spacer{flex:1}
+.topbar .clock{font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace}
 .top-btn{width:30px;height:30px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;transition:.2s}
 .top-btn:hover{background:var(--bg3);color:var(--text);border-color:var(--border-hover)}
-.theme-btn{width:30px;height:30px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;transition:.2s}
-.theme-btn:hover{background:var(--bg3);color:var(--text)}
-.clock{font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace}
 .status-dot{width:6px;height:6px;border-radius:50%;display:inline-block}
 .status-dot.on{background:var(--green);box-shadow:0 0 6px var(--green)}
 .status-dot.off{background:var(--red);box-shadow:0 0 6px var(--red)}
-
-/* MAIN LAYOUT */
-.main{flex:1;overflow-y:auto;padding:20px 24px}
-.page{display:none}.page.active{display:block;animation:fade .35s ease}
-@keyframes fade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-
-/* HERO */
-.hero{text-align:center;padding:40px 20px 30px;max-width:700px;margin:0 auto}
-.hero h1{font-size:32px;font-weight:800;letter-spacing:-1px;margin-bottom:6px}
-.hero h1 em{color:var(--accent);font-style:normal}
-.hero p{color:var(--text2);font-size:14px;line-height:1.6}
-
-/* ACTION GRID */
-.action-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;max-width:860px;margin:0 auto 20px}
-.action-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 12px;text-align:center;cursor:pointer;transition:.25s;position:relative;overflow:hidden}
-.action-card:hover{background:var(--surface-hover);border-color:var(--border-hover);transform:translateY(-2px);box-shadow:var(--shadow)}
-.action-card .icon{font-size:26px;margin-bottom:6px;display:block}
-.action-card .name{font-size:12px;font-weight:600;margin-bottom:3px}
-.action-card .desc{font-size:10px;color:var(--text2);line-height:1.4}
-.action-card .badge-count{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--red);color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center}
-
-/* KPI ROW */
-.kpi-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;max-width:860px;margin:0 auto 16px}
-.kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px}
-.kpi-card .lbl{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;font-weight:600;margin-bottom:4px}
-.kpi-card .val{font-size:20px;font-weight:700;font-family:'JetBrains Mono',monospace;letter-spacing:-.3px}
-.kpi-card .val.up{color:var(--green)}.kpi-card .val.down{color:var(--red)}.kpi-card .val.neutral{color:var(--gold)}
-.kpi-card .sub{font-size:10px;color:var(--text2);margin-top:2px}
-
-/* MODAL */
-.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);z-index:1000;display:none;align-items:center;justify-content:center;padding:20px;animation:fadeIn .2s ease}
-.modal-overlay.open{display:flex}
-@keyframes fadeIn{from{opacity:0}to{opacity:1}}
-.modal{background:var(--bg2);border:1px solid var(--border);border-radius:14px;width:100%;max-width:960px;max-height:85vh;display:flex;flex-direction:column;box-shadow:var(--shadow);animation:scaleIn .25s ease}
-.modal.full{max-width:98vw;max-height:92vh}
-@keyframes scaleIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
-.modal-header{display:flex;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border);gap:10px;flex-shrink:0}
-.modal-header .title{font-size:15px;font-weight:700;flex:1}
-.modal-header .sub{font-size:11px;color:var(--text2);font-weight:400}
-.modal-close{width:28px;height:28px;border-radius:6px;border:none;background:var(--surface);color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;transition:.2s}
-.modal-close:hover{background:var(--red-bg);color:var(--red)}
-.modal-body{overflow-y:auto;padding:18px;flex:1}
-.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
-.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
-.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
-@media(max-width:768px){.grid-4,.grid-3,.grid-2{grid-template-columns:1fr}.hero h1{font-size:24px}}
-
-/* CARD INSIDE MODAL */
-.c{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px}
-.c-title{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:8px}
-.c-val{font-size:20px;font-weight:700;font-family:'JetBrains Mono',monospace}
-.c-val.up{color:var(--green)}.c-val.down{color:var(--red)}.c-val.neutral{color:var(--gold)}
-.c-sub{font-size:10px;color:var(--text2);margin-top:2px}
-.c-chart{height:90px;margin-top:6px}
-.c-table{overflow-x:auto}
-
-/* TABLE STYLES */
-table{width:100%;border-collapse:collapse;font-size:12px}
-thead th{padding:6px 8px;text-align:left;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg2)}
-tbody td{padding:6px 8px;border-bottom:1px solid var(--border)}
-tbody tr:hover{background:var(--surface-hover)}
-
-/* TAGS */
-.tag{display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600}
-.tg{background:var(--green-bg);color:var(--green)}.tr{background:var(--red-bg);color:var(--red)}
-.ty{background:var(--gold-bg);color:var(--gold)}.tp{background:var(--purple-bg);color:var(--accent2)}
-
-/* CONTROLS */
-.controls{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
-input,select{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:12px;font-family:inherit;outline:none}
-input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 2px var(--purple-bg)}
-.btn{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:6px;font-size:11px;font-weight:600;border:none;cursor:pointer;transition:.2s;font-family:inherit}
-.bp{background:var(--accent);color:#fff}.bp:hover{background:var(--accent2);transform:translateY(-1px)}
-.bg{background:var(--surface);border:1px solid var(--border);color:var(--text2)}.bg:hover{background:var(--bg3);color:var(--text)}
-.bs{padding:4px 9px;font-size:10px}
-.bi{width:28px;height:28px;padding:0;justify-content:center;border-radius:6px}
-.flex{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-
-/* TOAST */
-.toast-area{position:fixed;top:56px;right:16px;z-index:9999;display:flex;flex-direction:column;gap:6px}
-.toast{padding:9px 14px;border-radius:var(--radius-sm);font-size:12px;font-weight:500;box-shadow:var(--shadow);animation:slide .3s ease;max-width:320px;pointer-events:none}
-.toast.i{background:var(--purple-bg);border-left:3px solid var(--accent);color:var(--accent2)}
-.toast.s{background:var(--green-bg);border-left:3px solid var(--green);color:var(--green)}
-.toast.w{background:var(--gold-bg);border-left:3px solid var(--gold);color:var(--gold)}
-.toast.e{background:var(--red-bg);border-left:3px solid var(--red);color:var(--red)}
-@keyframes slide{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
-
-/* FEATURE BAR */
-.fb{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:11px}
-.fb-track{flex:1;height:5px;background:var(--bg3);border-radius:3px;overflow:hidden}
-.fb-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .6s ease}
-
-/* SCROLLBAR */
-::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:2px}
-
-/* RESPONSIVE */
-@media(max-width:640px){.hero h1{font-size:20px}.action-grid{grid-template-columns:repeat(2,1fr)}.main{padding:12px}.modal{padding:0;max-height:100vh;border-radius:0;max-width:100vw}}
 </style>
 </head>
-<body style="display:flex;flex-direction:column;height:100vh">
-
-<!-- TOPBAR -->
+<body>
 <div class="topbar">
   <div class="logo">Apuestas<em>Pro</em> <small>v4.3</small></div>
-  <span class="status-dot on" id="statusDot"></span>
-  <div class="topbar-right">
-    <span class="clock" id="clock"></span>
-    <button class="top-btn" onclick="location.reload()" title="Refrescar">↻</button>
-    <button class="top-btn" onclick="toggleSSE()" id="sseBtn" title="Conexión">📡</button>
-    <button class="theme-btn" onclick="toggleTheme()" id="themeBtn">🌙</button>
-  </div>
+  <div class="spacer"></div>
+  <span id="statusDot" class="status-dot off"></span>
+  <span class="clock" id="clock">--:--</span>
+  <button class="top-btn" onclick="toggleTheme()" title="Tema">&#9681;</button>
+  <button class="top-btn" onclick="location.href='/logout'" title="Salir">&#8592;</button>
 </div>
-
-<!-- MAIN -->
-<div class="main" id="main">
-
-  <!-- LANDING PAGE -->
-  <div class="page active" id="page-landing">
-    <div class="hero">
-      <h1><em>Apuestas</em>Pro</h1>
-      <p>Sistema profesional de análisis de apuestas deportivas — detección de value bets, sharp money, arbitraje, ML predictivo y gestión de portfolio.</p>
-    </div>
-    <div class="kpi-row" id="landing-kpis"></div>
-    <div class="action-grid" id="action-grid"></div>
+<div class="landing">
+  <div class="hero">
+    <h1>Sistema Profesional de <em>Apuestas</em></h1>
+    <p>Machine Learning, Sharp Money, Arbitraje, Value Bets y gesti&oacute;n de bankroll en un solo lugar.</p>
+    <div class="version">v4.3 &middot; <span id="kpiMode">REAL</span> &middot; <span id="kpiDb">DB conectada</span></div>
   </div>
 
+  <div id="kpiGrid" class="kpi-grid">
+    <div class="kpi"><div class="label">Bankroll</div><div class="value" id="kpiBankroll">$0</div><div class="sub" id="kpiBrChange">---</div></div>
+    <div class="kpi"><div class="label">Win Rate</div><div class="value gold" id="kpiWinRate">0%</div><div class="sub">&Uacute;ltimos 30 d&iacute;as</div></div>
+    <div class="kpi"><div class="label">ROI</div><div class="value" id="kpiRoi">0%</div><div class="sub">Retorno sobre inversi&oacute;n</div></div>
+    <div class="kpi"><div class="label">Sharpe Ratio</div><div class="value" id="kpiSharpe">0</div><div class="sub">Ajustado por riesgo</div></div>
+    <div class="kpi"><div class="label">Ganancia Neta</div><div class="value green" id="kpiGanancia">$0</div><div class="sub">&Uacute;ltimos 30 d&iacute;as</div></div>
+    <div class="kpi"><div class="label">Value Bets Hoy</div><div class="value" id="kpiVb">0</div><div class="sub">Edge promedio: <span id="kpiVbEdge">0%</span></div></div>
+  </div>
+
+  <div class="section-title">M&oacute;dulos <small>— Acceso r&aacute;pido</small></div>
+  <div class="module-grid" id="moduleGrid">
+    <div class="module-card" onclick="go('/panel/value-bets')"><span class="icon">&#9889;</span><div class="name">Value Bets</div><div class="desc">Edge, cuotas justas, filtros inteligentes</div></div>
+    <div class="module-card" onclick="go('/panel/sharp')"><span class="icon">&#128200;</span><div class="name">Sharp Money</div><div class="desc">Movimiento de l&iacute;neas, CLV, steam</div></div>
+    <div class="module-card" onclick="go('/panel/arbitraje')"><span class="icon">&#9878;</span><div class="name">Arbitraje</div><div class="desc">Surebets en vivo, profit garantizado</div></div>
+    <div class="module-card" onclick="go('/panel/ml')"><span class="icon">&#129302;</span><div class="name">ML Predictivo</div><div class="desc">MLP + GBM, 30+ features, confianza</div></div>
+    <div class="module-card" onclick="go('/panel/bankroll')"><span class="icon">&#128176;</span><div class="name">Bankroll</div><div class="desc">Kelly, historial, riesgo de ruina</div></div>
+    <div class="module-card" onclick="go('/panel/simulacion')"><span class="icon">&#128202;</span><div class="name">Simulaci&oacute;n</div><div class="desc">Trades simulados, verificaci&oacute;n autom&aacute;tica</div></div>
+    <div class="module-card" onclick="go('/panel/contabilidad')"><span class="icon">&#128221;</span><div class="name">Contabilidad</div><div class="desc">P&L, sync autom&aacute;tico, reportes</div></div>
+    <div class="module-card" onclick="go('/panel/journal')"><span class="icon">&#128214;</span><div class="name">Trading Journal</div><div class="desc">Bit&aacute;cora autom&aacute;tica, export CSV</div></div>
+    <div class="module-card" onclick="go('/panel/bookmakers')"><span class="icon">&#127954;</span><div class="name">Rating Casas</div><div class="desc">Overround, CLV, velocidad ajuste</div></div>
+    <div class="module-card" onclick="go('/panel/cross-market')"><span class="icon">&#8644;</span><div class="name">Cross Market</div><div class="desc">H2H vs AH, spreads, totals</div></div>
+    <div class="module-card" onclick="go('/panel/backtesting')"><span class="icon">&#128270;</span><div class="name">Backtesting</div><div class="desc">Hist&oacute;rico, estrategias, rendimiento</div></div>
+    <div class="module-card" onclick="go('/panel/rendimiento')"><span class="icon">&#128200;</span><div class="name">Rendimiento</div><div class="desc">Gr&aacute;ficas, estad&iacute;sticas avanzadas</div></div>
+  </div>
+  <div style="height:40px"></div>
 </div>
-
-<!-- TOASTS -->
-<div class="toast-area" id="toastArea"></div>
-
 <script>
-// ── STATE ──
-let sse=null, sseOn=true, charts={}, theme='dark';
-
-function init(){
-  setInterval(clock,1000);clock();
-  loadLanding();
-  connectSSE();
-}
-function clock(){document.getElementById('clock').textContent=new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
-
-// ── THEME ──
-function toggleTheme(){
-  theme=theme==='dark'?'light':'dark';
-  document.documentElement.classList.toggle('light',theme==='light');
-  document.getElementById('themeBtn').textContent=theme==='dark'?'🌙':'☀️';
-}
-
-// ── SSE ──
-function connectSSE(){
-  if(!sseOn)return;
-  sse=new EventSource('/api/eventos');
-  sse.onmessage=e=>{try{const d=JSON.parse(e.data);if(d.tipo==='value_bet')toast(`Value bet: ${d.edge_pct}% edge`,'s');else if(d.tipo==='sharp')toast(`🔴 Sharp ${d.score}`,'w');else if(d.tipo==='alarma'){toast(`🚨 ${d.msg}`,'e');playAlert()}}catch(_){}};
-  sse.onerror=()=>{document.getElementById('statusDot').className='status-dot off';setTimeout(connectSSE,3000)};
-  sse.onopen=()=>{document.getElementById('statusDot').className='status-dot on'};
-}
-function toggleSSE(){
-  sseOn=!sseOn;
-  document.getElementById('sseBtn').style.opacity=sseOn?'1':'0.35';
-  if(sseOn)connectSSE();else if(sse){sse.close();sse=null}
-}
-
-// ── TOAST ──
-function toast(msg,t='i'){const el=document.createElement('div');el.className='toast '+t;el.textContent=msg;document.getElementById('toastArea').appendChild(el);setTimeout(()=>el.remove(),4000)}
-function playAlert(){try{if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.connect(g);g.connect(audioCtx.destination);o.frequency.value=880;o.type='sine';g.gain.value=0.3;o.start();o.stop(audioCtx.currentTime+0.15)}catch(_){}}
-
-// ── API ──
-async function api(u){const r=await fetch(u);return r.json()}
-function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id]}}
-
-// ── LANDING ──
-async function loadLanding(){
-  try{
-    const[h,rend]=await Promise.all([api('/api/health'),api('/api/dashboard/rendimiento?days=30')]);
-    document.getElementById('landing-kpis').innerHTML=[
-      {l:'Bankroll',v:`$${((rend.bankroll_actual||0)).toFixed(2)}`,c:(rend.bankroll_actual||0)>=0?'up':'down',s:`Sharpe: ${(rend.sharpe_ratio||0).toFixed(2)}`},
-      {l:'Rendimiento',v:`${((rend.return_pct||0)).toFixed(1)}%`,c:(rend.return_pct||0)>=0?'up':'down',s:`${rend.total_apuestas||0} apuestas`},
-      {l:'Win Rate',v:`${((rend.win_rate||0)*100).toFixed(1)}%`,c:'neutral',s:`${rend.ganadas||0}G / ${rend.perdidas||0}P`},
-      {l:'Conexión',v:'🟢 Activo',c:'up',s:`SSE: ${h.sse_clients||0}`},
-    ].map(k=>`<div class="kpi-card"><div class="lbl">${k.l}</div><div class="val ${k.c}">${k.v}</div><div class="sub">${k.s}</div></div>`).join('');
-  }catch(e){}
-
-  const modules=[
-    {id:'valuebets',icon:'⚡',name:'Value Bets',desc:'Edge >2% con cuotas reales',color:'var(--green)'},
-    {id:'sharp',icon:'🔴',name:'Sharp Money',desc:'RLM, Steam, Split, Freeze',color:'var(--red)'},
-    {id:'arbitraje',icon:'🔄',name:'Arbitraje',desc:'Surebets en vivo',color:'var(--accent)'},
-    {id:'simulacion',icon:'🎮',name:'Simulación',desc:'Trading virtual',color:'var(--green)'},
-    {id:'portfolio',icon:'📁',name:'Portfolio',desc:'Kelly correlacionado',color:'var(--gold)'},
-    {id:'bookmakers',icon:'🏷️',name:'Bookmakers',desc:'Rating de casas',color:'var(--accent2)'},
-    {id:'cross',icon:'🔗',name:'Cross-Market',desc:'H2H vs AH',color:'var(--gold)'},
-    {id:'mlav',icon:'🧠',name:'ML Avanzado',desc:'30+ features',color:'var(--accent)'},
-    {id:'contabilidad',icon:'💰',name:'Contabilidad',desc:'P&L real',color:'var(--green)'},
-    {id:'journal',icon:'📓',name:'Trading Journal',desc:'Registro automático',color:'var(--gold)'},
-    {id:'backtest',icon:'📊',name:'Backtesting',desc:'Histórico value betting',color:'var(--accent2)'},
-    {id:'config',icon:'⚙️',name:'Sistema',desc:'Estado y diagnóstico',color:'var(--text2)'},
-  ];
-  document.getElementById('action-grid').innerHTML=modules.map(m=>`<div class="action-card" onclick="openModule('${m.id}')"><span class="icon">${m.icon}</span><div class="name">${m.name}</div><div class="desc">${m.desc}</div></div>`).join('');
-}
-
-// ── MODAL SYSTEM ──
-function openModule(id){
-  const existing=document.getElementById('modal-'+id);
-  if(existing){existing.classList.add('open');return}
-  const modal=document.createElement('div');modal.className='modal-overlay';modal.id='modal-'+id;
-  modal.onclick=e=>{if(e.target===modal)modal.remove()};
-  modal.innerHTML=`<div class="modal full"><div class="modal-header"><div class="title">Cargando...</div><span class="sub"></span><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">✕</button></div><div class="modal-body"><div style="text-align:center;padding:40px;color:var(--text2)">Cargando módulo...</div></div></div>`;
-  document.body.appendChild(modal);
-  setTimeout(()=>modal.classList.add('open'),10);
-  loadModule(id,modal);
-}
-
-function loadModule(id,modal){
-  const fns={
-    valuebets:loadValueBets,sharp:loadSharp,arbitraje:loadArbitraje,
-    simulacion:loadSimulacion,portfolio:loadPortfolio,bookmakers:loadBookmakers,
-    cross:loadCrossMarket,mlav:loadMLAv,contabilidad:loadContabilidad,
-    journal:loadJournal,backtest:loadBacktest,config:loadConfig,
-  };
-  if(fns[id])fns[id](modal);
-}
-
-function setModalContent(modal,title,sub,body){
-  const h=modal.querySelector('.modal-header');
-  h.innerHTML=`<div class="title">${title}</div><span class="sub">${sub||''}</span><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">✕</button>`;
-  modal.querySelector('.modal-body').innerHTML=body;
-}
-
-// ── MODULES ──
-
-// VALUE BETS
-async function loadValueBets(modal){
-  setModalContent(modal,'⚡ Value Bets','Apuestas con valor esperado positivo','<div id="vb-content">Cargando...</div>');
-  try{const vb=await api('/api/odds/value-bets?min_edge=2&limit=30');const list=vb.value_bets||[];
-  document.getElementById('vb-content').innerHTML=list.length?`<table><thead><tr><th>Partido</th><th>Liga</th><th>Cuota</th><th>Edge</th><th>Casa</th></tr></thead><tbody>${list.map(v=>`<tr><td>${v.partido||'?'}</td><td>${v.liga||''}</td><td>${(v.cuota||0).toFixed(2)}</td><td><span class="tag tg">+${(v.edge_pct||0).toFixed(1)}%</span></td><td>${v.casa||''}</td></tr>`).join('')}</tbody></table>`:'<span style="color:var(--text2)">Sin value bets ahora</span>'}catch(e){document.getElementById('vb-content').innerHTML='<span style="color:var(--red)">Error cargando</span>'}
-}
-
-// SHARP
-async function loadSharp(modal){
-  setModalContent(modal,'🔴 Sharp Money','Detección de sharp money en 6 deportes','<div id="sharp-content">Cargando...</div>');
-  try{const sh=await api('/api/odds/sharp?deporte=all');const list=sh.alertas||[];
-  document.getElementById('sharp-content').innerHTML=list.length?`<table><thead><tr><th>Partido</th><th>Liga</th><th>Score</th><th>Tipo</th></tr></thead><tbody>${list.slice(0,30).map(s=>`<tr><td>${s.partido||s.detalle||'?'}</td><td>${s.liga||''}</td><td><span class="tag ${(s.score||0)>7?'tr':'ty'}">${s.score||s.urgencia||''}</span></td><td>${s.tipo||'?'}</td></tr>`).join('')}</tbody></table>`:'<span style="color:var(--text2)">Sin alertas sharp ahora</span>'}catch(e){document.getElementById('sharp-content').innerHTML='<span style="color:var(--red)">Error</span>'}
-}
-
-// ARBITRAJE
-async function loadArbitraje(modal){
-  setModalContent(modal,'🔄 Arbitraje / Surebets','Oportunidades de arbitraje en vivo','<div id="arb-content">Cargando...</div>');
-  try{const ar=await api('/api/odds/arbitraje');const list=ar.arbitrajes||[];
-  document.getElementById('arb-content').innerHTML=list.length?`<table><thead><tr><th>Partido</th><th>Profit</th><th>Resultados</th><th>Bookmakers</th></tr></thead><tbody>${list.slice(0,25).map(a=>`<tr><td>${a.partido||(a.resultados||[]).join(' vs ')}</td><td><span class="tag tg">${(a.profit_pct||0).toFixed(2)}%</span></td><td>${(a.resultados||[]).join(', ')}</td><td>${a.n_bookmakers||0}</td></tr>`).join('')}</tbody></table>`:'<span style="color:var(--text2)">Sin arbitraje ahora</span>'}catch(e){document.getElementById('arb-content').innerHTML='<span style="color:var(--red)">Error</span>'}
-}
-
-// SIMULACION
-async function loadSimulacion(modal){
-  setModalContent(modal,'🎮 Simulación en Vivo','Trading simulado con bankroll virtual','<div id="sim-content">Cargando...</div>');
-  try{const s=await api('/api/simulacion/status');
-  let html=`<div class="grid-4">${[
-    {l:'Bankroll Sim',v:`$${(s.bankroll_actual||0).toFixed(2)}`,c:'up',s:`Inicial: $${(s.bankroll_inicial||10000).toFixed(0)}`},
-    {l:'Trades',v:s.total_trades||0,c:'neutral',s:`${s.ganados||0}G / ${s.perdidos||0}P`},
-    {l:'ROI',v:`${((s.roi||0)).toFixed(1)}%`,c:(s.roi||0)>=0?'up':'down',s:`${s.win_rate_pct||0}% WR`},
-    {l:'Profit Neto',v:`$${(s.profit_neto||0).toFixed(2)}`,c:(s.profit_neto||0)>=0?'up':'down',s:'Acumulado'},
-  ].map(k=>`<div class="c"><div class="c-title">${k.l}</div><div class="c-val ${k.c}">${k.v}</div><div class="c-sub">${k.s}</div></div>`).join('')}</div>`;
-  const pend=s.trades_pendientes||[];
-  html+=`<div class="c"><div class="c-title">Trades Pendientes</div>${pend.length?`<table><thead><tr><th>Partido</th><th>Cuota</th><th>Edge</th><th>Stake</th></tr></thead><tbody>${pend.slice(0,12).map(t=>`<tr><td>${t.partido||''}</td><td>${(t.cuota||0).toFixed(2)}</td><td><span class="tag tg">${(t.edge_pct||0).toFixed(1)}%</span></td><td>$${(t.stake_simulado||0).toFixed(2)}</td></tr>`).join('')}</tbody></table>`:'<span style="color:var(--text2)">Sin trades pendientes</span>'}</div>`;
-  document.getElementById('sim-content').innerHTML=html}catch(e){document.getElementById('sim-content').innerHTML='<span style="color:var(--red)">Error</span>'}
-}
-
-// PORTFOLIO
-async function loadPortfolio(modal){
-  setModalContent(modal,'📁 Portfolio Inteligente','Gestión de bankroll con Kelly correlacionado','<div id="port-content">Cargando...</div>');
-  try{const p=await api('/api/portfolio/recomendar?dias=30');
-  let html=`<div class="grid-4">${[
-    {l:'Bankroll',v:`$${(p.bankroll_actual||0).toFixed(2)}`,c:'up',s:`Stake: ${((p.max_stake_pct||0)*100).toFixed(1)}%`},
-    {l:'Apuestas Activas',v:p.apuestas_activas||0,c:'neutral',s:`Exp: $${(p.exposicion_total||0).toFixed(2)}`},
-    {l:'Kelly Recom.',v:`${((p.kelly_recomendado||0)*100).toFixed(1)}%`,c:'neutral',s:'Fracción'},
-    {l:'Sharpe',v:(p.sharpe_ratio||0).toFixed(2),c:(p.sharpe_ratio||0)>=1?'up':'neutral',s:'30d'},
-  ].map(k=>`<div class="c"><div class="c-title">${k.l}</div><div class="c-val ${k.c}">${k.v}</div><div class="c-sub">${k.s}</div></div>`).join('')}</div>`;
-  const recs=p.recomendaciones||[];
-  html+=`<div class="c"><div class="c-title">Recomendaciones Activas</div>${recs.length?`<table><thead><tr><th>Partido</th><th>Selección</th><th>Cuota</th><th>Edge</th><th>Kelly</th><th>Stake</th></tr></thead><tbody>${recs.slice(0,15).map(r=>`<tr><td>${r.partido||''}</td><td>${r.seleccion||''}</td><td>${(r.cuota||0).toFixed(2)}</td><td><span class="tag tg">${(r.edge_pct||0).toFixed(1)}%</span></td><td>${((r.kelly_pct||0)).toFixed(1)}%</td><td><strong>$${(r.stake||0).toFixed(2)}</strong></td></tr>`).join('')}</tbody></table>`:'<span style="color:var(--text2)">Sin recomendaciones activas</span>'}</div>`;
-  document.getElementById('port-content').innerHTML=html}catch(e){document.getElementById('port-content').innerHTML='<span style="color:var(--red)">Error</span>'}
-}
-
-// BOOKMAKERS
-async function loadBookmakers(modal){
-  setModalContent(modal,'🏷️ Rating de Casas','Ranking por overround, CLV y velocidad','<div id="bm-content">Cargando...</div>');
-  try{const bm=await api('/api/bookmakers/rating');const rows=bm.ranking||[];
-  document.getElementById('bm-content').innerHTML=rows.length?`<table><thead><tr><th>#</th><th>Casa</th><th>Overround</th><th>Cuota Prom</th><th>CLV</th><th>Score</th></tr></thead><tbody>${rows.map((r,i)=>`<tr><td>${i+1}</td><td><strong>${r.bookmaker||''}</strong></td><td><span class="tag ${(r.avg_overround||5)<5?'tg':'ty'}">${(r.avg_overround||0).toFixed(2)}%</span></td><td>${(r.avg_cuota||0).toFixed(3)}</td><td>${(r.avg_clv||0).toFixed(2)}</td><td style="font-weight:700;color:${i<3?'var(--green)':'var(--text2)'}">${(r.score||0).toFixed(1)}</td></tr>`).join('')}</tbody></table>`:'<span style="color:var(--text2)">Sin datos</span>'}catch(e){document.getElementById('bm-content').innerHTML='<span style="color:var(--red)">Error</span>'}
-}
-
-// CROSS-MARKET
-async function loadCrossMarket(modal){
-  setModalContent(modal,'🔗 Cross-Market','Inconsistencias H2H vs Asian Handicap','<div id="cross-content">Cargando...</div>');
-  try{const cm=await api('/api/odds/cross-market');const opps=cm.opportunities||[];
-  document.getElementById('cross-content').innerHTML=opps.length?`<table><thead><tr><th>Partido</th><th>Mercados</th><th>Diferencia</th><th>Acción</th></tr></thead><tbody>${opps.slice(0,20).map(o=>`<tr><td>${o.partido||''}</td><td>${(o.mercados||[]).join(' vs ')}</td><td><span class="tag ${(o.diferencia||0)>5?'tg':'ty'}">${(o.diferencia||0).toFixed(2)}%</span></td><td>${o.accion||'—'}</td></tr>`).join('')}</tbody></table>`:'<span style="color:var(--text2)">Sin oportunidades</span>'}catch(e){document.getElementById('cross-content').innerHTML='<span style="color:var(--red)">Error</span>'}
-}
-
-// ML AVANZADO
-async function loadMLAv(modal){
-  setModalContent(modal,'🧠 ML Avanzado','30+ features · MLP Neural Net · Gradient Boosting','<div id="mlav-content">Cargando...</div><div class="flex" style="margin-top:10px"><select id="mlav-liga"><option value="liga_mx">Liga MX</option><option value="premier_league">Premier</option><option value="la_liga">La Liga</option><option value="serie_a">Serie A</option><option value="bundesliga">Bundesliga</option><option value="ligue_1">Ligue 1</option><option value="mls">MLS</option></select><button class="btn bp bs" onclick="trainMLAv()">Entrenar</button><button class="btn bg bs" onclick="predictProximosMLAv()">Predecir Próximos</button></div><div id="mlav-preds" style="margin-top:10px"></div>');
-  try{const[feat,perf]=await Promise.all([api('/api/ml/v2/features?liga=liga_mx'),api('/api/ml/v2/performance?liga=liga_mx')]);const items=feat.features||[],rend=perf.rendimiento||[],last=rend[rend.length-1]||{},maxImp=Math.max(...items.map(i=>i.importance||0),0.01),top=items.slice(0,3);
-  let html=`<div class="grid-4">${[
-    {l:'Features',v:items.length||0,c:'neutral',s:'20+ ingeniería'},{l:'Top Feature',v:top[0]?.feature_name||'N/A',c:'neutral',s:`${top[0]?((top[0].importance||0)*100).toFixed(1):''}%`},
-    {l:'Acc. MLP',v:last.accuracy?`${(last.accuracy*100).toFixed(1)}%`:'N/A',c:'neutral',s:'Neural Net'},{l:'Log Loss GBM',v:last.log_loss?last.log_loss.toFixed(4):'N/A',c:'neutral',s:'Gradient Boosting'},
-  ].map(k=>`<div class="c"><div class="c-title">${k.l}</div><div class="c-val ${k.c}">${k.v}</div><div class="c-sub">${k.s}</div></div>`).join('')}</div>`;
-  html+=`<div class="grid-2"><div class="c"><div class="c-title">Feature Importance</div>${items.length?items.map((f,i)=>`<div class="fb"><span style="width:14px;color:var(--text3)">${i+1}</span><div class="fb-track"><div class="fb-fill" style="width:${(f.importance||0)/maxImp*100}%"></div></div><span style="width:130px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${f.feature_name||''}</span><span style="width:38px;text-align:right;color:var(--text2)">${((f.importance||0)*100).toFixed(1)}%</span></div>`).join(''):'<span style="color:var(--text2)">Entrena primero</span>'}</div>`;
-  html+=`<div class="c"><div class="c-title">Rendimiento</div>${rend.length?`<table><thead><tr><th>Fecha</th><th>Modelo</th><th>Acc</th><th>LL</th><th>N</th></tr></thead><tbody>${rend.slice(-8).reverse().map(r=>`<tr><td style="font-size:10px;color:var(--text3)">${(r.created_at||'').slice(0,10)}</td><td>${r.modelo||''}</td><td><span class="tag tg">${r.accuracy?((r.accuracy)*100).toFixed(1)+'%':'-'}</span></td><td>${r.log_loss?r.log_loss.toFixed(4):'-'}</td><td>${r.n_muestras||''}</td></tr>`).join('')}</tbody></table>`:'<span style="color:var(--text2)">Sin datos</span>'}</div></div>`;
-  document.getElementById('mlav-content').innerHTML=html}catch(e){document.getElementById('mlav-content').innerHTML='<span style="color:var(--red)">Error</span>'}
-}
-async function trainMLAv(){toast('Entrenando modelos...','i');try{const r=await api('/api/ml/v2/train');toast(`Entrenado: ${r.ligas_entrenadas||0} ligas`,'s')}catch(e){toast('Error','e')}}
-async function predictProximosMLAv(){const liga=document.getElementById('mlav-liga').value;toast(`Prediciendo ${liga}...`,'i');
-  try{const r=await api(`/api/ml/v2/predict-proximos?liga=${liga}&dias=7`);const preds=r.predicciones||[];
-  document.getElementById('mlav-preds').innerHTML=preds.length?`<div class="c"><div class="c-title">Predicciones ${liga}</div><table><thead><tr><th>Partido</th><th>1</th><th>X</th><th>2</th><th>Pick</th><th>Conf</th></tr></thead><tbody>${preds.map(p=>{const pick=p.pronostico||'';return `<tr><td><strong>${p.home||''}</strong> vs <strong>${p.away||''}</strong></td><td>${((p.prob_local||0)*100).toFixed(0)}%</td><td>${((p.prob_empate||0)*100).toFixed(0)}%</td><td>${((p.prob_visitante||0)*100).toFixed(0)}%</td><td><span class="tag ${pick==='1'?'tg':pick==='2'?'tr':'ty'}">${pick}</span></td><td><strong>${p.confianza_pct||0}%</strong></td></tr>`}).join('')}</tbody></table></div>`:'<span style="color:var(--text2)">Sin próximos</span>'}catch(e){toast('Error','e')}}
-
-// CONTABILIDAD
-async function loadContabilidad(modal){
-  setModalContent(modal,'💰 Contabilidad','Control de depósitos, retiros y P&L real','<div id="acct-content">Cargando...</div><div class="flex" style="margin-top:10px"><input type="number" id="acct-monto" placeholder="Monto" style="width:90px"><select id="acct-tipo"><option value="deposito">Depósito</option><option value="retiro">Retiro</option><option value="ajuste">Ajuste</option></select><input type="text" id="acct-desc" placeholder="Descripción" style="flex:1;min-width:100px"><input type="text" id="acct-est" placeholder="Estrategia" style="width:100px"><button class="btn bp bs" onclick="addTransaction()">Registrar</button></div>');
-  try{const[resumen,pnl]=await Promise.all([api('/api/contabilidad/resumen-mensual'),api('/api/contabilidad/pnl-estrategia?dias=30')]);
-  let html=`<div class="grid-4">${[
-    {l:'Balance Mes',v:`$${(resumen.balance||0).toFixed(2)}`,c:(resumen.balance||0)>=0?'up':'down',s:`${resumen.total_transacciones||0} transacciones`},
-    {l:'Ingresos',v:`$${(resumen.ingresos||0).toFixed(2)}`,c:'up',s:''},{l:'Egresos',v:`$${(resumen.egresos||0).toFixed(2)}`,c:'down',s:''},
-  ].map(k=>`<div class="c"><div class="c-title">${k.l}</div><div class="c-val ${k.c}">${k.v}</div><div class="c-sub">${k.s}</div></div>`).join('')}</div>`;
-  const ests=resumen.por_estrategia||{};
-  html+=`<div class="grid-2"><div class="c"><div class="c-title">P&L por Estrategia</div>${Object.keys(ests).length?`<table><thead><tr><th>Estrategia</th><th>Ingresos</th><th>Egresos</th><th>Neto</th><th>Ops</th></tr></thead><tbody>${Object.entries(ests).map(([k,v])=>`<tr><td><strong>${k}</strong></td><td style="color:var(--green)">$${(v.ingresos||0).toFixed(2)}</td><td style="color:var(--red)">$${(v.egresos||0).toFixed(2)}</td><td style="font-weight:700;color:${(v.neto||0)>=0?'var(--green)':'var(--red)'}">$${(v.neto||0).toFixed(2)}</td><td>${v.n_operaciones||0}</td></tr>`).join('')}</tbody></table>`:'<span style="color:var(--text2)">Sin datos</span>'}</div>`;
-  html+=`<div class="c"><div class="c-title">P&L Mensual</div>${(pnl||[]).length?`<table><thead><tr><th>Estrategia</th><th>G</th><th>P</th><th>Neto</th></tr></thead><tbody>${(pnl||[]).slice(0,10).map(r=>`<tr><td>${r.estrategia||'N/A'}</td><td><span class="tag tg">${r.ganadas||0}</span></td><td><span class="tag tr">${r.perdidas||0}</span></td><td style="font-weight:700;color:${(r.neto||0)>=0?'var(--green)':'var(--red)'}">$${(r.neto||0).toFixed(2)}</td></tr>`).join('')}</tbody></table>`:'<span style="color:var(--text2)">Sin P&L</span>'}</div></div>`;
-  document.getElementById('acct-content').innerHTML=html}catch(e){document.getElementById('acct-content').innerHTML='<span style="color:var(--red)">Error</span>'}
-}
-async function addTransaction(){const m=parseFloat(document.getElementById('acct-monto').value),t=document.getElementById('acct-tipo').value,d=document.getElementById('acct-desc').value,e=document.getElementById('acct-est').value;if(!m){toast('Ingresa monto','w');return}
-  try{const r=await fetch('/api/contabilidad/transaccion',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tipo:t,monto:m,descripcion:d,estrategia:e})});const j=await r.json();
-  if(j.ok){toast('Registrada','s');document.getElementById('acct-monto').value='';loadContabilidad(document.getElementById('modal-contabilidad'))}else toast('Error: '+j.error,'e')}catch(e){toast('Error red','e')}}
-
-// JOURNAL
-async function loadJournal(modal){
-  const bod=`<div id="j-content">Cargando...</div><div class="flex" style="margin-top:10px"><button class="btn bg bs" onclick="(()=>{const m=document.getElementById('modal-journal');if(m){const b=m.querySelector('.modal-body');b.innerHTML='<div id=\\'j-content\\'>Cargando...</div>';loadJournal(m)}})()">↻ Refrescar</button><button class="btn bg bs" onclick="window.open('/api/journal/export-csv','_blank')">⬇ CSV</button><button class="btn bp bs" onclick="autoJournal()">Auto-Log</button></div>`;
-  setModalContent(modal,'📓 Trading Journal','Registro automático de cada acción',bod);
-  try{const j=await api('/api/journal/resumen?dias=7');
-  let html=`<div class="grid-4">${[
-    {l:'Total',v:j.total_acciones||0,c:'neutral',s:`${j.dias||7}d`},{l:'Value Bets',v:(j.por_tipo||{}).value_bet_detected||0,c:'up',s:''},
-    {l:'Apuestas Real',v:(j.por_tipo||{}).apuesta_real||0,c:'neutral',s:''},{l:'Sharp Alerts',v:(j.por_tipo||{}).sharp_alert||0,c:'warn',s:''},
-  ].map(k=>`<div class="c"><div class="c-title">${k.l}</div><div class="c-val ${k.c}">${k.v}</div><div class="c-sub">${k.s}</div></div>`).join('')}</div>`;
-  const ult=j.ultimas_acciones||[];
-  html+=ult.length?`<div class="c"><table><thead><tr><th>Fecha</th><th>Tipo</th><th>Partido</th><th>Estrategia</th><th>Resultado</th><th>P&L</th></tr></thead><tbody>${ult.map(r=>`<tr><td style="font-size:10px;color:var(--text3)">${(r.fecha||'').slice(0,19)}</td><td>${r.tipo||''}</td><td>${r.partido||''}</td><td>${r.estrategia||''}</td><td><span class="tag ${r.resultado==='ganada'?'tg':r.resultado==='perdida'?'tr':'ty'}">${r.resultado||'—'}</span></td><td style="font-weight:700;color:${(r.pnl||0)>=0?'var(--green)':'var(--red)'}">$${(r.pnl||0).toFixed(2)}</td></tr>`).join('')}</tbody></table></div>`:'<span style="color:var(--text2)">Sin actividad reciente</span>';
-  document.getElementById('j-content').innerHTML=html}catch(e){document.getElementById('j-content').innerHTML='<span style="color:var(--red)">Error</span>'}
-}
-async function autoJournal(){try{const r=await api('/api/journal/auto-log');toast(`${r.registrados||0} registradas`,'s');const m=document.getElementById('modal-journal');if(m){m.querySelector('.modal-body').innerHTML='<div id=\'j-content\'>Cargando...</div>';loadJournal(m)}}catch(e){toast('Error','e')}}
-
-// BACKTEST
-async function loadBacktest(modal){
-  setModalContent(modal,'📊 Backtesting','Simulación histórica de value betting','<div id="bt-content">Cargando...</div>');
-  try{const bt=await api('/api/backtest/full');
-  let html=`<div class="grid-4">${[
-    {l:'ROI Total',v:`${(bt.roi_total||0).toFixed(1)}%`,c:(bt.roi_total||0)>=0?'up':'down',s:`${bt.total_apuestas||0} apuestas`},
-    {l:'Win Rate',v:`${(bt.win_rate||0).toFixed(1)}%`,c:'neutral',s:`${bt.ganadas||0}G / ${bt.perdidas||0}P`},
-    {l:'Profit Neto',v:`$${(bt.profit_neto||0).toFixed(2)}`,c:(bt.profit_neto||0)>=0?'up':'down',s:`Bankroll final: $${(bt.bankroll_final||0).toFixed(2)}`},
-    {l:'Sharpe',v:(bt.sharpe_ratio||0).toFixed(2),c:(bt.sharpe_ratio||0)>=1?'up':'neutral',s:`Kelly frac: ${((bt.kelly_frac||0)*100).toFixed(0)}%`},
-  ].map(k=>`<div class="c"><div class="c-title">${k.l}</div><div class="c-val ${k.c}">${k.v}</div><div class="c-sub">${k.s}</div></div>`).join('')}</div>`;
-  const hist=bt.bankroll_history||[];
-  html+=`<div class="c"><div class="c-title">Bankroll History</div><div class="c-chart"><canvas id="btChart"></canvas></div></div>`;
-  document.getElementById('bt-content').innerHTML=html;
-  if(hist.length>1){destroyChart('btChart');
-    charts.btChart=new Chart(document.getElementById('btChart'),{type:'line',data:{labels:hist.map((_,i)=>i),datasets:[{label:'Bankroll',data:hist,borderColor:'#6c5ce7',backgroundColor:'rgba(108,92,231,0.1)',fill:true,tension:.3,pointRadius:0,borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{display:false,grid:{display:false}},y:{grid:{color:'rgba(255,255,255,0.03)'},ticks:{font:{size:9}}}}}})};
-  }catch(e){document.getElementById('bt-content').innerHTML='<span style="color:var(--red)">Error</span>'}
-}
-
-// CONFIG
-async function loadConfig(modal){
-  setModalContent(modal,'⚙️ Sistema','Estado y diagnóstico completo','<div id="cfg-content" class="mono" style="font-size:11px;white-space:pre-wrap;line-height:1.7">Cargando...</div>');
-  try{const h=await api('/api/health');document.getElementById('cfg-content').textContent=JSON.stringify(h,null,2)}catch(e){document.getElementById('cfg-content').textContent='Error'}
-}
-
-// ── INIT ──
-let audioCtx=null;
-if("Notification"in window&&Notification.permission==='default')Notification.requestPermission();
-init();
+const LS='theme',D=document;
+function toggleTheme(){D.body.classList.toggle('light');localStorage.setItem(LS,D.body.classList.contains('light')?'light':'')}
+if(localStorage.getItem(LS)==='light')D.body.classList.add('light')
+function go(p){location.href=p}
+function clock(){const d=new Date();document.getElementById('clock').textContent=d.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})}
+setInterval(clock,1e4);clock()
+async function loadKPI(){try{
+  const r=await fetch('/api/dashboard/rendimiento')
+  if(!r.ok)return
+  const d=await r.json()
+  const g=d.general||{},b=d.bankroll||{},h=d.hoy||{}
+  document.getElementById('kpiBankroll').textContent='$'+(b.actual||0).toLocaleString()
+  document.getElementById('kpiWinRate').textContent=(g.win_rate||0)+'%'
+  document.getElementById('kpiRoi').textContent=(g.roi_pct||0)+'%'
+  document.getElementById('kpiSharpe').textContent=(g.sharpe_ratio||0).toFixed(2)
+  document.getElementById('kpiGanancia').textContent='$'+(g.ganancia_neta||0).toLocaleString()
+  const vb=h.value_bets||{}
+  document.getElementById('kpiVb').textContent=vb.total||0
+  document.getElementById('kpiVbEdge').textContent=(vb.avg_edge||0).toFixed(1)+'%'
+  const status=document.getElementById('statusDot')
+  status.className='status-dot on'
+}catch(e){}
+setTimeout(loadKPI,3e4)}
+loadKPI()
 </script>
 </body>
 </html>"""
+
+# ── Module page wrapper ───────────────────────────────────────────────────
+def module_page(title: str, body_html: str, extra_js: str = "") -> str:
+    return f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>{title} — ApuestasPro</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>{SHARED_CSS}</style>
+</head>
+<body>
+<div class="win-frame">
+  <div class="win-titlebar">
+    <div class="win-dots">
+      <div class="win-dot close" onclick="closeWin()" title="Cerrar">&#10005;</div>
+      <div class="win-dot minimize" onclick="minWin()" title="Minimizar">&#9472;</div>
+      <div class="win-dot maximize" onclick="maxWin()" title="Maximizar">&#9678;</div>
+    </div>
+    <div class="win-title">{title}</div>
+    <div class="win-nav">
+      <a href="/">Inicio</a>
+      <a href="javascript:location.reload()">Recargar</a>
+    </div>
+  </div>
+  <div class="win-content">
+    <div id="moduleLoading" class="loading"><div class="spinner"></div><div>Cargando...</div></div>
+    <div id="moduleContent" style="display:none">{body_html}</div>
+  </div>
+</div>
+<script>
+const LS='theme';
+if(localStorage.getItem(LS)==='light')document.body.classList.add('light')
+function closeWin(){{window.location.href='/'}}
+function minWin(){{window.open('','_self','');window.close()}}
+function maxWin(){{if(!document.fullscreenElement)document.documentElement.requestFullscreen();else document.exitFullscreen()}}
+document.getElementById('moduleLoading').style.display='none'
+document.getElementById('moduleContent').style.display='block'
+function toast(msg,type){{const t=document.createElement('div');t.className='toast '+type;t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),3000)}}
+async function api(url){{const r=await fetch(url);if(!r.ok)throw new Error(await r.text());return r.json()}}
+{extra_js}
+</script>
+</body>
+</html>"""
+
+# ── Módulos ──────────────────────────────────────────────────────────────
+
+MOD_VALUE_BETS = module_page("Value Bets", """
+<div class="kpi-grid">
+  <div class="kpi"><div class="label">Edge Promedio</div><div class="value gold" id="vbAvgEdge">0%</div></div>
+  <div class="kpi"><div class="label">Value Bets Hoy</div><div class="value" id="vbCount">0</div></div>
+  <div class="kpi"><div class="label">Mejor Edge</div><div class="value green" id="vbMaxEdge">0%</div></div>
+</div>
+<div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+  <select id="vbSport" style="padding:6px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px">
+    <option value="upcoming">Todos los deportes</option>
+    <option value="soccer_mexico_ligamx">Liga MX</option>
+    <option value="basketball_nba">NBA</option>
+    <option value="soccer_epl">Premier League</option>
+  </select>
+  <input id="vbMinEdge" type="number" value="2" step="0.5" style="width:70px;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px" placeholder="Edge min"/> 
+  <button class="top-btn" onclick="loadVB()" style="width:auto;padding:6px 16px">Buscar</button>
+</div>
+<table id="vbTable"><thead><tr><th>Partido</th><th>Resultado</th><th>Casa</th><th>Cuota</th><th>Edge</th></tr></thead><tbody id="vbBody"></tbody></table>
+""", """
+async function loadVB(){try{
+  const s=document.getElementById('vbSport').value
+  const e=document.getElementById('vbMinEdge').value
+  const d=await api('/api/odds/value-bets?deporte='+s+'&edge_minimo='+e)
+  const vb=d.value_bets||[]
+  let h=''
+  let sumEdge=0
+  let maxEdge=0
+  vb.forEach(v=>{
+    h+='<tr><td>'+v.partido+'</td><td>'+v.resultado+'</td><td>'+v.casa+'</td><td>'+v.cuota+'</td><td class="gold">'+v.edge_porcentaje+'%</td></tr>'
+    sumEdge+=parseFloat(v.edge_porcentaje)
+    maxEdge=Math.max(maxEdge,parseFloat(v.edge_porcentaje))
+  })
+  document.getElementById('vbBody').innerHTML=h||'<tr><td colspan="5" style="text-align:center;color:var(--text3)">Sin value bets</td></tr>'
+  document.getElementById('vbCount').textContent=vb.length
+  document.getElementById('vbAvgEdge').textContent=(vb.length?(sumEdge/vb.length).toFixed(1):'0')+'%'
+  document.getElementById('vbMaxEdge').textContent=maxEdge.toFixed(1)+'%'
+}catch(e){toast('Error al cargar value bets','err')}}
+loadVB()
+""")
+
+MOD_SHARP = module_page("Sharp Money", """
+<div class="kpi-grid">
+  <div class="kpi"><div class="label">Alertas Sharp</div><div class="value" id="sharpCount">0</div><div class="sub">&Uacute;ltimas 24h</div></div>
+  <div class="kpi"><div class="label">CLV Promedio</div><div class="value gold" id="sharpClv">0</div></div>
+</div>
+<table id="sharpTable"><thead><tr><th>Partido</th><th>Movimiento</th><th>De</th><th>A</th><th>Urgencia</th></tr></thead><tbody id="sharpBody"></tbody></table>
+""", """
+async function loadSharp(){try{
+  const d=await api('/api/odds/arbitraje?min_profit=0.1')
+  const a=d.arbitrajes||[]
+  document.getElementById('sharpCount').textContent=a.length
+  let h=''
+  a.forEach(v=>{
+    const outcomes=Object.entries(v.stakes||{}).map(([k,o])=>k+': '+o.casa+' $'+o.cuota).join(' | ')
+    h+='<tr><td>'+v.partido+'</td><td>'+v.tipo+'</td><td>'+outcomes+'</td><td>'+v.profit+'%</td><td>MEDIA</td></tr>'
+  })
+  document.getElementById('sharpBody').innerHTML=h||'<tr><td colspan="5" style="text-align:center;color:var(--text3)">Sin datos</td></tr>'
+}catch(e){toast('Error','err')}}
+loadSharp()
+""")
+
+MOD_ARBITRAJE = module_page("Arbitraje", """
+<div class="kpi-grid">
+  <div class="kpi"><div class="label">Arbitrajes</div><div class="value gold" id="arbCount">0</div></div>
+  <div class="kpi"><div class="label">Max Profit</div><div class="value green" id="arbMaxProfit">0%</div></div>
+</div>
+<div style="margin-bottom:12px">
+  <input id="arbMinProfit" type="number" value="0.5" step="0.1" style="width:80px;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px"/> 
+  <button class="top-btn" onclick="loadArb()" style="width:auto;padding:6px 16px">Escaneary</button>
+</div>
+<table><thead><tr><th>Partido</th><th>Profit</th><th>Resultados</th></tr></thead><tbody id="arbBody"></tbody></table>
+""", """
+async function loadArb(){try{
+  const m=document.getElementById('arbMinProfit').value
+  const d=await api('/api/odds/arbitraje?min_profit='+m)
+  const a=d.arbitrajes||[]
+  document.getElementById('arbCount').textContent=a.length
+  let maxP=0,h=''
+  a.forEach(v=>{
+    maxP=Math.max(maxP,parseFloat(v.profit||0))
+    const r=Object.entries(v.stakes||{}).map(([k,o])=>k).join(', ')
+    h+='<tr><td>'+v.partido+'</td><td class="green">'+v.profit+'%</td><td>'+r+'</td></tr>'
+  })
+  document.getElementById('arbMaxProfit').textContent=maxP.toFixed(2)+'%'
+  document.getElementById('arbBody').innerHTML=h||'<tr><td colspan="3" style="text-align:center;color:var(--text3)">Sin arbitrajes</td></tr>'
+}catch(e){toast('Error','err')}}
+loadArb()
+""")
+
+MOD_ML = module_page("ML Predictivo", """
+<div class="kpi-grid">
+  <div class="kpi"><div class="label">Modelos</div><div class="value">MLP + GBM</div></div>
+  <div class="kpi"><div class="label">Features</div><div class="value" id="mlFeat">0</div></div>
+  <div class="kpi"><div class="label">Confianza Base</div><div class="value gold" id="mlConf">--</div></div>
+</div>
+<div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+  <select id="mlLiga" style="padding:6px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px">
+    <option value="liga_mx">Liga MX</option><option value="mls">MLS</option><option value="premier_league">Premier League</option>
+    <option value="la_liga">La Liga</option><option value="serie_a">Serie A</option><option value="bundesliga">Bundesliga</option><option value="ligue_1">Ligue 1</option>
+  </select>
+  <button class="top-btn" onclick="trainML()" style="width:auto;padding:6px 16px">Entrenary</button>
+  <button class="top-btn" onclick="loadML()" style="width:auto;padding:6px 16px">Actualizar</button>
+</div>
+<div id="mlStatus" style="margin-bottom:12px;font-size:12px;color:var(--text2)"></div>
+<table><thead><tr><th>Feature</th><th>Importancia</th></tr></thead><tbody id="mlBody"></tbody></table>
+""", """
+async function loadML(){try{
+  const l=document.getElementById('mlLiga').value
+  const d=await api('/api/ml/v2/features?liga='+l)
+  const f=d.features||[]
+  document.getElementById('mlFeat').textContent=f.length
+  document.getElementById('mlConf').textContent=f.length?'Con datos':'Sin datos'
+  let h=''
+  f.slice(0,15).forEach(v=>{
+    h+='<tr><td>'+v.feature_name+'</td><td><div style="background:var(--bg4);border-radius:4px;overflow:hidden;width:120px"><div style="width:'+(v.importance*100)+'%;height:6px;background:var(--accent);border-radius:4px"></div></div> '+(v.importance*100).toFixed(1)+'%</td></tr>'
+  })
+  document.getElementById('mlBody').innerHTML=h||'<tr><td colspan="2" style="text-align:center;color:var(--text3)">Entrena modelos primero</td></tr>'
+}catch(e){toast('Error','err')}}
+async function trainML(){try{
+  document.getElementById('mlStatus').textContent='Entrenando...'
+  await api('/api/ml/v2/train')
+  document.getElementById('mlStatus').textContent='Entrenamiento iniciado (fondo)'
+  setTimeout(loadML,5e3)
+}catch(e){toast('Error','err')}}
+loadML()
+""")
+
+MOD_BANKROLL = module_page("Bankroll", """
+<div class="kpi-grid">
+  <div class="kpi"><div class="label">Bankroll Actual</div><div class="value" id="brActual">$0</div></div>
+  <div class="kpi"><div class="label">Apuestas</div><div class="value gold" id="brTotal">0</div></div>
+  <div class="kpi"><div class="label">Win Rate</div><div class="value green" id="brWinRate">0%</div></div>
+  <div class="kpi"><div class="label">Ganancia Neta</div><div class="value" id="brGanancia">$0</div></div>
+</div>
+<div class="chart-container"><canvas id="brChart"></canvas></div>
+<table><thead><tr><th>Fecha</th><th>Evento</th><th>Bankroll</th></tr></thead><tbody id="brBody"></tbody></table>
+""", """
+let brChart=null
+async function loadBR(){try{
+  const d=await api('/api/dashboard/rendimiento')
+  const g=d.general||{},b=d.bankroll||{},h=b.history||[]
+  document.getElementById('brActual').textContent='$'+(b.actual||0).toLocaleString()
+  document.getElementById('brTotal').textContent=g.total_apuestas||0
+  document.getElementById('brWinRate').textContent=(g.win_rate||0)+'%'
+  document.getElementById('brGanancia').textContent='$'+(g.ganancia_neta||0).toLocaleString()
+  let hh=''
+  h.slice().reverse().slice(-20).forEach(v=>{
+    hh+='<tr><td>'+(v.fecha||'').slice(0,10)+'</td><td>'+v.evento+'</td><td>$'+v.bankroll+'</td></tr>'
+  })
+  document.getElementById('brBody').innerHTML=hh||'<tr><td colspan="3" style="text-align:center;color:var(--text3)">Sin historial</td></tr>'
+  if(brChart)brChart.destroy()
+  brChart=new Chart(document.getElementById('brChart'),{type:'line',data:{labels:h.map(v=>(v.fecha||'').slice(5,10)),datasets:[{label:'Bankroll',data:h.map(v=>v.bankroll),borderColor:'#6c5ce7',backgroundColor:'rgba(108,92,231,.1)',fill:true,tension:.3,pointRadius:2}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{grid:{color:'var(--border)'},ticks:{color:'var(--text3)'}},y:{grid:{color:'var(--border)'},ticks:{color:'var(--text3)'}}}}})
+}catch(e){toast('Error','err')}}
+loadBR()
+""")
+
+MOD_SIMULACION = module_page("Simulación", """
+<div class="kpi-grid">
+  <div class="kpi"><div class="label">Trades Simulados</div><div class="value" id="simTotal">0</div></div>
+  <div class="kpi"><div class="label">Ganadas</div><div class="value green" id="simGanadas">0</div></div>
+  <div class="kpi"><div class="label">Perdidas</div><div class="value red" id="simPerdidas">0</div></div>
+  <div class="kpi"><div class="label">PnL Total</div><div class="value gold" id="simPnl">$0</div></div>
+</div>
+<table><thead><tr><th>Partido</th><th>Selección</th><th>Cuota</th><th>Edge</th><th>Resultado</th><th>PnL</th></tr></thead><tbody id="simBody"></tbody></table>
+""", """
+async function loadSim(){try{
+  const d=await api('/api/simulacion/status')
+  document.getElementById('simTotal').textContent=d.total||0
+  document.getElementById('simGanadas').textContent=d.ganadas||0
+  document.getElementById('simPerdidas').textContent=d.perdidas||0
+  document.getElementById('simPnl').textContent='$'+(d.pnl_total||0).toLocaleString()
+  const t=d.trades||[]
+  let h=''
+  t.forEach(v=>{
+    const cls=v.resultado_simulado==='ganada'?'green':v.resultado_simulado==='perdida'?'red':'gold'
+    h+='<tr><td>'+v.partido+'</td><td>'+v.seleccion+'</td><td>'+v.cuota+'</td><td>'+(v.edge_pct||0)+'%</td><td class="'+cls+'">'+v.resultado_simulado+'</td><td>$'+(v.pnl_real||0)+'</td></tr>'
+  })
+  document.getElementById('simBody').innerHTML=h||'<tr><td colspan="6" style="text-align:center;color:var(--text3)">Sin trades</td></tr>'
+}catch(e){toast('Error','err')}}
+loadSim()
+""")
+
+MOD_CONTABILIDAD = module_page("Contabilidad", """
+<div class="kpi-grid">
+  <div class="kpi"><div class="label">Transacciones</div><div class="value" id="conCount">0</div></div>
+  <div class="kpi"><div class="label">Ganadas</div><div class="value green" id="conGanadas">0</div></div>
+  <div class="kpi"><div class="label">Perdidas</div><div class="value red" id="conPerdidas">0</div></div>
+  <div class="kpi"><div class="label">Neto</div><div class="value gold" id="conNeto">$0</div></div>
+</div>
+<div class="chart-container"><canvas id="conChart"></canvas></div>
+<table><thead><tr><th>Estrategia</th><th>Total</th><th>Ganadas</th><th>Perdidas</th><th>Neto</th></tr></thead><tbody id="conBody"></tbody></table>
+""", """
+async function loadCon(){try{
+  const d=await api('/api/contabilidad/pnl-estrategia')
+  document.getElementById('conCount').textContent=d.reduce((s,v)=>s+(v.total||0),0)
+  let g=0,p=0,n=0,h=''
+  d.forEach(v=>{
+    g+=v.ganadas||0;p+=v.perdidas||0;n+=v.neto||0
+    h+='<tr><td>'+v.estrategia+'</td><td>'+v.total+'</td><td class="green">'+v.ganadas+'</td><td class="red">'+v.perdidas+'</td><td class="'+(v.neto>=0?'green':'red')+'">$'+(v.neto||0)+'</td></tr>'
+  })
+  document.getElementById('conGanadas').textContent=g
+  document.getElementById('conPerdidas').textContent=p
+  document.getElementById('conNeto').textContent='$'+n
+  document.getElementById('conBody').innerHTML=h||'<tr><td colspan="5" style="text-align:center;color:var(--text3)">Sin datos</td></tr>'
+}catch(e){toast('Error','err')}}
+loadCon()
+""")
+
+MOD_JOURNAL = module_page("Trading Journal", """
+<div class="kpi-grid">
+  <div class="kpi"><div class="label">Acciones (7d)</div><div class="value" id="jrTotal">0</div></div>
+  <div class="kpi"><div class="label">Tipos</div><div class="value" id="jrTipos">0</div></div>
+</div>
+<div style="margin-bottom:12px">
+  <button class="top-btn" onclick="exportCSV()" style="width:auto;padding:6px 16px">Exportar CSV</button>
+  <button class="top-btn" onclick="loadJR()" style="width:auto;padding:6px 16px">Actualizar</button>
+</div>
+<table><thead><tr><th>Fecha</th><th>Acción</th><th>Partido</th><th>Detalle</th></tr></thead><tbody id="jrBody"></tbody></table>
+""", """
+async function loadJR(){try{
+  const d=await api('/api/journal/resumen')
+  const t=d.por_tipo||{},u=d.ultimas_acciones||[]
+  document.getElementById('jrTotal').textContent=d.total_acciones||0
+  document.getElementById('jrTipos').textContent=Object.keys(t).length
+  let h=''
+  u.forEach(v=>{
+    h+='<tr><td>'+(v.created_at||'').slice(0,10)+'</td><td>'+v.tipo_accion+'</td><td>'+(v.partido||'-')+'</td><td>'+v.seleccion+' $'+(v.monto||0)+'</td></tr>'
+  })
+  document.getElementById('jrBody').innerHTML=h||'<tr><td colspan="4" style="text-align:center;color:var(--text3)">Sin actividad</td></tr>'
+}catch(e){toast('Error','err')}}
+function exportCSV(){window.open('/api/journal/export-csv','_blank')}
+loadJR()
+""")
+
+MOD_BOOKMAKERS = module_page("Rating Casas", """
+<div class="kpi-grid">
+  <div class="kpi"><div class="label">Casas Evaluadas</div><div class="value" id="bmCount">0</div></div>
+  <div class="kpi"><div class="label">Mejor Overround</div><div class="value green" id="bmBestOver">0</div></div>
+</div>
+<button class="top-btn" onclick="scanBM()" style="width:auto;padding:6px 16px;margin-bottom:12px">Escanear Casas</button>
+<div id="bmStatus" style="font-size:12px;color:var(--text2);margin-bottom:8px"></div>
+<table><thead><tr><th>Casa</th><th>Overround</th><th>CLV</th><th>Apariciones</th></tr></thead><tbody id="bmBody"></tbody></table>
+""", """
+async function loadBM(){try{
+  const d=await api('/api/bookmakers/rating')
+  const r=d.ratings||[]
+  document.getElementById('bmCount').textContent=r.length
+  document.getElementById('bmBestOver').textContent=r.length?Math.min(...r.map(v=>v.avg_overround||99)).toFixed(2)+'%':'0'
+  let h=''
+  r.sort((a,b)=>(a.avg_overround||99)-(b.avg_overround||99)).forEach(v=>{
+    h+='<tr><td>'+v.bookmaker+'</td><td>'+(v.avg_overround||0).toFixed(2)+'%</td><td>'+(v.avg_clv||0).toFixed(4)+'</td><td>'+v.apariciones+'</td></tr>'
+  })
+  document.getElementById('bmBody').innerHTML=h||'<tr><td colspan="4" style="text-align:center;color:var(--text3)">Escanea casas primero</td></tr>'
+}catch(e){toast('Error','err')}}
+async function scanBM(){try{
+  document.getElementById('bmStatus').textContent='Escaneando...'
+  await api('/api/bookmakers/scan')
+  document.getElementById('bmStatus').textContent='Escaneo completado'
+  loadBM()
+}catch(e){document.getElementById('bmStatus').textContent='Error';toast('Error','err')}}
+loadBM()
+""")
+
+MOD_CROSS = module_page("Cross Market", """
+<div class="kpi-grid">
+  <div class="kpi"><div class="label">Oportunidades</div><div class="value gold" id="cmCount">0</div></div>
+  <div class="kpi"><div class="label">Mercados</div><div class="value">H2H vs AH</div></div>
+</div>
+<button class="top-btn" onclick="loadCM()" style="width:auto;padding:6px 16px;margin-bottom:12px">Analizar</button>
+<table><thead><tr><th>Partido</th><th>H2H</th><th>AH</th><th>Diferencia</th></tr></thead><tbody id="cmBody"></tbody></table>
+""", """
+async function loadCM(){try{
+  const d=await api('/api/odds/arbitraje?min_profit=0.1')
+  const a=d.arbitrajes||[]
+  document.getElementById('cmCount').textContent=a.length
+  let h=''
+  a.slice(0,20).forEach(v=>{
+    h+='<tr><td>'+v.partido+'</td><td>'+(v.tipo||'H2H')+'</td><td>'+v.profit+'%</td><td class="green">'+v.profit+'%</td></tr>'
+  })
+  document.getElementById('cmBody').innerHTML=h||'<tr><td colspan="4" style="text-align:center;color:var(--text3)">Sin datos</td></tr>'
+}catch(e){toast('Error','err')}}
+loadCM()
+""")
+
+MOD_BACKTESTING = module_page("Backtesting", """
+<div class="kpi-grid">
+  <div class="kpi"><div class="label">Resultados</div><div class="value" id="btTotal">0</div></div>
+  <div class="kpi"><div class="label">Accuracy</div><div class="value gold" id="btAcc">0%</div></div>
+</div>
+<button class="top-btn" onclick="loadBT()" style="width:auto;padding:6px 16px;margin-bottom:12px">Actualizar</button>
+<table><thead><tr><th>Config</th><th>Tipo</th><th>Resumen</th></tr></thead><tbody id="btBody"></tbody></table>
+""", """
+async function loadBT(){try{
+  const d=await api('/api/dashboard/rendimiento')
+  const g=d.general||{}
+  document.getElementById('btTotal').textContent=g.total_apuestas||0
+  document.getElementById('btAcc').textContent=(g.win_rate||0)+'%'
+}catch(e){toast('Error','err')}}
+loadBT()
+""")
+
+MOD_RENDIMIENTO = module_page("Rendimiento", """
+<div class="kpi-grid">
+  <div class="kpi"><div class="label">Total Apuestas</div><div class="value" id="rpTotal">0</div></div>
+  <div class="kpi"><div class="label">Win Rate</div><div class="value gold" id="rpWinRate">0%</div></div>
+  <div class="kpi"><div class="label">Sharpe</div><div class="value" id="rpSharpe">0</div></div>
+  <div class="kpi"><div class="label">ROI</div><div class="value green" id="rpRoi">0%</div></div>
+</div>
+<div class="chart-container"><canvas id="rpChart"></canvas></div>
+<table><thead><tr><th>Deporte</th><th>Total</th><th>Ganadas</th><th>Perdidas</th><th>Neto</th></tr></thead><tbody id="rpBody"></tbody></table>
+""", """
+let rpChart=null
+async function loadRP(){try{
+  const d=await api('/api/dashboard/rendimiento')
+  const g=d.general||{},p=d.por_deporte||[],b=d.bankroll||{},h=b.history||[]
+  document.getElementById('rpTotal').textContent=g.total_apuestas||0
+  document.getElementById('rpWinRate').textContent=(g.win_rate||0)+'%'
+  document.getElementById('rpSharpe').textContent=(g.sharpe_ratio||0).toFixed(2)
+  document.getElementById('rpRoi').textContent=(g.roi_pct||0)+'%'
+  let ht=''
+  p.forEach(v=>{
+    const net=v.ganancia_neta||0
+    ht+='<tr><td>'+v.liga+'</td><td>'+v.total+'</td><td class="green">'+v.ganadas+'</td><td class="red">'+v.perdidas+'</td><td class="'+(net>=0?'green':'red')+'">$'+net+'</td></tr>'
+  })
+  document.getElementById('rpBody').innerHTML=ht||'<tr><td colspan="5" style="text-align:center;color:var(--text3)">Sin datos</td></tr>'
+  if(rpChart)rpChart.destroy()
+  rpChart=new Chart(document.getElementById('rpChart'),{type:'bar',data:{labels:p.map(v=>v.liga||'?'),datasets:[{label:'Ganancia',data:p.map(v=>v.ganancia_neta||0),backgroundColor:p.map(v=>(v.ganancia_neta||0)>=0?'rgba(0,206,201,.7)':'rgba(255,118,117,.7)'),borderRadius:4}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:'var(--text3)'}},y:{grid:{color:'var(--border)'},ticks:{color:'var(--text3)'}}}}})
+}catch(e){toast('Error','err')}}
+loadRP()
+""")
+
+# ── Mapa de módulos ──────────────────────────────────────────────────────
+MODULES = {
+    "value-bets":    ("Value Bets",      MOD_VALUE_BETS),
+    "sharp":         ("Sharp Money",     MOD_SHARP),
+    "arbitraje":     ("Arbitraje",       MOD_ARBITRAJE),
+    "ml":            ("ML Predictivo",   MOD_ML),
+    "bankroll":      ("Bankroll",        MOD_BANKROLL),
+    "simulacion":    ("Simulación",      MOD_SIMULACION),
+    "contabilidad":  ("Contabilidad",    MOD_CONTABILIDAD),
+    "journal":       ("Trading Journal", MOD_JOURNAL),
+    "bookmakers":    ("Rating Casas",    MOD_BOOKMAKERS),
+    "cross-market":  ("Cross Market",    MOD_CROSS),
+    "backtesting":   ("Backtesting",     MOD_BACKTESTING),
+    "rendimiento":   ("Rendimiento",     MOD_RENDIMIENTO),
+}
+
+# ── Main export ──────────────────────────────────────────────────────────
+# Por compatibilidad, HTML es la landing page
+HTML = LANDING_HTML
