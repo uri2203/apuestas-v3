@@ -199,7 +199,7 @@ def health():
 @app.route("/api/version")
 def version():
     """Endpoint público para verificar qué commit está desplegado."""
-    return jsonify({"version": "4.3.4", "commit": "b343491", "mensaje": "Solo datos reales + boton Kelly sin emojis"})
+    return jsonify({"version": "4.3.4", "commit": "current", "mensaje": "Solo datos reales + boton Kelly sin emojis"})
 
 # ── PROGOL ─────────────────────────────────────────────────────────────────────
 @app.route("/api/progol/jornada")
@@ -276,6 +276,8 @@ def _prob_implicita(cuota):
     except Exception:
         return 0.01
 
+_vb_cache = {}  # {key: (timestamp, response)}
+
 @app.route("/api/odds/value-bets")
 @login_required
 def value_bets():
@@ -283,6 +285,13 @@ def value_bets():
         edge_min = float(request.args.get("edge_minimo", 2))
         api_key  = os.getenv("ODDS_API_KEY", "")
         deporte  = request.args.get("deporte", "soccer_mexico_ligamx")
+        cache_key = f"{deporte}|{edge_min}"
+
+        # Cache 60s
+        now = time.time()
+        cached = _vb_cache.get(cache_key)
+        if cached and now - cached[0] < 60:
+            return jsonify(cached[1])
 
         # ── 1. Intentar datos reales ──
         data = None
@@ -291,8 +300,8 @@ def value_bets():
             try:
                 r = httpx.get(
                     f"https://api.the-odds-api.com/v4/sports/{deporte}/odds",
-                    params={"apiKey": api_key, "regions": "eu", "markets": "h2h", "oddsFormat": "decimal"},
-                    timeout=10,
+                    params={"apiKey": api_key, "regions": "us", "markets": "h2h", "oddsFormat": "decimal"},
+                    timeout=5,
                 )
                 data = r.json()
                 if isinstance(data, dict) and data.get("message"):
@@ -379,13 +388,15 @@ def value_bets():
                 seen[key] = vb
         filtered = list(seen.values())
 
-        return jsonify({
+        response = {
             "total_encontrados": len(filtered),
             "value_bets":        filtered[:50],
             "es_demo":           False,
             "total_partidos_analizados": len(partidos),
             "aviso": None if filtered else f"Sin value bets con edge >= {edge_min}%",
-        })
+        }
+        _vb_cache[cache_key] = (now, response)
+        return jsonify(response)
 
     except Exception as e:
         tb = traceback.format_exc()
