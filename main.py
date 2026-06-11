@@ -1129,6 +1129,98 @@ def dashboard_rendimiento():
     })
 
 
+# ── ML PREDICTOR ──────────────────────────────────────────────────────────────
+@app.route("/api/ml/auto-train")
+@login_required
+def ml_auto_train():
+    """Entrena modelo con datos ESPN y predice próximos partidos."""
+    from services.ml_predictor import auto_train_all
+    return jsonify(auto_train_all())
+
+
+@app.route("/api/ml/auto-train/<liga>")
+@login_required
+def ml_auto_train_liga(liga):
+    """Entrena para una liga específica."""
+    from services.ml_predictor import auto_train
+    return jsonify(auto_train(liga))
+
+
+@app.route("/api/ml/verify")
+@login_required
+def ml_verify():
+    """Verifica predicciones previas vs resultados reales ESPN."""
+    from services.ml_predictor import verificar_resultados
+    return jsonify(verificar_resultados())
+
+
+# ── PORTFOLIO ─────────────────────────────────────────────────────────────────
+@app.route("/api/portfolio/status")
+@login_required
+def portfolio_status():
+    """Estado actual del portfolio de apuestas activas."""
+    from services.portfolio import get_portfolio_status
+    return jsonify(get_portfolio_status())
+
+
+@app.route("/api/portfolio/recomendar", methods=["POST"])
+@login_required
+def portfolio_recomendar():
+    """Recomienda stake ajustado por correlación para una nueva apuesta."""
+    from services.portfolio import recomendar_nueva_apuesta
+    data = request.get_json() or {}
+    partido = data.get("partido", "")
+    liga = data.get("liga", "")
+    seleccion = data.get("seleccion", "")
+    cuota = float(data.get("cuota", 0))
+    prob = float(data.get("probabilidad", 0)) / 100
+    fraccion = float(data.get("fraccion_kelly", 0.25))
+    bankroll = data.get("bankroll")
+    if bankroll is not None:
+        bankroll = float(bankroll)
+    return jsonify(recomendar_nueva_apuesta(
+        partido, liga, seleccion, cuota, prob, bankroll, fraccion))
+
+
+# ── FULL BACKTESTING ──────────────────────────────────────────────────────────
+@app.route("/api/backtest/full")
+@login_required
+def backtest_full():
+    """Full value betting backtest contra datos históricos ESPN."""
+    from services.backtesting import backtest_value_betting
+    from services.espn_scraper import get_historial_entrenamiento
+    liga = request.args.get("liga", "liga_mx")
+    edge_min = float(request.args.get("edge_minimo", 3.0))
+    kelly_frac = float(request.args.get("kelly_fraccion", 0.25))
+
+    partidos = get_historial_entrenamiento(liga)
+    if len(partidos) < 40:
+        return jsonify({"error": f"Historial insuficiente: {len(partidos)} partidos (min 40)"})
+
+    resultado = backtest_value_betting(
+        partidos, ventana=30, edge_minimo=edge_min,
+        kelly_frac=kelly_frac,
+    )
+    resultado["liga"] = liga
+
+    # Guardar en DB
+    try:
+        from database import db, _execute
+        import json
+        with db() as conn:
+            _execute(conn,
+                "INSERT INTO backtest_results (tipo, config, resumen, bankroll_hist) "
+                "VALUES (?,?,?,?)",
+                ("value_betting",
+                 json.dumps(resultado.get("config", {})),
+                 json.dumps(resultado.get("resumen", {})),
+                 json.dumps(resultado.get("bankroll_historia", []))))
+    except Exception:
+        pass
+
+    return jsonify(resultado)
+
+
 # ── SCHEDULER ──────────────────────────────────────────────────────────────────
 def _alerta_vb_con_broadcast():
     alerta_value_bets()
@@ -1258,6 +1350,29 @@ def _resumen_diario():
     telegram_send("\n".join(lines))
     logging.info("Resumen diario enviado por Telegram — Bankroll: $%.2f", br)
 
+def _ml_auto_train():
+    """Auto-entrena modelos ML con datos ESPN y guarda predicciones."""
+    try:
+        from services.ml_predictor import auto_train_all
+        res = auto_train_all()
+        logging.info("ML auto-train: %d predicciones generadas", res.get("total_predicciones", 0))
+        if res.get("total_predicciones", 0) > 0:
+            telegram_send(f"<b>🤖 ML Predictor</b>\n\n{res['total_predicciones']} predicciones generadas automáticamente para {res['ligas_procesadas']} ligas.")
+    except Exception as e:
+        logging.error("ML auto-train error: %s", e)
+
+
+def _ml_auto_verify():
+    """Verifica predicciones previas vs resultados reales ESPN."""
+    try:
+        from services.ml_predictor import verificar_resultados
+        res = verificar_resultados()
+        if res.get("verificados", 0) > 0:
+            logging.info("ML auto-verify: %d predicciones verificadas", res["verificados"])
+    except Exception as e:
+        logging.error("ML auto-verify error: %s", e)
+
+
 scheduler=BackgroundScheduler()
 scheduler.add_job(_alerta_vb_con_broadcast,   "interval", hours=3,  id="vb_alert")
 scheduler.add_job(_alerta_nlp_con_broadcast,  "interval", hours=4,  id="nlp_alert")
@@ -1265,6 +1380,8 @@ scheduler.add_job(_verificacion_auto,         "interval", hours=6,  id="verify_p
 scheduler.add_job(_alerta_sharp_auto,         "interval", hours=2,  id="sharp_auto")
 scheduler.add_job(_heartbeat,                 "interval", hours=6,  id="heartbeat")
 scheduler.add_job(_resumen_diario,            "cron",     hour=8,   id="daily_summary")
+scheduler.add_job(_ml_auto_train,             "interval", hours=12, id="ml_train")
+scheduler.add_job(_ml_auto_verify,            "interval", hours=6,  id="ml_verify")
 scheduler.start()
 
 register_webhook(os.getenv("RENDER_EXTERNAL_URL",""))

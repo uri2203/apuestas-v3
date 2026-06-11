@@ -173,6 +173,14 @@ def _init_pg() -> None:
             urgencia   TEXT,
             canal      TEXT DEFAULT 'telegram'
         )""",
+        """CREATE TABLE IF NOT EXISTS backtest_results (
+            id            SERIAL PRIMARY KEY,
+            created_at    TIMESTAMP DEFAULT NOW(),
+            tipo          TEXT,
+            config        TEXT,
+            resumen       TEXT,
+            bankroll_hist TEXT
+        )""",
         "CREATE INDEX IF NOT EXISTS idx_bets_resultado ON bets(resultado)",
         "CREATE INDEX IF NOT EXISTS idx_pred_correcto  ON predictions(correcto)",
     ]
@@ -230,6 +238,11 @@ def _init_sqlite() -> None:
         created_at TEXT DEFAULT (datetime('now')),
         tipo TEXT, partido TEXT, detalle TEXT, urgencia TEXT,
         canal TEXT DEFAULT 'telegram'
+    );
+    CREATE TABLE IF NOT EXISTS backtest_results (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created_at TEXT DEFAULT (datetime('now')),
+        tipo TEXT, config TEXT, resumen TEXT, bankroll_hist TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_bets_resultado ON bets(resultado);
     CREATE INDEX IF NOT EXISTS idx_pred_correcto  ON predictions(correcto);
