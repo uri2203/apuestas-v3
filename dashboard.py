@@ -163,7 +163,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
 .k-row span:first-child{color:var(--muted);font-family:var(--mono)}
 .k-row span:last-child{font-family:var(--mono);font-weight:700}
 
-
 /* ALERTS */
 .afeed{display:flex;flex-direction:column;gap:7px}
 .ai{display:flex;justify-content:space-between;align-items:flex-start;padding:10px 13px;border-radius:8px;gap:10px}
@@ -391,7 +390,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
         <button class="btn btn-p" onclick="loadVB()" style="padding:5px 12px;font-size:11px">Actualizar</button>
       </div>
     </div>
-    <table class="tbl"><thead><tr><th>Partido</th><th>Resultado</th><th>Casa</th><th>Cuota</th><th>Edge</th><th>Señal</th><th></th></tr></thead><tbody id="vb-body"><tr><td colspan="7"><div class="loading"><div class="dot"></div><div class="dot"></div><div class="dot"></div>Cargando...</div></td></tr></tbody></table>
+    <table class="tbl"><thead><tr><th>Partido</th><th>Resultado</th><th>Casa</th><th>Cuota</th><th>Edge</th><th>Señal</th></tr></thead><tbody id="vb-body"><tr><td colspan="6"><div class="loading"><div class="dot"></div><div class="dot"></div><div class="dot"></div>Cargando...</div></td></tr></tbody></table>
     <div style="padding:10px 16px;font-size:10px;font-family:var(--mono);color:var(--muted);border-top:1px solid var(--border)">Configura ODDS_API_KEY en Render → datos reales de 12 casas · the-odds-api.com (500 req/mes gratis)</div>
   </div>
   <div class="panel">
@@ -2056,7 +2055,7 @@ async function predPartidoCompleto() {
 // ═══════════════════════════════════════════════════════════════════════════
 async function loadVB() {
   const dep = document.getElementById('sp-sel')?.value || 'soccer_mexico_ligamx'
-  document.getElementById('vb-body').innerHTML = '<tr><td colspan="7"><div class="loading"><div class="dot"></div><div class="dot"></div><div class="dot"></div>Cargando...</div></td></tr>'
+  document.getElementById('vb-body').innerHTML = '<tr><td colspan="6"><div class="loading"><div class="dot"></div><div class="dot"></div><div class="dot"></div>Cargando...</div></td></tr>'
   try {
     const d = await api(`/api/odds/value-bets?edge_minimo=2&deporte=${dep}`)
     setAPIStatus(true)
@@ -2064,7 +2063,7 @@ async function loadVB() {
     // Error de API — mostrar mensaje real
     if (d.error || d.es_demo) {
       const tb = d.traceback ? `<details style="margin-top:8px;font-size:10px;color:var(--red)"><summary>Ver traceback</summary><pre style="white-space:pre-wrap;font-size:9px;max-height:200px;overflow:auto;background:var(--bg2);padding:8px;border-radius:4px;margin:4px 0 0;text-align:left">${d.traceback}</pre></details>` : ''
-      document.getElementById('vb-body').innerHTML = `<tr><td colspan="7" style="padding:16px;font-family:var(--mono);font-size:11px;color:var(--gold)">${d.aviso || d.error}${tb}</td></tr>`
+      document.getElementById('vb-body').innerHTML = `<tr><td colspan="6" style="padding:16px;font-family:var(--mono);font-size:11px;color:var(--gold)">${d.aviso || d.error}${tb}</td></tr>`
       document.getElementById('vb-count').textContent = '0'
       document.getElementById('vb-edge').textContent  = 'sin datos'
       document.getElementById('vb-best').textContent  = '—'
@@ -2081,7 +2080,7 @@ async function loadVB() {
 
     if (!vbs.length) {
       const msg = d.aviso || `Sin value bets con edge >= 2% en ${dep.replace('soccer_mexico_','').replace('ligamx','Liga MX')}`
-      document.getElementById('vb-body').innerHTML = `<tr><td colspan="7" style="padding:16px;font-family:var(--mono);font-size:11px;color:var(--muted)">${msg}</td></tr>`
+      document.getElementById('vb-body').innerHTML = `<tr><td colspan="6" style="padding:16px;font-family:var(--mono);font-size:11px;color:var(--muted)">${msg}</td></tr>`
       return
     }
 
@@ -2096,11 +2095,10 @@ async function loadVB() {
         <td style="font-family:var(--mono);font-weight:700;font-size:14px">${vb.cuota}</td>
         <td><span class="badge ${vb.edge_porcentaje>7?'bs2':'bv'}">+${vb.edge_porcentaje}%</span></td>
         <td><span class="badge ${vb.edge_porcentaje>7?'hot':'bv'}">${vb.edge_porcentaje>7?'STRONG VALUE':'VALUE BET'}</span></td>
-        <td><button class="badge bv" style="cursor:pointer;border:none" onclick="useKelly('${vb.cuota}')" title="Calcular Kelly">K</button></td>
       </tr>`).join('')
 
   } catch(e) {
-    document.getElementById('vb-body').innerHTML = `<tr><td colspan="7" style="padding:12px;font-size:11px;font-family:var(--mono);color:var(--red)">Error: ${e}</td></tr>`
+    document.getElementById('vb-body').innerHTML = `<tr><td colspan="6" style="padding:12px;font-size:11px;font-family:var(--mono);color:var(--red)">Error: ${e}</td></tr>`
   }
 }
 
@@ -2644,15 +2642,6 @@ renderCLVT()
 calcKelly()
 calcEV()
 loadAlertas()
-}
-
-// Pre-llenar calculadora Kelly con cuota del value bet
-function useKelly(cuota) {
-  document.getElementById('k-o').value = cuota
-  const navBtns = document.querySelectorAll('.nav-btn')
-  navBtns.forEach(b => { if(b.textContent.includes('Kelly')) b.click() })
-  calcKelly()
-}
 </script>
 </body>
 </html>
