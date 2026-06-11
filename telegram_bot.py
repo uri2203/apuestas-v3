@@ -302,12 +302,14 @@ def _cmd_sharp() -> None:
 
 
 def _cmd_predicciones() -> None:
-    from database import db, _fetchall
+    from database import db, _fetchall, _USE_PG
+    dc = "created_at::date" if _USE_PG else "date(created_at)"
+    td = "CURRENT_DATE" if _USE_PG else "date('now')"
     try:
         with db() as conn:
             rows = _fetchall(conn,
-                "SELECT * FROM predictions WHERE date(created_at) = date('now') "
-                "AND resultado_real IS NULL ORDER BY confianza_pct DESC LIMIT 5")
+                f"SELECT * FROM predictions WHERE {dc} = {td} "
+                f"AND resultado_real IS NULL ORDER BY confianza_pct DESC LIMIT 5")
         if not rows:
             telegram_send("No hay predicciones para hoy")
             return

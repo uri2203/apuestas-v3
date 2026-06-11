@@ -121,14 +121,16 @@ def auto_log_from_recent() -> dict:
 
 def export_csv(dias=7) -> str:
     """Exporta el journal a CSV."""
-    from database import db, _fetchall
+    from database import db, _fetchall, _USE_PG
+    dc = "created_at::date" if _USE_PG else "date(created_at)"
+    ago = "CURRENT_DATE - INTERVAL '1 day' * ?" if _USE_PG else "date('now', '-' || ? || ' days')"
 
     try:
         with db() as conn:
             rows = _fetchall(conn,
-                "SELECT * FROM trading_journal "
-                "WHERE date(created_at) >= date('now', '-' || ? || ' days') "
-                "ORDER BY id DESC", (dias,))
+                f"SELECT * FROM trading_journal "
+                f"WHERE {dc} >= {ago} "
+                f"ORDER BY id DESC", (dias,))
     except Exception as e:
         return f"Error: {e}"
 
@@ -166,19 +168,22 @@ def export_csv(dias=7) -> str:
 
 def resumen_journal(dias=7) -> dict:
     """Resumen de actividad del journal."""
-    from database import db, _fetchall
+    from database import db, _fetchall, _USE_PG
+    dc = "created_at::date" if _USE_PG else "date(created_at)"
+    ago_p = "CURRENT_DATE - INTERVAL '1 day' * ?" if _USE_PG else "date('now', '-' || ? || ' days')"
+    ago_1 = "CURRENT_DATE - INTERVAL '1 day'" if _USE_PG else "date('now', '-' || 1 || ' days')"
 
     try:
         with db() as conn:
             total = _fetchall(conn,
-                "SELECT tipo_accion, COUNT(*) as n FROM trading_journal "
-                "WHERE date(created_at) >= date('now', '-' || ? || ' days') "
-                "GROUP BY tipo_accion ORDER BY n DESC", (dias,))
+                f"SELECT tipo_accion, COUNT(*) as n FROM trading_journal "
+                f"WHERE {dc} >= {ago_p} "
+                f"GROUP BY tipo_accion ORDER BY n DESC", (dias,))
 
             recientes = _fetchall(conn,
-                "SELECT * FROM trading_journal "
-                "WHERE date(created_at) >= date('now', '-' || 1 || ' days') "
-                "ORDER BY id DESC LIMIT 10")
+                f"SELECT * FROM trading_journal "
+                f"WHERE {dc} >= {ago_1} "
+                f"ORDER BY id DESC LIMIT 10")
     except Exception as e:
         return {"error": str(e)}
 

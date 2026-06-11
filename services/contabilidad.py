@@ -98,15 +98,17 @@ def resumen_mensual(mes=None, año=None) -> dict:
 
 def pnl_por_estrategia(dias=30) -> list:
     """P&L desglosado por estrategia (value_bet, sharp, arbitraje, manual)."""
-    from database import db, _fetchall
+    from database import db, _fetchall, _USE_PG
+    dc = "created_at::date" if _USE_PG else "date(created_at)"
+    ago = "CURRENT_DATE - INTERVAL '1 day' * ?" if _USE_PG else "date('now', '-' || ? || ' days')"
 
-    sql = """SELECT estrategia,
+    sql = f"""SELECT estrategia,
                     COUNT(*) as total,
                     SUM(CASE WHEN monto > 0 THEN 1 ELSE 0 END) as ganadas,
                     SUM(CASE WHEN monto < 0 THEN 1 ELSE 0 END) as perdidas,
                     SUM(monto) as neto
              FROM accounting_transactions
-             WHERE date(created_at) >= date('now', '-' || ? || ' days')
+             WHERE {dc} >= {ago}
              AND tipo IN ('bet_gain', 'bet_loss')
              GROUP BY estrategia ORDER BY neto DESC"""
 

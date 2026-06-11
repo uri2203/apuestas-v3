@@ -11,7 +11,7 @@ from dashboard import HTML
 from auth import auth_bp, login_required
 from telegram_bot import telegram_bp, register_webhook, alerta_value_bets, alerta_nlp, telegram_send
 from database import init_db
-from services.deportes import get_active_league_keys, get_odds_for_sport
+from services.deportes import get_active_league_keys, get_odds_for_sport, get_odds_upcoming
 from routers.bankroll_router import bankroll_bp
 from routers.mercados_router import mercados_bp
 from routers.ml_router import ml_bp, ligas_bp, predicciones_bp

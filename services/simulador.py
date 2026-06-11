@@ -143,25 +143,27 @@ def resumen_simulacion(dias: int = 1) -> dict:
     """
     Resumen de rendimiento de la simulación.
     """
-    from database import db, _fetchall
+    from database import db, _fetchall, _USE_PG
+    dc = "created_at::date" if _USE_PG else "date(created_at)"
+    ago = "CURRENT_DATE - INTERVAL '1 day' * ?" if _USE_PG else "date('now', '-' || ? || ' days')"
 
     try:
         with db() as conn:
             # Trades del período
             trades = _fetchall(conn,
-                "SELECT * FROM simulated_trades "
-                "WHERE date(created_at) >= date('now', '-' || ? || ' days') "
-                "ORDER BY id DESC", (dias,))
+                f"SELECT * FROM simulated_trades "
+                f"WHERE {dc} >= {ago} "
+                f"ORDER BY id DESC", (dias,))
 
             stats = _fetchone(conn,
-                "SELECT "
-                "COUNT(*) as total, "
-                "SUM(CASE WHEN resultado_simulado='ganada' THEN 1 ELSE 0 END) as ganadas, "
-                "SUM(CASE WHEN resultado_simulado='perdida' THEN 1 ELSE 0 END) as perdidas, "
-                "SUM(CASE WHEN resultado_simulado='pendiente' THEN 1 ELSE 0 END) as pendientes, "
-                "COALESCE(SUM(pnl_real), 0) as pnl_total "
-                "FROM simulated_trades "
-                "WHERE date(created_at) >= date('now', '-' || ? || ' days')",
+                f"SELECT "
+                f"COUNT(*) as total, "
+                f"SUM(CASE WHEN resultado_simulado='ganada' THEN 1 ELSE 0 END) as ganadas, "
+                f"SUM(CASE WHEN resultado_simulado='perdida' THEN 1 ELSE 0 END) as perdidas, "
+                f"SUM(CASE WHEN resultado_simulado='pendiente' THEN 1 ELSE 0 END) as pendientes, "
+                f"COALESCE(SUM(pnl_real), 0) as pnl_total "
+                f"FROM simulated_trades "
+                f"WHERE {dc} >= {ago}",
                 (dias,))
     except Exception as e:
         return {"error": str(e)}

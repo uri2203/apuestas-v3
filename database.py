@@ -79,6 +79,23 @@ def _q(sql: str) -> str:
     return sql.replace("?", "%s") if _USE_PG else sql
 
 
+# ── SQL Date helpers portátiles (SQLite vs PostgreSQL) ───────────────────────
+
+def SQL_TODAY() -> str:
+    """Retorna SQL para 'hoy' (sin fecha ni hora)."""
+    return "CURRENT_DATE" if _USE_PG else "date('now')"
+
+def SQL_DAYS_AGO(n: str = "?") -> str:
+    """Retorna SQL para 'N días atrás'. n es el placeholder o literal."""
+    if _USE_PG:
+        return f"CURRENT_DATE - INTERVAL '1 day' * {n}"
+    return f"date('now', '-' || {n} || ' days')"
+
+def SQL_DATE(col: str) -> str:
+    """Extrae la fecha (sin hora) de una columna timestamp."""
+    return f"{col}::date" if _USE_PG else f"date({col})"
+
+
 # ── Crear tablas ──────────────────────────────────────────────────────────────
 
 def init_db() -> None:
@@ -511,13 +528,15 @@ def log_arbitrage(partido, liga, profit_pct, resultados_json, stakes_json) -> No
 
 def count_bets_today() -> dict:
     """Cuenta apuestas de hoy: total, ganadas, perdidas, pendientes, ganancia neta."""
-    sql = """SELECT
+    dc = "created_at::date" if _USE_PG else "date(created_at)"
+    td = "CURRENT_DATE" if _USE_PG else "date('now')"
+    sql = f"""SELECT
                COUNT(*) as total,
                SUM(CASE WHEN resultado='ganada' THEN 1 ELSE 0 END) as ganadas,
                SUM(CASE WHEN resultado='perdida' THEN 1 ELSE 0 END) as perdidas,
                SUM(CASE WHEN resultado='pendiente' THEN 1 ELSE 0 END) as pendientes,
                COALESCE(SUM(ganancia_neta), 0) as ganancia_neta
-             FROM bets WHERE date(created_at) = date('now')"""
+             FROM bets WHERE {dc} = {td}"""
     with db() as conn:
         r = _fetchone(conn, sql)
     if not r:
@@ -527,12 +546,14 @@ def count_bets_today() -> dict:
 
 def count_predictions_today() -> dict:
     """Cuenta predicciones de hoy."""
-    sql = """SELECT
+    dc = "created_at::date" if _USE_PG else "date(created_at)"
+    td = "CURRENT_DATE" if _USE_PG else "date('now')"
+    sql = f"""SELECT
                COUNT(*) as total,
                SUM(CASE WHEN correcto=1 THEN 1 ELSE 0 END) as correctos,
                SUM(CASE WHEN correcto=0 THEN 1 ELSE 0 END) as incorrectos,
                SUM(CASE WHEN correcto IS NULL THEN 1 ELSE 0 END) as pendientes
-             FROM predictions WHERE date(created_at) = date('now')"""
+             FROM predictions WHERE {dc} = {td}"""
     with db() as conn:
         r = _fetchone(conn, sql)
     if not r:
@@ -542,10 +563,12 @@ def count_predictions_today() -> dict:
 
 def count_value_bets_today() -> dict:
     """Cuenta value bets detectados hoy."""
-    sql = """SELECT
+    dc = "detected_at::date" if _USE_PG else "date(detected_at)"
+    td = "CURRENT_DATE" if _USE_PG else "date('now')"
+    sql = f"""SELECT
                COUNT(*) as total,
                COALESCE(AVG(edge_pct), 0) as avg_edge
-             FROM value_bets_log WHERE date(detected_at) = date('now')"""
+             FROM value_bets_log WHERE {dc} = {td}"""
     with db() as conn:
         r = _fetchone(conn, sql)
     if not r:
@@ -555,12 +578,14 @@ def count_value_bets_today() -> dict:
 
 def count_alerts_today() -> dict:
     """Cuenta alertas de hoy por urgencia."""
-    sql = """SELECT
+    dc = "created_at::date" if _USE_PG else "date(created_at)"
+    td = "CURRENT_DATE" if _USE_PG else "date('now')"
+    sql = f"""SELECT
                SUM(CASE WHEN urgencia='ALTA' THEN 1 ELSE 0 END) as altas,
                SUM(CASE WHEN urgencia='MEDIA' THEN 1 ELSE 0 END) as medias,
                SUM(CASE WHEN urgencia='BAJA' THEN 1 ELSE 0 END) as bajas,
                COUNT(*) as total
-             FROM alerts_log WHERE date(created_at) = date('now')"""
+             FROM alerts_log WHERE {dc} = {td}"""
     with db() as conn:
         r = _fetchone(conn, sql)
     if not r:
@@ -572,8 +597,9 @@ def count_alerts_today() -> dict:
 
 def get_bankroll_history(days: int = 30) -> list[dict]:
     """Historial de bankroll para gráficas."""
-    sql = """SELECT fecha, bankroll FROM bankroll_history
-             WHERE fecha >= date('now', '-' || ? || ' days')
+    ago = "CURRENT_DATE - INTERVAL '1 day' * ?" if _USE_PG else "date('now', '-' || ? || ' days')"
+    sql = f"""SELECT fecha, bankroll FROM bankroll_history
+             WHERE fecha >= {ago}
              ORDER BY fecha ASC"""
     with db() as conn:
         rows = _fetchall(conn, sql, (days,))
@@ -582,7 +608,9 @@ def get_bankroll_history(days: int = 30) -> list[dict]:
 
 def get_bets_stats(days: int = 30) -> dict:
     """Estadísticas generales de apuestas en los últimos N días."""
-    sql = """SELECT
+    dc = "created_at::date" if _USE_PG else "date(created_at)"
+    ago = "CURRENT_DATE - INTERVAL '1 day' * ?" if _USE_PG else "date('now', '-' || ? || ' days')"
+    sql = f"""SELECT
                COUNT(*) as total,
                SUM(CASE WHEN resultado='ganada' THEN 1 ELSE 0 END) as ganadas,
                SUM(CASE WHEN resultado='perdida' THEN 1 ELSE 0 END) as perdidas,
@@ -590,7 +618,7 @@ def get_bets_stats(days: int = 30) -> dict:
                COALESCE(SUM(ganancia_neta), 0) as ganancia_neta,
                COALESCE(AVG(edge_pct), 0) as avg_edge,
                COALESCE(AVG(kelly_pct), 0) as avg_kelly
-             FROM bets WHERE date(created_at) >= date('now', '-' || ? || ' days')"""
+             FROM bets WHERE {dc} >= {ago}"""
     with db() as conn:
         r = _fetchone(conn, sql, (days,))
     if not r:
@@ -608,13 +636,15 @@ def get_bets_stats(days: int = 30) -> dict:
 
 def get_bets_by_sport(days: int = 30) -> list[dict]:
     """Apuestas agrupadas por liga/deporte."""
-    sql = """SELECT
+    dc = "created_at::date" if _USE_PG else "date(created_at)"
+    ago = "CURRENT_DATE - INTERVAL '1 day' * ?" if _USE_PG else "date('now', '-' || ? || ' days')"
+    sql = f"""SELECT
                liga,
                COUNT(*) as total,
                SUM(CASE WHEN resultado='ganada' THEN 1 ELSE 0 END) as ganadas,
                SUM(CASE WHEN resultado='perdida' THEN 1 ELSE 0 END) as perdidas,
                COALESCE(SUM(ganancia_neta), 0) as ganancia_neta
-             FROM bets WHERE date(created_at) >= date('now', '-' || ? || ' days')
+             FROM bets WHERE {dc} >= {ago}
              GROUP BY liga ORDER BY ganancia_neta DESC"""
     with db() as conn:
         rows = _fetchall(conn, sql, (days,))
@@ -623,11 +653,13 @@ def get_bets_by_sport(days: int = 30) -> list[dict]:
 
 def get_prediction_stats(days: int = 30) -> dict:
     """Estadísticas de predicciones."""
-    sql = """SELECT
+    dc = "created_at::date" if _USE_PG else "date(created_at)"
+    ago = "CURRENT_DATE - INTERVAL '1 day' * ?" if _USE_PG else "date('now', '-' || ? || ' days')"
+    sql = f"""SELECT
                COUNT(*) as total,
                SUM(CASE WHEN correcto=1 THEN 1 ELSE 0 END) as correctos,
                SUM(CASE WHEN correcto=0 THEN 1 ELSE 0 END) as incorrectos
-             FROM predictions WHERE date(created_at) >= date('now', '-' || ? || ' days')"""
+             FROM predictions WHERE {dc} >= {ago}"""
     with db() as conn:
         r = _fetchone(conn, sql, (days,))
     if not r:
@@ -640,10 +672,12 @@ def get_prediction_stats(days: int = 30) -> dict:
 
 def get_sharpe_ratio(days: int = 30) -> float:
     """Calcula Sharpe ratio de las ganancias diarias."""
-    sql = """SELECT date(created_at) as dia, SUM(ganancia_neta) as ganancia_diaria
-             FROM bets WHERE date(created_at) >= date('now', '-' || ? || ' days')
+    dc = "created_at::date" if _USE_PG else "date(created_at)"
+    ago = "CURRENT_DATE - INTERVAL '1 day' * ?" if _USE_PG else "date('now', '-' || ? || ' days')"
+    sql = f"""SELECT {dc} as dia, SUM(ganancia_neta) as ganancia_diaria
+             FROM bets WHERE {dc} >= {ago}
              AND resultado != 'pendiente'
-             GROUP BY date(created_at) ORDER BY dia"""
+             GROUP BY {dc} ORDER BY dia"""
     with db() as conn:
         rows = _fetchall(conn, sql, (days,))
     returns = [r.get("ganancia_diaria", 0) or 0 for r in (rows or [])]
