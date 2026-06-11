@@ -9,8 +9,9 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 from dashboard import HTML
 from auth import auth_bp, login_required
-from telegram_bot import telegram_bp, register_webhook, alerta_value_bets, alerta_nlp
+from telegram_bot import telegram_bp, register_webhook, alerta_value_bets, alerta_nlp, telegram_send
 from database import init_db
+from services.deportes import get_active_league_keys, get_odds_for_sport
 from routers.bankroll_router import bankroll_bp
 from routers.mercados_router import mercados_bp
 from routers.ml_router import ml_bp, ligas_bp, predicciones_bp
@@ -269,84 +270,111 @@ def _prob_implicita(cuota):
 
 _vb_cache = {}  # {key: (timestamp, response)}
 
+@app.route("/api/odds/sports")
+@login_required
+def odds_sports():
+    """Lista todos los deportes activos disponibles en Odds API."""
+    from services.deportes import get_sports_list
+    sports = get_sports_list()
+    result = []
+    for s in sports:
+        result.append({
+            "key": s.get("key"),
+            "title": s.get("title"),
+            "group": s.get("group"),
+            "description": s.get("description"),
+            "has_outrights": s.get("has_outrights"),
+        })
+    return jsonify({"total": len(result), "sports": result})
+
+
 @app.route("/api/odds/value-bets")
 @login_required
 def value_bets():
     try:
         edge_min = float(request.args.get("edge_minimo", 2))
+        multi    = request.args.get("multi", "0") == "1"
         api_key  = os.getenv("ODDS_API_KEY", "")
         deporte  = request.args.get("deporte", "soccer_mexico_ligamx")
-        cache_key = f"{deporte}|{edge_min}"
 
-        # Cache 60s
         now = time.time()
+
+        if not api_key:
+            return jsonify({
+                "total_encontrados": 0, "value_bets": [],
+                "es_demo": False, "total_partidos_analizados": 0,
+                "aviso": "ODDS_API_KEY no configurada",
+            })
+
+        # ── 1. Obtener datos ──
+        # Usar upcoming (1 call) para multi-scan, o deporte específico
+        partidos = []
+        deportes_escaneados = 0
+        total_escaneados = 0
+
+        if multi:
+            # upcoming cubre todos los deportes en 1 call
+            raw_data = get_odds_upcoming(api_key, regions="us,uk,eu")
+            if raw_data:
+                # Agrupar temporalmente por sport_key para el cache_key
+                active = {}
+                for m in raw_data:
+                    sk = m.get("sport_key", "unknown")
+                    if sk not in active:
+                        active[sk] = True
+                deportes_escaneados = len(active)
+            else:
+                raw_data = []
+            raw_batches = [raw_data]
+        else:
+            deportes_a_escanear = [deporte]
+            deportes_escaneados = 1
+            try:
+                raw_batches = [get_odds_for_sport(deporte, api_key, regions="us,uk,eu")]
+            except Exception:
+                raw_batches = [[]]
+
+        cache_key = f"vb_{'multi' if multi else deporte}|{edge_min}"
         cached = _vb_cache.get(cache_key)
         if cached and now - cached[0] < 60:
             return jsonify(cached[1])
 
-        # ── 1. Intentar datos reales ──
-        data = None
-        error_msg = None
-        if api_key:
-            try:
-                r = httpx.get(
-                    f"https://api.the-odds-api.com/v4/sports/{deporte}/odds",
-                    params={"apiKey": api_key, "regions": "us", "markets": "h2h", "oddsFormat": "decimal"},
-                    timeout=5,
-                )
-                data = r.json()
-                if isinstance(data, dict) and data.get("message"):
-                    error_msg = data["message"]
-                    data = None
-            except Exception as e:
-                error_msg = str(e)[:200]
-                data = None
-        else:
-            error_msg = "ODDS_API_KEY no configurada"
-
-        # ── 2. Sin demo — solo datos reales ──
-        if not data:
-            return jsonify({
-                "total_encontrados": 0, "value_bets": [],
-                "es_demo": False, "total_partidos_analizados": 0,
-                "aviso": error_msg or "ODDS_API_KEY no configurada",
-            })
-
-        partidos = []
-        for m in data if isinstance(data, list) else []:
-            ht = m.get("home_team","") or ""
-            at = m.get("away_team","") or ""
-            if not ht or not at:
+        for raw in raw_batches:
+            if not raw:
                 continue
-            # Colectar odds de todas las casas
-            consensus_sum = {}
-            consensus_count = {}
-            best_per_outcome = {}  # {resultado: {"cuota": X, "casa": "..."}}
-            for book in m.get("bookmakers", []):
-                casa = book.get("title","")
-                for o in book.get("markets", [{}])[0].get("outcomes", []):
-                    name = o.get("name","")
-                    price = o.get("price", 0)
-                    if not name or price <= 1:
-                        continue
-                    consensus_sum[name] = consensus_sum.get(name, 0) + 1.0 / price
-                    consensus_count[name] = consensus_count.get(name, 0) + 1
-                    prev = best_per_outcome.get(name)
-                    if not prev or price > prev["cuota"]:
-                        best_per_outcome[name] = {"cuota": min(price, 50.0), "casa": casa}
-            if consensus_sum and best_per_outcome:
-                # Probabilidad consenso normalizada
-                raw = {}
-                for outcome, inv_sum in consensus_sum.items():
-                    raw[outcome] = inv_sum / consensus_count[outcome]
-                total = sum(raw.values())
-                consensus = {k: (v / total) if total > 0 else 0.01 for k, v in raw.items()}
-                partidos.append({
-                    "home": ht, "away": at,
-                    "best": best_per_outcome,
-                    "consensus": consensus,
-                    "liga": m.get("sport_title", deporte),
-                })
+            for m in raw if isinstance(raw, list) else []:
+                ht = m.get("home_team","") or ""
+                at = m.get("away_team","") or ""
+                if not ht or not at:
+                    continue
+                total_escaneados += 1
+                consensus_sum = {}
+                consensus_count = {}
+                best_per_outcome = {}
+                for book in m.get("bookmakers", []):
+                    casa = book.get("title","")
+                    for o in book.get("markets", [{}])[0].get("outcomes", []):
+                        name = o.get("name","")
+                        price = o.get("price", 0)
+                        if not name or price <= 1:
+                            continue
+                        consensus_sum[name] = consensus_sum.get(name, 0) + 1.0 / price
+                        consensus_count[name] = consensus_count.get(name, 0) + 1
+                        prev = best_per_outcome.get(name)
+                        if not prev or price > prev["cuota"]:
+                            best_per_outcome[name] = {"cuota": min(price, 50.0), "casa": casa}
+                if consensus_sum and best_per_outcome:
+                    raw_probs = {}
+                    for outcome, inv_sum in consensus_sum.items():
+                        raw_probs[outcome] = inv_sum / consensus_count[outcome]
+                    total_prob = sum(raw_probs.values())
+                    consensus = {k: (v / total_prob) if total_prob > 0 else 0.01 for k, v in raw_probs.items()}
+                    partidos.append({
+                        "home": ht, "away": at,
+                        "best": best_per_outcome,
+                        "consensus": consensus,
+                        "liga": m.get("sport_title", skey),
+                    })
 
         # ── 3. Calcular edge: mejor cuota vs consenso ──
         real = []
@@ -384,6 +412,8 @@ def value_bets():
             "value_bets":        filtered[:50],
             "es_demo":           False,
             "total_partidos_analizados": len(partidos),
+            "deportes_escaneados": deportes_escaneados,
+            "multideporte": multi,
             "aviso": None if filtered else f"Sin value bets con edge >= {edge_min}%",
         }
         _vb_cache[cache_key] = (now, response)
@@ -394,6 +424,251 @@ def value_bets():
         logging.exception("value_bets fatal\n%s", tb)
         return jsonify({"total_encontrados": 0, "value_bets": [], "es_demo": False,
                         "error": str(e), "traceback": tb})
+
+# ── ARBITRAJE / SUREBETS ──────────────────────────────────────────────────────
+@app.route("/api/odds/arbitraje")
+@login_required
+def odds_arbitraje():
+    """Escáner de arbitraje/surebets. Detecta cuando sum(1/mejores cuotas) < 1.
+    Sin costo adicional de API — usa los mismos datos que value-bets."""
+    try:
+        min_profit = float(request.args.get("min_profit", 0.5))
+        multi = request.args.get("multi", "1") == "1"
+        api_key = os.getenv("ODDS_API_KEY", "")
+        deporte = request.args.get("deporte", "upcoming")
+
+        if not api_key:
+            return jsonify({"total_encontrados": 0, "arbitrajes": [],
+                            "aviso": "ODDS_API_KEY no configurada"})
+
+        cache_key = f"arb_{deporte}|{min_profit}"
+        now = time.time()
+        cached = _vb_cache.get(cache_key)
+        if cached and now - cached[0] < 60:
+            return jsonify(cached[1])
+
+        # Usar upcoming (1 call) para multi-scan, o deporte específico
+        if multi or deporte == "upcoming":
+            raw = get_odds_upcoming(api_key, regions="us,uk,eu")
+        else:
+            raw = get_odds_for_sport(deporte, api_key, regions="us,uk,eu")
+
+        if not raw:
+            raw = []
+
+        arbitrajes = []
+        for m in raw if isinstance(raw, list) else []:
+            ht = m.get("home_team", "") or ""
+            at = m.get("away_team", "") or ""
+            if not ht or not at:
+                continue
+
+            best_per_outcome = {}
+            bookmaker_count = 0
+            for book in m.get("bookmakers", []):
+                casa = book.get("title", "")
+                for o in book.get("markets", [{}])[0].get("outcomes", []):
+                    name = o.get("name", "")
+                    price = o.get("price", 0)
+                    if not name or price <= 1:
+                        continue
+                    prev = best_per_outcome.get(name)
+                    if not prev or price > prev["cuota"]:
+                        best_per_outcome[name] = {"cuota": min(price, 50.0), "casa": casa}
+                bookmaker_count += 1
+
+            if len(best_per_outcome) < 2:
+                continue
+
+            # Calcular arbitraje: L = sum(1/mejor_cuota)
+            L = sum(1.0 / v["cuota"] for v in best_per_outcome.values())
+            if L >= 1:
+                continue
+
+            profit = round((1.0 / L - 1.0) * 100, 2)
+            if profit < min_profit:
+                continue
+
+            # Distribución de stakes para ganancia garantizada (ejemplo con $100)
+            stake_total = 100.0
+            stakes = {}
+            for outcome, info in best_per_outcome.items():
+                stake = round(stake_total * (1.0 / info["cuota"]) / L, 2)
+                retorno = round(stake * info["cuota"], 2)
+                stakes[outcome] = {
+                    "cuota": info["cuota"],
+                    "casa": info["casa"],
+                    "stake": stake,
+                    "retorno": retorno,
+                    "ganancia_neta": round(retorno - stake, 2),
+                }
+
+            arbitrajes.append({
+                "partido":               f"{ht} vs {at}",
+                "liga":                  m.get("sport_title", deporte),
+                "fecha":                 m.get("commence_time", ""),
+                "profit_pct":            profit,
+                "n_resultados":          len(best_per_outcome),
+                "n_bookmakers":          bookmaker_count,
+                "inversion_ejemplo":     stake_total,
+                "retorno_garantizado":   round(stake_total * (1.0 / L), 2),
+                "ganancia_ejemplo":      round(stake_total * (1.0 / L) - stake_total, 2),
+                "resultados":            {outcome: {"cuota": v["cuota"], "casa": v["casa"]}
+                                          for outcome, v in best_per_outcome.items()},
+                "stakes_ejemplo":        stakes,
+            })
+
+        arbitrajes.sort(key=lambda x: x["profit_pct"], reverse=True)
+
+        # Loggear los mejores
+        for a in arbitrajes[:5]:
+            try:
+                from database import log_arbitrage
+                log_arbitrage(a["partido"], a["liga"], a["profit_pct"],
+                              json.dumps(a["resultados"]), json.dumps(a["stakes_ejemplo"]))
+            except Exception:
+                pass
+
+        response = {
+            "total_encontrados": len(arbitrajes),
+            "arbitrajes":        arbitrajes[:30],
+            "min_profit_pct":    min_profit,
+            "deporte_usado":     "upcoming" if (multi or deporte == "upcoming") else deporte,
+        }
+        _vb_cache[cache_key] = (now, response)
+        return jsonify(response)
+
+    except Exception as e:
+        tb = traceback.format_exc()
+        logging.exception("arbitraje fatal\n%s", tb)
+        return jsonify({"total_encontrados": 0, "arbitrajes": [],
+                        "error": str(e), "traceback": tb})
+
+
+# ── ASIAN HANDICAP ────────────────────────────────────────────────────────────
+@app.route("/api/odds/mercados")
+@login_required
+def odds_mercados():
+    """Obtiene odds con mercados adicionales (h2h, asian_handicap, spreads, totals).
+    Params: deporte, mercados (separados por coma), regions."""
+    try:
+        api_key = os.getenv("ODDS_API_KEY", "")
+        deporte = request.args.get("deporte", "upcoming")
+        mercados = request.args.get("mercados", "h2h,asian_handicap")
+        regions = request.args.get("regions", "us,uk,eu")
+
+        if not api_key:
+            return jsonify({"error": "ODDS_API_KEY no configurada"})
+
+        # Usar upcoming para multi-sport
+        if deporte == "upcoming":
+            raw = get_odds_upcoming(api_key, regions=regions, markets=mercados)
+        else:
+            raw = get_odds_for_sport(deporte, api_key, regions=regions, markets=mercados)
+
+        if not raw:
+            raw = []
+
+        result = []
+        for m in raw if isinstance(raw, list) else []:
+            ht = m.get("home_team", "") or ""
+            at = m.get("away_team", "") or ""
+            if not ht or not at:
+                continue
+
+            mercados_data = {}
+            for book in m.get("bookmakers", []):
+                casa = book.get("title", "")
+                for market in book.get("markets", []):
+                    market_key = market.get("key", "")
+                    if market_key not in mercados_data:
+                        mercados_data[market_key] = {}
+                    for outcome in market.get("outcomes", []):
+                        name = outcome.get("name", "")
+                        price = outcome.get("price", 0)
+                        point = outcome.get("point")
+                        if not name or price <= 1:
+                            continue
+                        key = f"{name}|{point}" if point else name
+                        prev = mercados_data[market_key].get(key, {})
+                        if not prev or price > prev.get("cuota", 0):
+                            mercados_data[market_key][key] = {
+                                "cuota": min(price, 50.0),
+                                "casa": casa,
+                                "name": name,
+                                "point": point,
+                            }
+
+            if mercados_data:
+                result.append({
+                    "partido": f"{ht} vs {at}",
+                    "liga": m.get("sport_title", deporte),
+                    "fecha": m.get("commence_time", ""),
+                    "mercados": {
+                        mk: list(outcomes.values())
+                        for mk, outcomes in mercados_data.items()
+                    },
+                    "n_bookmakers": len(m.get("bookmakers", [])),
+                })
+
+        return jsonify({
+            "deporte": deporte,
+            "mercados_solicitados": mercados,
+            "total_partidos": len(result),
+            "partidos": result[:20],
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)[:300]})
+
+
+# ── EVENTOS EN VIVO ───────────────────────────────────────────────────────────
+@app.route("/api/odds/live")
+@login_required
+def odds_live():
+    """Lista partidos que están en vivo (commence_time < now)."""
+    try:
+        api_key = os.getenv("ODDS_API_KEY", "")
+        if not api_key:
+            return jsonify({"error": "ODDS_API_KEY no configurada"})
+
+        raw = get_odds_upcoming(api_key, regions="us,uk,eu")
+        if not raw:
+            raw = []
+
+        now_dt = datetime.utcnow()
+        live = []
+        for m in raw if isinstance(raw, list) else []:
+            ct = m.get("commence_time", "")
+            if not ct:
+                continue
+            try:
+                ct_dt = datetime.fromisoformat(ct.replace("Z", "+00:00"))
+            except Exception:
+                continue
+            is_live = ct_dt <= now_dt
+            diff_min = round((now_dt - ct_dt).total_seconds() / 60) if is_live else 0
+            live.append({
+                "partido": f"{m.get('home_team','')} vs {m.get('away_team','')}",
+                "liga": m.get("sport_title", ""),
+                "commence_time": ct,
+                "en_vivo": is_live,
+                "minutos_desde_inicio": diff_min if is_live else 0,
+                "n_bookmakers": len(m.get("bookmakers", [])),
+            })
+
+        en_vivo = [e for e in live if e["en_vivo"]]
+        proximos = [e for e in live if not e["en_vivo"]][:20]
+
+        return jsonify({
+            "total": len(live),
+            "en_vivo": en_vivo,
+            "proximos": proximos,
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)[:300]})
+
 
 @app.route("/api/odds/bookmakers")
 @login_required
@@ -802,6 +1077,58 @@ def value_clv():
     return jsonify(clv(apostada, cierre))
 
 
+# ── DASHBOARD RENDIMIENTO ─────────────────────────────────────────────────────
+@app.route("/api/dashboard/rendimiento")
+@login_required
+def dashboard_rendimiento():
+    """Datos completos de rendimiento para la sección de performance."""
+    from database import (
+        get_bankroll_actual, get_bankroll_history,
+        get_bets_stats, get_bets_by_sport,
+        get_prediction_stats, get_sharpe_ratio,
+        count_bets_today, count_predictions_today, count_value_bets_today,
+    )
+    days = int(request.args.get("days", 30))
+    br = get_bankroll_actual()
+    history = get_bankroll_history(days)
+    bets = get_bets_stats(days)
+    by_sport = get_bets_by_sport(days)
+    preds = get_prediction_stats(days)
+    sharpe = get_sharpe_ratio(days)
+    today_bets = count_bets_today()
+    today_preds = count_predictions_today()
+    today_vb = count_value_bets_today()
+
+    win_rate = (bets["ganadas"] / bets["total"] * 100) if bets["total"] > 0 else 0
+    net = bets["ganancia_neta"]
+    roi = round((net / max(br, 1)) * 100, 2) if br > 0 else 0
+
+    return jsonify({
+        "bankroll": {
+            "actual": round(br, 2),
+            "history": history,
+        },
+        "general": {
+            "total_apuestas": bets["total"],
+            "ganadas": bets["ganadas"],
+            "perdidas": bets["perdidas"],
+            "pendientes": bets["pendientes"],
+            "win_rate": round(win_rate, 1),
+            "ganancia_neta": round(net, 2),
+            "roi_pct": roi,
+            "avg_edge_pct": round(bets.get("avg_edge", 0), 2),
+            "sharpe_ratio": sharpe,
+        },
+        "hoy": {
+            "apuestas": today_bets,
+            "predicciones": today_preds,
+            "value_bets": today_vb,
+        },
+        "predicciones": preds,
+        "por_deporte": by_sport,
+    })
+
+
 # ── SCHEDULER ──────────────────────────────────────────────────────────────────
 def _alerta_vb_con_broadcast():
     alerta_value_bets()
@@ -818,17 +1145,126 @@ def _verificacion_auto():
         r=verificar_automatico(api_key)
         logging.info("Verificación auto: %s",r)
 
+def _heartbeat():
+    """Heartbeat del scheduler — corre cada 6h y reporta salud de todos los jobs."""
+    jobs_info = []
+    for job in scheduler.get_jobs():
+        next_run = str(job.next_run_time) if job.next_run_time else "N/A"
+        jobs_info.append(f"  [{job.id}] next: {next_run}")
+    msg = "Scheduler heartbeat OK\n" + "\n".join(jobs_info)
+    logging.info("Heartbeat:\n%s", msg)
+    _broadcast({"tipo":"heartbeat","ts":time.time(),"jobs":[j.id for j in scheduler.get_jobs()]})
+
+def _alerta_sharp_auto():
+    """Escanea todos los deportes activos y envía alerta Telegram si detecta sharp money fuerte."""
+    api_key = os.getenv("ODDS_API_KEY", "")
+    if not api_key:
+        return
+    from services.sharp_money import analizar_partido_sharp, score_sharp_total
+    deportes = get_active_league_keys(api_key)
+    alertas = []
+    for skey in deportes[:6]:  # max 6 deportes para no exceder API calls
+        matches = get_odds_for_sport(skey, api_key, regions="us,uk,eu")
+        if not matches:
+            continue
+        for m in matches[:8]:  # max 8 partidos por deporte
+            ht = m.get("home_team","") or ""
+            at = m.get("away_team","") or ""
+            if not ht or not at:
+                continue
+            try:
+                lineas_por_casa = {}
+                for book in m.get("bookmakers", []):
+                    casa = book.get("title","")
+                    for o in book.get("markets", [{}])[0].get("outcomes", []):
+                        if o.get("name","").lower() == ht.lower():
+                            lineas_por_casa[casa] = o["price"]
+                            break
+                if len(lineas_por_casa) < 2:
+                    continue
+                cuotas = list(lineas_por_casa.values())
+                linea_actual = sum(cuotas) / len(cuotas)
+                linea_apert = max(cuotas)  # simulación de apertura
+                # Score simple sin datos de público (usamos split 50/50 por defecto)
+                res = analizar_partido_sharp(
+                    f"{ht} vs {at}",
+                    linea_apert, linea_actual,
+                    50, 50,
+                    lineas_por_casa=lineas_por_casa,
+                    dias_antes=2,
+                )
+                score = res.get("score_sharp", {}).get("score", 0)
+                if score >= 70:
+                    clasif = res.get("score_sharp", {}).get("clasificacion", "")
+                    alertas.append(
+                        f"⚡ {ht} vs {at} ({m.get('sport_title', skey)})\n"
+                        f"   Score: {score}/100 — {clasif}\n"
+                        f"   Señales: {res.get('score_sharp', {}).get('n_señales_detectadas', 0)}/{res.get('score_sharp', {}).get('n_señales_totales', 0)}"
+                    )
+            except Exception:
+                continue
+    if alertas:
+        msg = "<b>🔍 ALERTA SHARP MONEY — DETECCIÓN AUTOMÁTICA</b>\n\n" + "\n\n".join(alertas[:5])
+        telegram_send(msg)
+        logging.info("Alerta sharp automática enviada — %d detecciones", len(alertas))
+    _broadcast({"tipo":"sharp_auto","n_alertas":len(alertas),"ts":time.time()})
+
 def _resumen_diario():
-    """Resumen diario opcional — puede enviar email o telegram."""
-    from database import get_bankroll_actual
+    """Resumen diario real con datos de DB + envío por Telegram."""
+    from database import (
+        get_bankroll_actual,
+        count_bets_today,
+        count_predictions_today,
+        count_value_bets_today,
+        count_alerts_today,
+    )
+    from telegram_bot import telegram_send
+
     br = get_bankroll_actual()
-    logging.info("Resumen diario — Bankroll: $%.2f", br)
+    bets = count_bets_today()
+    preds = count_predictions_today()
+    vbs = count_value_bets_today()
+    alerts = count_alerts_today()
+
+    lines = ["<b>📊 ApuestasPro — Resumen Diario</b>", ""]
+    lines.append(f"<b>💰 Bankroll:</b> ${br:,.2f}")
+    lines.append("")
+    lines.append("<b>📝 Apuestas Hoy:</b>")
+    lines.append(f"  • Totales: {bets['total']}")
+    lines.append(f"  • Ganadas: {bets['ganadas']}")
+    lines.append(f"  • Perdidas: {bets['perdidas']}")
+    lines.append(f"  • Pendientes: {bets['pendientes']}")
+    gn = bets['ganancia_neta']
+    sign = "+" if gn >= 0 else ""
+    lines.append(f"  • Ganancia neta: {sign}${gn:,.2f}")
+    lines.append("")
+    lines.append("<b>🔮 Pronósticos Hoy:</b>")
+    lines.append(f"  • Totales: {preds['total']}")
+    lines.append(f"  • Correctos: {preds['correctos']}")
+    lines.append(f"  • Incorrectos: {preds['incorrectos']}")
+    lines.append(f"  • Pendientes: {preds['pendientes']}")
+    pct = (preds['correctos'] / preds['total'] * 100) if preds['total'] > 0 else 0
+    lines.append(f"  • Acierto: {pct:.1f}%")
+    lines.append("")
+    lines.append("<b>⚡ Value Bets Detectados:</b>")
+    lines.append(f"  • Total: {vbs['total']}")
+    lines.append(f"  • Edge promedio: +{vbs['avg_edge']:.1f}%")
+    lines.append("")
+    lines.append("<b>🚨 Alertas:</b>")
+    lines.append(f"  • Altas: {alerts['altas']}")
+    lines.append(f"  • Medias: {alerts['medias']}")
+    lines.append(f"  • Bajas: {alerts['bajas']}")
+
+    telegram_send("\n".join(lines))
+    logging.info("Resumen diario enviado por Telegram — Bankroll: $%.2f", br)
 
 scheduler=BackgroundScheduler()
 scheduler.add_job(_alerta_vb_con_broadcast,   "interval", hours=3,  id="vb_alert")
 scheduler.add_job(_alerta_nlp_con_broadcast,  "interval", hours=4,  id="nlp_alert")
 scheduler.add_job(_verificacion_auto,         "interval", hours=6,  id="verify_preds")
-scheduler.add_job(_resumen_diario,            "cron",     hour=8,   id="daily_email")
+scheduler.add_job(_alerta_sharp_auto,         "interval", hours=2,  id="sharp_auto")
+scheduler.add_job(_heartbeat,                 "interval", hours=6,  id="heartbeat")
+scheduler.add_job(_resumen_diario,            "cron",     hour=8,   id="daily_summary")
 scheduler.start()
 
 register_webhook(os.getenv("RENDER_EXTERNAL_URL",""))
