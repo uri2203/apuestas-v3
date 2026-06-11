@@ -2,12 +2,14 @@
 Router para Criterio de Kelly y gestión de bankroll.
 """
 from flask import Blueprint, jsonify, request
+from auth import login_required
 from services.estadisticas import criterio_kelly
 
 router = Blueprint("kelly", __name__)
 
 
 @router.route("/calcular", methods=["POST"])
+@login_required
 def calcular_kelly():
     """
     Calcula el tamaño óptimo de apuesta con el Criterio de Kelly.
@@ -23,6 +25,7 @@ def calcular_kelly():
 
 
 @router.route("/analizar-historial", methods=["POST"])
+@login_required
 def analizar_historial():
     """
     Analiza el historial de apuestas y calcula métricas de rendimiento.
@@ -77,6 +80,7 @@ def analizar_historial():
 
 
 @router.route("/guia-bankroll", methods=["GET"])
+@login_required
 def guia_bankroll():
     """Guía de gestión de bankroll y juego responsable."""
     return jsonify({

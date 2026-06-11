@@ -231,8 +231,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
   <div class="nav-label">General</div>
   <button class="nav-btn on" onclick="go(this,'dashboard')"><span class="nav-icon">◈</span>Dashboard</button>
 
-  <div class="nav-label">Loterías</div>
-
   <div class="nav-label">Fútbol</div>
   <button class="nav-btn" onclick="go(this,'progol')"><span class="nav-icon">⚽</span>Progol <span class="nb nb-green">DC+ELO</span></button>
   <button class="nav-btn" onclick="go(this,'partido')"><span class="nav-icon">🔬</span>Partido Completo</button>

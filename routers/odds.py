@@ -3,6 +3,7 @@ Router para apuestas deportivas.
 Endpoints: odds, value bets, comparador, arbitrajes.
 """
 from flask import Blueprint, jsonify, request
+from auth import login_required
 from services.scraper import obtener_odds_deportivos
 from services.estadisticas import detectar_value_bet, comparar_odds_casas
 import os
@@ -11,6 +12,7 @@ router = Blueprint("odds", __name__)
 
 
 @router.route("/odds/<deporte>", methods=["GET"])
+@login_required
 def obtener_odds(deporte="soccer_mexico_ligamx"):
     """
     Odds actuales de múltiples casas de apuestas.
@@ -23,6 +25,7 @@ def obtener_odds(deporte="soccer_mexico_ligamx"):
 
 
 @router.route("/value-bets", methods=["GET"])
+@login_required
 def value_bets():
     """
     Detecta automáticamente value bets con edge positivo.
@@ -68,6 +71,7 @@ def value_bets():
 
 
 @router.route("/comparar/<partido_id>", methods=["GET"])
+@login_required
 def comparar_partido(partido_id, deporte="soccer_mexico_ligamx"):
     """
     Compara odds de un partido específico entre todas las casas disponibles.
@@ -88,6 +92,7 @@ def comparar_partido(partido_id, deporte="soccer_mexico_ligamx"):
 
 
 @router.route("/calcular-valor", methods=["POST"])
+@login_required
 def calcular_valor():
     """
     Calcula el valor esperado de una apuesta específica.

@@ -199,7 +199,11 @@ def health():
 @app.route("/api/version")
 def version():
     """Endpoint público para verificar qué commit está desplegado."""
-    return jsonify({"version": "4.3.4", "commit": "b343491", "mensaje": "Solo datos reales + boton Kelly sin emojis"})
+    try:
+        commit = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], stderr=subprocess.DEVNULL, timeout=5).decode().strip()
+    except Exception:
+        commit = "unknown"
+    return jsonify({"version": "4.3.4", "commit": commit, "mensaje": "Solo datos reales + boton Kelly sin emojis"})
 
 # ── PROGOL ─────────────────────────────────────────────────────────────────────
 @app.route("/api/progol/jornada")
@@ -248,19 +252,6 @@ def get_bankroll_seguro():
         return get_bankroll_actual()
     except Exception:
         return 0
-
-DEMO_MATCHES = [
-    {"home":"México","away":"Argentina","odds":{"1":3.10,"X":3.30,"2":2.30},"probs":{"1":0.38,"X":0.28,"2":0.34},"liga":"Copa Mundial FIFA 2026"},
-    {"home":"Brasil","away":"Alemania","odds":{"1":2.05,"X":3.50,"2":3.60},"probs":{"1":0.48,"X":0.27,"2":0.25},"liga":"Copa Mundial FIFA 2026"},
-    {"home":"España","away":"Inglaterra","odds":{"1":2.60,"X":3.20,"2":2.90},"probs":{"1":0.42,"X":0.28,"2":0.30},"liga":"Copa Mundial FIFA 2026"},
-    {"home":"Club América","away":"Chivas","odds":{"1":2.10,"X":3.40,"2":3.80},"probs":{"1":0.52,"X":0.26,"2":0.22},"liga":"Liga MX"},
-    {"home":"Cruz Azul","away":"Pumas","odds":{"1":1.95,"X":3.50,"2":4.20},"probs":{"1":0.44,"X":0.28,"2":0.28},"liga":"Liga MX"},
-    {"home":"Tigres","away":"Monterrey","odds":{"1":2.30,"X":3.30,"2":3.10},"probs":{"1":0.38,"X":0.28,"2":0.34},"liga":"Liga MX"},
-    {"home":"Toluca","away":"Santos","odds":{"1":1.80,"X":3.60,"2":4.80},"probs":{"1":0.50,"X":0.28,"2":0.22},"liga":"Liga MX"},
-    {"home":"León","away":"Atlas","odds":{"1":2.20,"X":3.35,"2":3.45},"probs":{"1":0.48,"X":0.25,"2":0.27},"liga":"Liga MX"},
-    {"home":"Pachuca","away":"Necaxa","odds":{"1":1.75,"X":3.70,"2":5.00},"probs":{"1":0.55,"X":0.25,"2":0.20},"liga":"Liga MX"},
-    {"home":"Argentina","away":"Francia","odds":{"1":2.30,"X":3.30,"2":3.20},"probs":{"1":0.45,"X":0.27,"2":0.28},"liga":"Copa Mundial FIFA 2026"},
-]
 
 def _edge_simple(prob_real, cuota):
     """Edge = (cuota * prob - 1) * 100."""
@@ -828,14 +819,16 @@ def _verificacion_auto():
         logging.info("Verificación auto: %s",r)
 
 def _resumen_diario():
-    logging.info("Resumen diario: no implementado (pendiente)")
+    """Resumen diario opcional — puede enviar email o telegram."""
+    from database import get_bankroll_actual
+    br = get_bankroll_actual()
+    logging.info("Resumen diario — Bankroll: $%.2f", br)
 
 scheduler=BackgroundScheduler()
 scheduler.add_job(_alerta_vb_con_broadcast,   "interval", hours=3,  id="vb_alert")
 scheduler.add_job(_alerta_nlp_con_broadcast,  "interval", hours=4,  id="nlp_alert")
 scheduler.add_job(_verificacion_auto,         "interval", hours=6,  id="verify_preds")
 scheduler.add_job(_resumen_diario,            "cron",     hour=8,   id="daily_email")
-scheduler.add_job(lambda: logging.info("ApuestasPro v4.3 tick"), "interval", hours=1, id="tick")
 scheduler.start()
 
 register_webhook(os.getenv("RENDER_EXTERNAL_URL",""))
