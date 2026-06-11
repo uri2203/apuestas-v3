@@ -2660,7 +2660,6 @@ renderCLVT()
 calcKelly()
 calcEV()
 loadAlertas()
-}
 
 // Pre-llenar calculadora Kelly con cuota del value bet
 function useKelly(cuota) {
