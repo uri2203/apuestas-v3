@@ -1,4 +1,4 @@
-﻿"""
+"""
 ApuestasPro v4.3 — Servidor principal.
 """
 
@@ -403,6 +403,58 @@ def value_bets():
         logging.exception("value_bets fatal\n%s", tb)
         return jsonify({"total_encontrados": 0, "value_bets": [], "es_demo": False,
                         "error": str(e), "traceback": tb})
+
+@app.route("/api/odds/bookmakers")
+@login_required
+def odds_bookmakers():
+    """Devuelve cuotas de todas las casas para la línea del equipo LOCAL."""
+    try:
+        api_key = os.getenv("ODDS_API_KEY", "")
+        deporte = request.args.get("deporte", "soccer_mexico_ligamx")
+        home    = request.args.get("home", "").strip()
+        away    = request.args.get("away", "").strip()
+        if not api_key:
+            return jsonify({"error": "ODDS_API_KEY no configurada"})
+        if not home or not away:
+            return jsonify({"error": "Faltan home/away"})
+
+        r = httpx.get(f"https://api.the-odds-api.com/v4/sports/{deporte}/odds",
+                      params={"apiKey": api_key, "regions": "us", "markets": "h2h", "oddsFormat": "decimal"},
+                      timeout=5)
+        data = r.json()
+        if isinstance(data, dict) and data.get("message"):
+            return jsonify({"error": data["message"]})
+        if not isinstance(data, list):
+            return jsonify({"error": "Formato inesperado"})
+
+        match = None
+        for m in data:
+            ht = (m.get("home_team","") or "").strip().lower()
+            at = (m.get("away_team","") or "").strip().lower()
+            if ht == home.lower() and at == away.lower():
+                match = m
+                break
+
+        if not match:
+            return jsonify({"error": f"No se encontro {home} vs {away} en {deporte}"})
+
+        # Extraer cuota del LOCAL (home_team) de cada casa
+        bookmakers = {}
+        for book in match.get("bookmakers", []):
+            casa = book.get("title", "")
+            for o in book.get("markets", [{}])[0].get("outcomes", []):
+                if o.get("name","").lower() == match["home_team"].lower():
+                    bookmakers[casa] = o["price"]
+                    break
+
+        return jsonify({
+            "partido": f"{match['home_team']} vs {match['away_team']}",
+            "liga": match.get("sport_title", deporte),
+            "bookmakers": bookmakers,
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)[:200]})
 # ── KELLY ──────────────────────────────────────────────────────────────────────
 @app.route("/api/kelly/calcular",methods=["POST"])
 @login_required
