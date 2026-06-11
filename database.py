@@ -208,6 +208,76 @@ def _init_pg() -> None:
             velocidad_ajuste INTEGER DEFAULT 0,
             fecha_rating    TEXT
         )""",
+        """CREATE TABLE IF NOT EXISTS accounting_transactions (
+            id          SERIAL PRIMARY KEY,
+            created_at  TIMESTAMP DEFAULT NOW(),
+            tipo        TEXT NOT NULL,
+            monto       REAL NOT NULL,
+            saldo_resultante REAL DEFAULT 0,
+            categoria   TEXT,
+            estrategia  TEXT,
+            descripcion TEXT,
+            partido     TEXT,
+            ref_id      INTEGER
+        )""",
+        """CREATE TABLE IF NOT EXISTS trading_journal (
+            id          SERIAL PRIMARY KEY,
+            created_at  TIMESTAMP DEFAULT NOW(),
+            tipo_accion TEXT NOT NULL,
+            partido     TEXT,
+            liga        TEXT,
+            mercado     TEXT,
+            seleccion   TEXT,
+            cuota       REAL,
+            monto       REAL,
+            edge_pct    REAL,
+            score_sharp INTEGER DEFAULT 0,
+            overround   REAL DEFAULT 0,
+            casa        TEXT,
+            estrategia  TEXT,
+            resultado   TEXT,
+            pnl         REAL DEFAULT 0,
+            snapshot    TEXT
+        )""",
+        """CREATE TABLE IF NOT EXISTS model_performance (
+            id              SERIAL PRIMARY KEY,
+            created_at      TIMESTAMP DEFAULT NOW(),
+            liga            TEXT,
+            modelo          TEXT,
+            accuracy        REAL,
+            log_loss        REAL,
+            n_muestras      INTEGER,
+            n_features      INTEGER,
+            pesos           TEXT
+        )""",
+        """CREATE TABLE IF NOT EXISTS feature_importance (
+            id              SERIAL PRIMARY KEY,
+            liga            TEXT,
+            feature_name    TEXT,
+            importance      REAL,
+            updated_at      TIMESTAMP DEFAULT NOW(),
+            UNIQUE(liga, feature_name)
+        )""",
+        """CREATE TABLE IF NOT EXISTS ml_predictions_v2 (
+            id              SERIAL PRIMARY KEY,
+            created_at      TIMESTAMP DEFAULT NOW(),
+            liga            TEXT,
+            home            TEXT,
+            away            TEXT,
+            pronostico      TEXT,
+            confianza_pct   REAL,
+            prob_local      REAL,
+            prob_empate     REAL,
+            prob_visitante  REAL,
+            cuota_justa_local   REAL,
+            cuota_justa_empate  REAL,
+            cuota_justa_visitante REAL,
+            modelo          TEXT DEFAULT 'advanced_ensemble',
+            fecha_partido   TEXT,
+            resultado_real  TEXT,
+            correcto        INTEGER,
+            verificado_at   TEXT
+        )""",
         "CREATE INDEX IF NOT EXISTS idx_bets_resultado ON bets(resultado)",
         "CREATE INDEX IF NOT EXISTS idx_pred_correcto  ON predictions(correcto)",
     ]
@@ -291,6 +361,51 @@ def _init_sqlite() -> None:
         avg_clv REAL DEFAULT 0,
         velocidad_ajuste INTEGER DEFAULT 0,
         fecha_rating TEXT
+    );
+    CREATE TABLE IF NOT EXISTS accounting_transactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created_at TEXT DEFAULT (datetime('now')),
+        tipo TEXT NOT NULL, monto REAL NOT NULL,
+        saldo_resultante REAL DEFAULT 0,
+        categoria TEXT, estrategia TEXT,
+        descripcion TEXT, partido TEXT, ref_id INTEGER
+    );
+    CREATE TABLE IF NOT EXISTS trading_journal (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created_at TEXT DEFAULT (datetime('now')),
+        tipo_accion TEXT NOT NULL, partido TEXT,
+        liga TEXT, mercado TEXT, seleccion TEXT,
+        cuota REAL, monto REAL, edge_pct REAL,
+        score_sharp INTEGER DEFAULT 0,
+        overround REAL DEFAULT 0, casa TEXT,
+        estrategia TEXT, resultado TEXT,
+        pnl REAL DEFAULT 0, snapshot TEXT
+    );
+    CREATE TABLE IF NOT EXISTS model_performance (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created_at TEXT DEFAULT (datetime('now')),
+        liga TEXT, modelo TEXT,
+        accuracy REAL, log_loss REAL,
+        n_muestras INTEGER, n_features INTEGER,
+        pesos TEXT
+    );
+    CREATE TABLE IF NOT EXISTS feature_importance (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        liga TEXT, feature_name TEXT,
+        importance REAL,
+        updated_at TEXT DEFAULT (datetime('now')),
+        UNIQUE(liga, feature_name)
+    );
+    CREATE TABLE IF NOT EXISTS ml_predictions_v2 (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created_at TEXT DEFAULT (datetime('now')),
+        liga TEXT, home TEXT, away TEXT,
+        pronostico TEXT, confianza_pct REAL,
+        prob_local REAL, prob_empate REAL, prob_visitante REAL,
+        cuota_justa_local REAL, cuota_justa_empate REAL, cuota_justa_visitante REAL,
+        modelo TEXT DEFAULT 'advanced_ensemble',
+        fecha_partido TEXT, resultado_real TEXT,
+        correcto INTEGER, verificado_at TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_bets_resultado ON bets(resultado);
     CREATE INDEX IF NOT EXISTS idx_pred_correcto  ON predictions(correcto);

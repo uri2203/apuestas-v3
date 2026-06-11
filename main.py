@@ -1154,6 +1154,66 @@ def ml_verify():
     return jsonify(verificar_resultados())
 
 
+# ── ML AVANZADO (Tier 6) ──────────────────────────────────────────────────────
+@app.route("/api/ml/v2/train")
+@login_required
+def ml_v2_train():
+    """Entrena modelos avanzados (MLP + GBM + AdvancedEnsemble) para todas las ligas."""
+    from services.ml_avanzado import auto_train_all_avanzado
+    return jsonify(auto_train_all_avanzado())
+
+
+@app.route("/api/ml/v2/train/<liga>")
+@login_required
+def ml_v2_train_liga(liga):
+    """Entrena para una liga específica."""
+    from services.ml_avanzado import AdvancedEnsemble
+    ae = AdvancedEnsemble()
+    return jsonify(ae.train(liga))
+
+
+@app.route("/api/ml/v2/predict")
+@login_required
+def ml_v2_predict():
+    """Predice un partido con el modelo avanzado."""
+    from services.ml_avanzado import predict_single_avanzado
+    home = request.args.get("home", "")
+    away = request.args.get("away", "")
+    liga = request.args.get("liga", "liga_mx")
+    if not home or not away:
+        return jsonify({"error": "home y away requeridos"}), 400
+    return jsonify(predict_single_avanzado(home, away, liga))
+
+
+@app.route("/api/ml/v2/predict-proximos")
+@login_required
+def ml_v2_proximos():
+    """Predice próximos partidos de una liga."""
+    from services.ml_avanzado import AdvancedEnsemble
+    liga = request.args.get("liga", "liga_mx")
+    dias = int(request.args.get("dias", 7))
+    ae = AdvancedEnsemble()
+    return jsonify(ae.predict_proximos(liga, dias))
+
+
+@app.route("/api/ml/v2/features")
+@login_required
+def ml_v2_features():
+    """Importancia de features para una liga."""
+    from services.ml_avanzado import get_feature_importance
+    liga = request.args.get("liga", "liga_mx")
+    return jsonify({"features": get_feature_importance(liga)})
+
+
+@app.route("/api/ml/v2/performance")
+@login_required
+def ml_v2_performance():
+    """Rendimiento histórico de modelos."""
+    from services.ml_avanzado import get_model_performance
+    liga = request.args.get("liga", "liga_mx")
+    return jsonify(get_model_performance(liga))
+
+
 # ── PORTFOLIO ─────────────────────────────────────────────────────────────────
 @app.route("/api/portfolio/status")
 @login_required
@@ -1302,6 +1362,110 @@ def odds_cross_market():
     from services.cross_market import get_opportunities
     min_diff = float(request.args.get("min_diferencia", 4.0))
     return jsonify(get_opportunities(None, min_diff))
+
+
+# ── CONTABILIDAD ──────────────────────────────────────────────────────────────
+@app.route("/api/contabilidad/transaccion", methods=["POST"])
+@login_required
+def contabilidad_transaccion():
+    """Registra una transacción manual (depósito/retiro/ajuste)."""
+    from services.contabilidad import registrar_transaccion
+    data = request.get_json(force=True, silent=True) or {}
+    r = registrar_transaccion(
+        tipo=data.get("tipo", "ajuste"),
+        monto=float(data.get("monto", 0)),
+        categoria=data.get("categoria", "general"),
+        estrategia=data.get("estrategia", ""),
+        descripcion=data.get("descripcion", ""),
+        partido=data.get("partido", ""),
+    )
+    return jsonify(r)
+
+
+@app.route("/api/contabilidad/resumen-mensual")
+@login_required
+def contabilidad_resumen():
+    from services.contabilidad import resumen_mensual
+    mes = request.args.get("mes")
+    año = request.args.get("año")
+    return jsonify(resumen_mensual(
+        int(mes) if mes else None,
+        int(año) if año else None,
+    ))
+
+
+@app.route("/api/contabilidad/pnl-estrategia")
+@login_required
+def contabilidad_pnl():
+    from services.contabilidad import pnl_por_estrategia
+    dias = int(request.args.get("dias", 30))
+    return jsonify(pnl_por_estrategia(dias))
+
+
+@app.route("/api/contabilidad/sync")
+@login_required
+def contabilidad_sync():
+    """Sincroniza apuestas reales de tabla bets → contabilidad."""
+    from services.contabilidad import sync_bets_to_accounting
+    return jsonify(sync_bets_to_accounting())
+
+
+# ── TRADING JOURNAL ──────────────────────────────────────────────────────────
+@app.route("/api/journal/log", methods=["POST"])
+@login_required
+def journal_log():
+    from services.trading_journal import log_entry
+    data = request.get_json(force=True, silent=True) or {}
+    r = log_entry(
+        tipo_accion=data.get("tipo_accion", "manual"),
+        partido=data.get("partido", ""),
+        liga=data.get("liga", ""),
+        mercado=data.get("mercado", ""),
+        seleccion=data.get("seleccion", ""),
+        cuota=float(data.get("cuota", 0)),
+        monto=float(data.get("monto", 0)),
+        edge_pct=float(data.get("edge_pct", 0)),
+        score_sharp=int(data.get("score_sharp", 0)),
+        overround=float(data.get("overround", 0)),
+        casa=data.get("casa", ""),
+        estrategia=data.get("estrategia", ""),
+        resultado=data.get("resultado", ""),
+        pnl=float(data.get("pnl", 0)),
+    )
+    return jsonify({"ok": True})
+
+
+@app.route("/api/journal/auto-log")
+@login_required
+def journal_auto():
+    from services.trading_journal import auto_log_from_recent
+    return jsonify(auto_log_from_recent())
+
+
+@app.route("/api/journal/resumen")
+@login_required
+def journal_resumen():
+    from services.trading_journal import resumen_journal
+    dias = int(request.args.get("dias", 7))
+    return jsonify(resumen_journal(dias))
+
+
+@app.route("/api/journal/export-csv")
+@login_required
+def journal_csv():
+    from services.trading_journal import export_csv
+    dias = int(request.args.get("dias", 7))
+    csv_data = export_csv(dias)
+    return Response(csv_data, mimetype="text/csv",
+                    headers={"Content-Disposition": "attachment; filename=journal.csv"})
+
+
+# ── DASHBOARD V2 ──────────────────────────────────────────────────────────────
+@app.route("/v2")
+@login_required
+def dashboard_v2():
+    from dashboard_v2 import HTML as V2_HTML
+    return V2_HTML, 200, {"Content-Type": "text/html; charset=utf-8"}
 
 
 # ── SCHEDULER ──────────────────────────────────────────────────────────────────
@@ -1456,6 +1620,20 @@ def _ml_auto_verify():
         logging.error("ML auto-verify error: %s", e)
 
 
+def _ml_avanzado_auto_train():
+    """Auto-entrena modelos ML avanzados (Tier 6)."""
+    try:
+        from services.ml_avanzado import auto_train_all_avanzado
+        res = auto_train_all_avanzado()
+        n = res.get("ligas_entrenadas", 0)
+        if n > 0:
+            logging.info("ML Avanzado auto-train: %d ligas, %d features",
+                         n, res.get("feature_count", 23))
+            _broadcast({"tipo":"ml_v2_train","ts":time.time(),**res})
+    except Exception as e:
+        logging.error("ML Avanzado auto-train error: %s", e)
+
+
 def _bookmaker_auto_scan():
     """Actualiza ratings de bookmakers automáticamente."""
     try:
@@ -1494,6 +1672,29 @@ def _simulacion_auto_log():
         logging.error("Simulación auto error: %s", e)
 
 
+def _accounting_sync():
+    """Sincroniza apuestas → contabilidad cada 6h."""
+    try:
+        from services.contabilidad import sync_bets_to_accounting
+        r = sync_bets_to_accounting()
+        if r.get("sincronizados", 0) > 0:
+            logging.info("Accounting sync: %d bets sincronizados", r["sincronizados"])
+            _broadcast({"tipo":"contabilidad_sync","ts":time.time(),**r})
+    except Exception as e:
+        logging.error("Accounting sync error: %s", e)
+
+
+def _journal_auto_log():
+    """Auto-registra acciones recientes en el journal cada 4h."""
+    try:
+        from services.trading_journal import auto_log_from_recent
+        r = auto_log_from_recent()
+        if r.get("registrados", 0) > 0:
+            logging.info("Journal auto: %d entries registradas", r["registrados"])
+    except Exception as e:
+        logging.error("Journal auto error: %s", e)
+
+
 scheduler=BackgroundScheduler()
 scheduler.add_job(_alerta_vb_con_broadcast,   "interval", hours=3,  id="vb_alert")
 scheduler.add_job(_alerta_nlp_con_broadcast,  "interval", hours=4,  id="nlp_alert")
@@ -1502,9 +1703,12 @@ scheduler.add_job(_alerta_sharp_auto,         "interval", hours=2,  id="sharp_au
 scheduler.add_job(_heartbeat,                 "interval", hours=6,  id="heartbeat")
 scheduler.add_job(_resumen_diario,            "cron",     hour=8,   id="daily_summary")
 scheduler.add_job(_ml_auto_train,             "interval", hours=12, id="ml_train")
+scheduler.add_job(_ml_avanzado_auto_train,    "interval", hours=24, id="ml_v2_train")
 scheduler.add_job(_ml_auto_verify,            "interval", hours=6,  id="ml_verify")
 scheduler.add_job(_bookmaker_auto_scan,       "interval", hours=6,  id="bookmaker_scan")
 scheduler.add_job(_simulacion_auto_log,       "interval", hours=3,  id="simulacion_log")
+scheduler.add_job(_accounting_sync,           "interval", hours=6,  id="accounting_sync")
+scheduler.add_job(_journal_auto_log,          "interval", hours=4,  id="journal_auto")
 scheduler.start()
 
 register_webhook(os.getenv("RENDER_EXTERNAL_URL",""))
