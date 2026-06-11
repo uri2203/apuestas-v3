@@ -163,6 +163,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
 .k-row span:first-child{color:var(--muted);font-family:var(--mono)}
 .k-row span:last-child{font-family:var(--mono);font-weight:700}
 
+
 /* ALERTS */
 .afeed{display:flex;flex-direction:column;gap:7px}
 .ai{display:flex;justify-content:space-between;align-items:flex-start;padding:10px 13px;border-radius:8px;gap:10px}
@@ -390,7 +391,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
         <button class="btn btn-p" onclick="loadVB()" style="padding:5px 12px;font-size:11px">Actualizar</button>
       </div>
     </div>
-    <table class="tbl"><thead><tr><th>Partido</th><th>Resultado</th><th>Casa</th><th>Cuota</th><th>Edge</th><th>Señal</th></tr></thead><tbody id="vb-body"><tr><td colspan="6"><div class="loading"><div class="dot"></div><div class="dot"></div><div class="dot"></div>Cargando...</div></td></tr></tbody></table>
+    <table class="tbl"><thead><tr><th>Partido</th><th>Resultado</th><th>Casa</th><th>Cuota</th><th>Edge</th><th>Señal</th><th></th></tr></thead><tbody id="vb-body"><tr><td colspan="7"><div class="loading"><div class="dot"></div><div class="dot"></div><div class="dot"></div>Cargando...</div></td></tr></tbody></table>
     <div style="padding:10px 16px;font-size:10px;font-family:var(--mono);color:var(--muted);border-top:1px solid var(--border)">Configura ODDS_API_KEY en Render → datos reales de 12 casas · the-odds-api.com (500 req/mes gratis)</div>
   </div>
   <div class="panel">
@@ -422,12 +423,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui)}
         <div class="field"><label>Días antes del partido</label><input type="number" id="sh-dias" value="2" min="0" max="7"></div>
         <div class="field"><label>Línea apertura</label><input type="number" id="sh-lap" value="2.20" step="0.01"></div>
         <div class="field"><label>Línea actual</label><input type="number" id="sh-lact" value="1.95" step="0.01"></div>
-        <div class="field"><label>% boletos en Local</label><input type="number" id="sh-bol" value="28" min="0" max="100"></div>
-        <div class="field"><label>% dinero en Local</label><input type="number" id="sh-din" value="64" min="0" max="100"></div>
+        <div class="field"><label>% boletos en Local <a href="https://www.actionnetwork.com/" target="_blank" style="color:var(--muted);text-decoration:none;font-size:9px">[AN]</a></label><input type="number" id="sh-bol" value="28" min="0" max="100"></div>
+        <div class="field"><label>% dinero en Local <a href="https://covers.com/" target="_blank" style="color:var(--muted);text-decoration:none;font-size:9px">[Covers]</a></label><input type="number" id="sh-din" value="64" min="0" max="100"></div>
       </div>
       <div style="margin-bottom:10px">
         <div style="font-size:10px;font-family:var(--mono);color:var(--muted);margin-bottom:4px">Líneas por casa JSON — {"Pinnacle":1.95,"Bet365":2.15}</div>
         <input type="text" id="sh-casas" placeholder='{"Pinnacle":1.95,"Bookmaker":1.98,"Bet365":2.15,"Codere":2.18}' style="width:100%;padding:8px 11px;border-radius:7px;background:rgba(255,255,255,.04);border:1px solid var(--border2);color:var(--text);font-size:12px;font-family:var(--mono)">
+        <button class="btn btn-s" onclick="precargarSharp()" style="margin-top:6px;font-size:10px">Precargar cuotas desde API</button>
       </div>
       <button class="btn btn-p" onclick="analizarSharp()" style="margin-bottom:14px">Detectar dinero sharp ⚡</button>
       <div id="sharp-result"></div>
@@ -2055,7 +2057,7 @@ async function predPartidoCompleto() {
 // ═══════════════════════════════════════════════════════════════════════════
 async function loadVB() {
   const dep = document.getElementById('sp-sel')?.value || 'soccer_mexico_ligamx'
-  document.getElementById('vb-body').innerHTML = '<tr><td colspan="6"><div class="loading"><div class="dot"></div><div class="dot"></div><div class="dot"></div>Cargando...</div></td></tr>'
+  document.getElementById('vb-body').innerHTML = '<tr><td colspan="7"><div class="loading"><div class="dot"></div><div class="dot"></div><div class="dot"></div>Cargando...</div></td></tr>'
   try {
     const d = await api(`/api/odds/value-bets?edge_minimo=2&deporte=${dep}`)
     setAPIStatus(true)
@@ -2063,7 +2065,7 @@ async function loadVB() {
     // Error de API — mostrar mensaje real
     if (d.error || d.es_demo) {
       const tb = d.traceback ? `<details style="margin-top:8px;font-size:10px;color:var(--red)"><summary>Ver traceback</summary><pre style="white-space:pre-wrap;font-size:9px;max-height:200px;overflow:auto;background:var(--bg2);padding:8px;border-radius:4px;margin:4px 0 0;text-align:left">${d.traceback}</pre></details>` : ''
-      document.getElementById('vb-body').innerHTML = `<tr><td colspan="6" style="padding:16px;font-family:var(--mono);font-size:11px;color:var(--gold)">${d.aviso || d.error}${tb}</td></tr>`
+      document.getElementById('vb-body').innerHTML = `<tr><td colspan="7" style="padding:16px;font-family:var(--mono);font-size:11px;color:var(--gold)">${d.aviso || d.error}${tb}</td></tr>`
       document.getElementById('vb-count').textContent = '0'
       document.getElementById('vb-edge').textContent  = 'sin datos'
       document.getElementById('vb-best').textContent  = '—'
@@ -2080,7 +2082,7 @@ async function loadVB() {
 
     if (!vbs.length) {
       const msg = d.aviso || `Sin value bets con edge >= 2% en ${dep.replace('soccer_mexico_','').replace('ligamx','Liga MX')}`
-      document.getElementById('vb-body').innerHTML = `<tr><td colspan="6" style="padding:16px;font-family:var(--mono);font-size:11px;color:var(--muted)">${msg}</td></tr>`
+      document.getElementById('vb-body').innerHTML = `<tr><td colspan="7" style="padding:16px;font-family:var(--mono);font-size:11px;color:var(--muted)">${msg}</td></tr>`
       return
     }
 
@@ -2095,10 +2097,11 @@ async function loadVB() {
         <td style="font-family:var(--mono);font-weight:700;font-size:14px">${vb.cuota}</td>
         <td><span class="badge ${vb.edge_porcentaje>7?'bs2':'bv'}">+${vb.edge_porcentaje}%</span></td>
         <td><span class="badge ${vb.edge_porcentaje>7?'hot':'bv'}">${vb.edge_porcentaje>7?'STRONG VALUE':'VALUE BET'}</span></td>
+        <td><button class="badge bv" style="cursor:pointer;border:none" onclick="useKelly('${vb.cuota}')" title="Calcular Kelly">K</button></td>
       </tr>`).join('')
 
   } catch(e) {
-    document.getElementById('vb-body').innerHTML = `<tr><td colspan="6" style="padding:12px;font-size:11px;font-family:var(--mono);color:var(--red)">Error: ${e}</td></tr>`
+    document.getElementById('vb-body').innerHTML = `<tr><td colspan="7" style="padding:12px;font-size:11px;font-family:var(--mono);color:var(--red)">Error: ${e}</td></tr>`
   }
 }
 
@@ -2153,6 +2156,21 @@ async function analizarSharp() {
   } catch(e) {
     el.innerHTML=`<div class="rbox rb"><strong>Error</strong><br>${e.message}</div>`
   }
+}
+
+async function precargarSharp() {
+  const p = document.getElementById('sh-partido').value.trim()
+  const ps = p.split(' vs ')
+  if (ps.length !== 2) return
+  const depEl = document.getElementById('sp-sel')
+  const dep = depEl ? depEl.value : 'soccer_mexico_ligamx'
+  try {
+    const d = await api(`/api/odds/bookmakers?deporte=${encodeURIComponent(dep)}&home=${encodeURIComponent(ps[0].trim())}&away=${encodeURIComponent(ps[1].trim())}`)
+    if (d.error) { alert('API: ' + d.error); return }
+    document.getElementById('sh-casas').value = JSON.stringify(d.bookmakers)
+    const vals = Object.values(d.bookmakers)
+    if (vals.length) document.getElementById('sh-lact').value = vals[0]
+  } catch(e) { alert('Error: ' + e.message) }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2642,6 +2660,15 @@ renderCLVT()
 calcKelly()
 calcEV()
 loadAlertas()
+}
+
+// Pre-llenar calculadora Kelly con cuota del value bet
+function useKelly(cuota) {
+  document.getElementById('k-o').value = cuota
+  const navBtns = document.querySelectorAll('.nav-btn')
+  navBtns.forEach(b => { if(b.textContent.includes('Kelly')) b.click() })
+  calcKelly()
+}
 </script>
 </body>
 </html>
