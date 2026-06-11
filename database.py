@@ -181,6 +181,33 @@ def _init_pg() -> None:
             resumen       TEXT,
             bankroll_hist TEXT
         )""",
+        """CREATE TABLE IF NOT EXISTS simulated_trades (
+            id                   SERIAL PRIMARY KEY,
+            created_at           TIMESTAMP DEFAULT NOW(),
+            partido              TEXT,
+            liga                 TEXT,
+            seleccion            TEXT,
+            casa                 TEXT,
+            cuota                REAL,
+            edge_pct             REAL,
+            stake_simulado       REAL,
+            bankroll_al_momento  REAL,
+            resultado_simulado   TEXT DEFAULT 'pendiente',
+            pnl_real             REAL DEFAULT 0,
+            resultado_real_partido TEXT,
+            fecha_partido        TEXT,
+            verificado_at        TEXT
+        )""",
+        """CREATE TABLE IF NOT EXISTS bookmaker_ratings (
+            id              SERIAL PRIMARY KEY,
+            bookmaker       TEXT,
+            avg_overround   REAL DEFAULT 5.0,
+            avg_cuota       REAL DEFAULT 0,
+            apariciones     INTEGER DEFAULT 0,
+            avg_clv         REAL DEFAULT 0,
+            velocidad_ajuste INTEGER DEFAULT 0,
+            fecha_rating    TEXT
+        )""",
         "CREATE INDEX IF NOT EXISTS idx_bets_resultado ON bets(resultado)",
         "CREATE INDEX IF NOT EXISTS idx_pred_correcto  ON predictions(correcto)",
     ]
@@ -243,6 +270,27 @@ def _init_sqlite() -> None:
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         created_at TEXT DEFAULT (datetime('now')),
         tipo TEXT, config TEXT, resumen TEXT, bankroll_hist TEXT
+    );
+    CREATE TABLE IF NOT EXISTS simulated_trades (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created_at TEXT DEFAULT (datetime('now')),
+        partido TEXT, liga TEXT, seleccion TEXT,
+        casa TEXT, cuota REAL, edge_pct REAL,
+        stake_simulado REAL, bankroll_al_momento REAL,
+        resultado_simulado TEXT DEFAULT 'pendiente',
+        pnl_real REAL DEFAULT 0,
+        resultado_real_partido TEXT,
+        fecha_partido TEXT, verificado_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS bookmaker_ratings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        bookmaker TEXT,
+        avg_overround REAL DEFAULT 5.0,
+        avg_cuota REAL DEFAULT 0,
+        apariciones INTEGER DEFAULT 0,
+        avg_clv REAL DEFAULT 0,
+        velocidad_ajuste INTEGER DEFAULT 0,
+        fecha_rating TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_bets_resultado ON bets(resultado);
     CREATE INDEX IF NOT EXISTS idx_pred_correcto  ON predictions(correcto);

@@ -1221,6 +1221,89 @@ def backtest_full():
     return jsonify(resultado)
 
 
+# ── SMART FILTERS COMPUESTOS ──────────────────────────────────────────────────
+@app.route("/api/alertas/smart")
+@login_required
+def alertas_smart():
+    """Evalúa value bets recientes con filtros compuestos multi-señal."""
+    from services.smart_filters import filtrar_value_bets
+    from database import db, _fetchall
+    try:
+        with db() as conn:
+            rows = _fetchall(conn,
+                "SELECT * FROM value_bets_log ORDER BY id DESC LIMIT 50")
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+    thresholds = {}
+    for k in ("edge_minimo", "sharp_minimo", "overround_maximo",
+              "horas_antes_minimo", "clv_historico_minimo"):
+        v = request.args.get(k)
+        if v is not None:
+            thresholds[k] = float(v)
+
+    return jsonify(filtrar_value_bets(rows, thresholds))
+
+
+# ── SIMULACIÓN EN VIVO ───────────────────────────────────────────────────────
+@app.route("/api/simulacion/status")
+@login_required
+def simulacion_status():
+    """Resumen de trades simulados."""
+    from services.simulador import resumen_simulacion
+    dias = int(request.args.get("dias", 1))
+    return jsonify(resumen_simulacion(dias))
+
+
+@app.route("/api/simulacion/verificar")
+@login_required
+def simulacion_verificar():
+    """Verifica trades simulados pendientes vs resultados reales ESPN."""
+    from services.simulador import verificar_trades_pendientes
+    return jsonify(verificar_trades_pendientes())
+
+
+@app.route("/api/simulacion/registrar", methods=["POST"])
+@login_required
+def simulacion_registrar():
+    """Registra manualmente un trade simulado."""
+    from services.simulador import registrar_trade_simulado
+    data = request.get_json() or {}
+    return jsonify(registrar_trade_simulado(
+        data.get("partido", ""), data.get("liga", ""),
+        data.get("seleccion", ""), data.get("casa", ""),
+        float(data.get("cuota", 0)), float(data.get("edge_pct", 0)),
+        data.get("fecha_partido", ""),
+    ))
+
+
+# ── RATING DE BOOKMAKERS ─────────────────────────────────────────────────────
+@app.route("/api/bookmakers/scan")
+@login_required
+def bookmakers_scan():
+    """Escanea partidos activos y actualiza ratings de bookmakers."""
+    from services.bookmaker_ratings import actualizar_ratings
+    return jsonify(actualizar_ratings())
+
+
+@app.route("/api/bookmakers/rating")
+@login_required
+def bookmakers_rating():
+    """Ranking de bookmakers por calidad (overround, CLV, frecuencia)."""
+    from services.bookmaker_ratings import get_ranking
+    return jsonify(get_ranking())
+
+
+# ── CROSS-MARKET ─────────────────────────────────────────────────────────────
+@app.route("/api/odds/cross-market")
+@login_required
+def odds_cross_market():
+    """Detecta inconsistencias entre mercados (H2H vs Asian Handicap vs spreads)."""
+    from services.cross_market import get_opportunities
+    min_diff = float(request.args.get("min_diferencia", 4.0))
+    return jsonify(get_opportunities(None, min_diff))
+
+
 # ── SCHEDULER ──────────────────────────────────────────────────────────────────
 def _alerta_vb_con_broadcast():
     alerta_value_bets()
@@ -1373,6 +1456,44 @@ def _ml_auto_verify():
         logging.error("ML auto-verify error: %s", e)
 
 
+def _bookmaker_auto_scan():
+    """Actualiza ratings de bookmakers automáticamente."""
+    try:
+        from services.bookmaker_ratings import actualizar_ratings
+        res = actualizar_ratings()
+        n = res.get("bookmakers_actualizados", 0)
+        if n > 0:
+            logging.info("Bookmaker scan: %d bookmakers actualizados", n)
+    except Exception as e:
+        logging.error("Bookmaker scan error: %s", e)
+
+
+def _simulacion_auto_log():
+    """Auto-registra trades simulados de value bets recientes no simulados."""
+    try:
+        from database import db, _fetchall
+        from services.simulador import registrar_trade_simulado
+        with db() as conn:
+            sin_simular = _fetchall(conn,
+                "SELECT v.* FROM value_bets_log v "
+                "LEFT JOIN simulated_trades s ON v.partido=s.partido AND v.casa=s.casa "
+                "WHERE s.id IS NULL AND v.edge_pct >= 5 "
+                "ORDER BY v.id DESC LIMIT 20")
+        registrados = 0
+        for vb in sin_simular or []:
+            res = registrar_trade_simulado(
+                vb.get("partido", ""), vb.get("liga", ""),
+                vb.get("resultado", ""), vb.get("casa", ""),
+                vb.get("cuota", 0) or 0, vb.get("edge_pct", 0) or 0,
+            )
+            if res.get("simulado"):
+                registrados += 1
+        if registrados > 0:
+            logging.info("Simulación auto: %d trades registrados", registrados)
+    except Exception as e:
+        logging.error("Simulación auto error: %s", e)
+
+
 scheduler=BackgroundScheduler()
 scheduler.add_job(_alerta_vb_con_broadcast,   "interval", hours=3,  id="vb_alert")
 scheduler.add_job(_alerta_nlp_con_broadcast,  "interval", hours=4,  id="nlp_alert")
@@ -1382,6 +1503,8 @@ scheduler.add_job(_heartbeat,                 "interval", hours=6,  id="heartbea
 scheduler.add_job(_resumen_diario,            "cron",     hour=8,   id="daily_summary")
 scheduler.add_job(_ml_auto_train,             "interval", hours=12, id="ml_train")
 scheduler.add_job(_ml_auto_verify,            "interval", hours=6,  id="ml_verify")
+scheduler.add_job(_bookmaker_auto_scan,       "interval", hours=6,  id="bookmaker_scan")
+scheduler.add_job(_simulacion_auto_log,       "interval", hours=3,  id="simulacion_log")
 scheduler.start()
 
 register_webhook(os.getenv("RENDER_EXTERNAL_URL",""))
