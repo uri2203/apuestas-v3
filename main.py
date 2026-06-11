@@ -1155,21 +1155,60 @@ def ml_verify():
 
 
 # ── ML AVANZADO (Tier 6) ──────────────────────────────────────────────────────
+_training_status = {"running": False, "liga": None, "result": None, "error": None, "started_at": None}
+
 @app.route("/api/ml/v2/train")
 @login_required
 def ml_v2_train():
-    """Entrena modelos avanzados (MLP + GBM + AdvancedEnsemble) para todas las ligas."""
-    from services.ml_avanzado import auto_train_all_avanzado
-    return jsonify(auto_train_all_avanzado())
+    """Inicia entrenamiento de modelos avanzados (fondo async)."""
+    if _training_status["running"]:
+        return jsonify({"status": "already_running", **{k: v for k, v in _training_status.items() if k != "result"}})
+    _training_status.update({"running": True, "liga": "all", "result": None, "error": None, "started_at": time.time()})
+    def _work():
+        try:
+            from services.ml_avanzado import auto_train_all_avanzado
+            res = auto_train_all_avanzado()
+            _training_status["result"] = res
+            _training_status["error"] = None
+        except Exception as e:
+            _training_status["error"] = str(e)
+            _training_status["result"] = None
+            logging.exception("ML train bg error: %s", e)
+        finally:
+            _training_status["running"] = False
+    threading.Thread(target=_work, daemon=True).start()
+    return jsonify({"status": "started", "liga": "all"})
 
 
 @app.route("/api/ml/v2/train/<liga>")
 @login_required
 def ml_v2_train_liga(liga):
-    """Entrena para una liga específica."""
-    from services.ml_avanzado import AdvancedEnsemble
-    ae = AdvancedEnsemble()
-    return jsonify(ae.train(liga))
+    """Inicia entrenamiento para una liga específica (fondo async)."""
+    if _training_status["running"]:
+        return jsonify({"status": "already_running", **{k: v for k, v in _training_status.items() if k != "result"}})
+    _training_status.update({"running": True, "liga": liga, "result": None, "error": None, "started_at": time.time()})
+    def _work():
+        try:
+            from services.ml_avanzado import AdvancedEnsemble
+            ae = AdvancedEnsemble()
+            res = ae.train(liga)
+            _training_status["result"] = res
+            _training_status["error"] = None
+        except Exception as e:
+            _training_status["error"] = str(e)
+            _training_status["result"] = None
+            logging.exception("ML train liga bg error: %s", e)
+        finally:
+            _training_status["running"] = False
+    threading.Thread(target=_work, daemon=True).start()
+    return jsonify({"status": "started", "liga": liga})
+
+
+@app.route("/api/ml/v2/train-status")
+@login_required
+def ml_v2_train_status():
+    """Estado del entrenamiento en curso."""
+    return jsonify({k: v for k, v in _training_status.items()})
 
 
 @app.route("/api/ml/v2/predict")
@@ -1624,14 +1663,19 @@ def _ml_avanzado_auto_train():
     """Auto-entrena modelos ML avanzados (Tier 6)."""
     try:
         from services.ml_avanzado import auto_train_all_avanzado
+        _training_status.update({"running": True, "liga": "all (auto)", "result": None, "error": None, "started_at": time.time()})
         res = auto_train_all_avanzado()
+        _training_status["result"] = res
         n = res.get("ligas_entrenadas", 0)
         if n > 0:
             logging.info("ML Avanzado auto-train: %d ligas, %d features",
                          n, res.get("feature_count", 23))
             _broadcast({"tipo":"ml_v2_train","ts":time.time(),**res})
     except Exception as e:
+        _training_status["error"] = str(e)
         logging.error("ML Avanzado auto-train error: %s", e)
+    finally:
+        _training_status["running"] = False
 
 
 def _bookmaker_auto_scan():
