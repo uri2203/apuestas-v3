@@ -306,14 +306,40 @@ def _init_pg() -> None:
 
 # ── Seed data ─────────────────────────────────────────────────────────────────
 def seed_demo_data() -> dict:
-    """Pobla la base con datos iniciales realistas."""
+    """Pobla la base con datos iniciales realistas.
+    Usa autocommit=True (raw psycopg2) para compatibilidad con Supabase/PgBouncer."""
     from datetime import datetime, timedelta
     import random, json
 
     results = {"insertados": {}, "errores": []}
     today = datetime.utcnow()
     PH = "%s" if _USE_PG else "?"
-    SEP = "SERIAL" if _USE_PG else "INTEGER"
+
+    def _get_conn():
+        if _USE_PG:
+            import psycopg2
+            url = DATABASE_URL
+            if "sslmode" not in url:
+                url += "?sslmode=require" if "?" not in url else "&sslmode=require"
+            conn = psycopg2.connect(url)
+            conn.autocommit = True
+            return conn
+        else:
+            import sqlite3
+            conn = sqlite3.connect(os.getenv("DB_PATH", "apuestaspro.db"))
+            conn.execute("PRAGMA journal_mode=WAL")
+            return conn
+
+    def _exec(sql, params=None):
+        try:
+            conn = _get_conn()
+            cur = conn.cursor()
+            cur.execute(sql if not _USE_PG else sql.replace("?", "%s"), params or ())
+            cur.close()
+            conn.close()
+        except Exception as e:
+            results["errores"].append(f"{sql[:50]}: {str(e)[:150]}")
+            logger.warning("Seed exec: %s", e)
 
     def _insert(table, columns, rows):
         if not rows:
@@ -322,13 +348,7 @@ def seed_demo_data() -> dict:
         ph = ", ".join([PH] * len(columns))
         sql = f"INSERT INTO {table} ({cols}) VALUES ({ph})"
         for r in rows:
-            try:
-                with db() as conn:
-                    _execute(conn, sql, r)
-            except Exception as e:
-                msg = f"{table}: {str(e)[:150]}"
-                results["errores"].append(msg)
-                logger.warning("Seed insert %s", msg)
+            _exec(sql, r)
 
     # - bankroll_history
     br_rows = []
@@ -579,19 +599,7 @@ def seed_demo_data() -> dict:
             feat_rows.append((liga, f, imp))
         if remaining > 0:
             feat_rows.append((liga, "other", round(remaining, 3)))
-    if _USE_PG:
-        sql = ("INSERT INTO feature_importance (liga, feature_name, importance) "
-               "VALUES (%s, %s, %s) "
-               "ON CONFLICT (liga, feature_name) DO UPDATE SET importance = EXCLUDED.importance")
-        for r in feat_rows:
-            try:
-                with db() as conn:
-                    conn.cursor().execute(sql, r)
-                    conn.commit()
-            except Exception as e:
-                results["errores"].append(f"feature_importance: {str(e)[:100]}")
-    else:
-        _insert("feature_importance", ("liga", "feature_name", "importance"), feat_rows)
+    _insert("feature_importance", ("liga", "feature_name", "importance"), feat_rows)
 
     # - model_performance
     perf_rows = []
@@ -650,11 +658,16 @@ def seed_demo_data() -> dict:
     ]
     for t in tables:
         try:
-            with db() as conn:
-                r = _fetchone(conn, f"SELECT COUNT(*) as n FROM {t}")
-                counts[t] = r["n"] if r else 0
-        except Exception:
+            conn = _get_conn()
+            cur = conn.cursor()
+            cur.execute(f"SELECT COUNT(*) as n FROM {t}")
+            row = cur.fetchone()
+            counts[t] = row[0] if row else 0
+            cur.close()
+            conn.close()
+        except Exception as e:
             counts[t] = 0
+            logger.warning("Seed count %s: %s", t, e)
 
     results["insertados"] = counts
     results["total_insertados"] = sum(counts.values())

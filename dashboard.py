@@ -141,6 +141,14 @@ body{margin:0;background:var(--l-bg);color:var(--l-text);font-family:'Inter',sys
 .inst .desc{font-size:10px;color:var(--l-text2);line-height:1.3}
 .inst .ticker-line{font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--l-text3);display:flex;gap:8px;margin-top:2px}
 .inst .ticker-line .tag{color:var(--l-accent)}
+
+/* SEED BANNER */
+.seed-banner{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--l-bg2);border:1px solid var(--l-accent);border-radius:var(--l-radius);margin:0 0 20px;font-size:12px}
+.seed-banner .seed-icon{font-size:18px;flex-shrink:0}
+.seed-btn{padding:6px 16px;border:none;border-radius:6px;background:var(--l-accent);color:#000;font-weight:600;font-size:11px;cursor:pointer;margin-left:auto;flex-shrink:0;transition:.15s;font-family:'Inter',sans-serif}
+.seed-btn:hover{opacity:.85}
+.seed-btn:disabled{opacity:.5;cursor:wait}
+.light .seed-banner{border-color:var(--l-accent)}
 """
 
 LANDING_HTML = r"""<!DOCTYPE html>
@@ -227,6 +235,14 @@ LANDING_HTML = r"""<!DOCTYPE html>
     <div class="inst" onclick="location='/panel/backtesting'"><div class="inst-top"><div class="inst-icon">T</div><div><div class="name">Backtesting</div><div class="desc">Hist&oacute;rico, estrategias, rendimiento</div></div></div><div class="ticker-line"><span class="tag">Hist&oacute;rico</span><span>Estrategias</span><span>Rendimiento</span></div></div>
     <div class="inst" onclick="location='/panel/rendimiento'"><div class="inst-top"><div class="inst-icon">G</div><div><div class="name">Rendimiento</div><div class="desc">Gr&aacute;ficas, estad&iacute;sticas avanzadas</div></div></div><div class="ticker-line"><span class="tag">Gr&aacute;ficas</span><span>Stats</span><span>Por deporte</span></div></div>
   </div>
+  <div id="seedBanner" class="seed-banner" style="display:none">
+    <div class="seed-icon">&#9888;</div>
+    <div>
+      <strong>Base de datos vac&iacute;a</strong> &mdash; haz clic para poblar con datos iniciales realistas.
+      <div id="seedResult" style="font-size:12px;margin-top:4px"></div>
+    </div>
+    <button class="seed-btn" onclick="seedDB()">&#9654; Seed DB</button>
+  </div>
   <div style="height:60px"></div>
 </div>
 
@@ -234,6 +250,24 @@ LANDING_HTML = r"""<!DOCTYPE html>
 function go(p){location=p}
 function clock(){var d=new Date();document.getElementById('clock').textContent=d.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});document.getElementById('lastUpd').textContent=d.toLocaleString('es-MX')}
 setInterval(clock,1e4);clock()
+async function seedDB(){try{
+  var btn=document.querySelector('.seed-btn'),res=document.getElementById('seedResult')
+  btn.disabled=true;btn.textContent='\u25B6 Sembrando...';res.textContent='';res.style.color='#888'
+  var r=await fetch('/api/seed-demo')
+  if(!r.ok){var txt=await r.text();throw new Error(txt.slice(0,200))}
+  var d=await r.json()
+  if(d.status==='ok'||d.total_insertados>0){
+    res.textContent='\u2713 '+d.total_insertados+' registros insertados';res.style.color='#4ade80'
+    btn.textContent='\u2713 Listo';setTimeout(function(){document.getElementById('seedBanner').style.display='none';loadKPI()},2000)
+  }else{
+    res.textContent='\u2717 Error: '+(d.errores||[]).slice(0,3).join(', ');res.style.color='#ef4444'
+    btn.disabled=false;btn.textContent='\u25B6 Reintentar'
+  }
+}catch(e){
+  var res=document.getElementById('seedResult')
+  res.textContent='\u2717 '+e.message;res.style.color='#ef4444'
+  var btn=document.querySelector('.seed-btn');btn.disabled=false;btn.textContent='\u25B6 Reintentar'
+}}
 function theme(){document.documentElement.classList.toggle('light');localStorage.setItem('theme',document.documentElement.classList.contains('light')?'light':'')}
 if(localStorage.getItem('theme')==='light')document.documentElement.classList.add('light')
 async function loadKPI(){try{
@@ -245,6 +279,7 @@ async function loadKPI(){try{
   var br=n(b.actual).toLocaleString()
   document.getElementById('kpiBr').textContent='$'+br
   document.getElementById('tkBr').textContent='$'+br
+  if(n(b.actual)===0)document.getElementById('seedBanner').style.display='flex'
   ;['kpiWr','kpiRoi','kpiSh','kpiPnl','kpiVb','kpiEdge','tkWr','tkRoi','tkSh','tkPnl','tkVb'].forEach(function(id){var el=document.getElementById(id);if(el)el.textContent=el.textContent})
   document.getElementById('kpiWr').textContent=(g.win_rate||0)+'%'
   document.getElementById('kpiRoi').textContent=(g.roi_pct||0)+'%'
