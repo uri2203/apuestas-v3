@@ -37,6 +37,7 @@ def get_connection():
         )
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=10000")
         return conn
 
 
@@ -307,7 +308,7 @@ def _init_pg() -> None:
 # ── Seed data ─────────────────────────────────────────────────────────────────
 def seed_demo_data() -> dict:
     """Pobla la base con datos iniciales realistas.
-    Usa autocommit=True (raw psycopg2) para compatibilidad con Supabase/PgBouncer."""
+    Usa una sola conexion con autocommit=True (PG) o commit lote (SQLite)."""
     from datetime import datetime, timedelta
     import random, json
 
@@ -328,15 +329,18 @@ def seed_demo_data() -> dict:
             import sqlite3
             conn = sqlite3.connect(os.getenv("DB_PATH", "apuestaspro.db"))
             conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA busy_timeout=5000")
+            conn.execute("PRAGMA synchronous=OFF")
             return conn
 
+    conn = _get_conn()
+    cur = conn.cursor()
+
     def _exec(sql, params=None):
+        nonlocal cur
         try:
-            conn = _get_conn()
-            cur = conn.cursor()
-            cur.execute(sql if not _USE_PG else sql.replace("?", "%s"), params or ())
-            cur.close()
-            conn.close()
+            sql_final = sql if not _USE_PG else sql.replace("?", "%s")
+            cur.execute(sql_final, params or ())
         except Exception as e:
             results["errores"].append(f"{sql[:50]}: {str(e)[:150]}")
             logger.warning("Seed exec: %s", e)
@@ -648,7 +652,7 @@ def seed_demo_data() -> dict:
         "modelo", "fecha_partido", "resultado_real", "correcto", "verificado_at",
     ), mlp_rows)
 
-    # Summary
+    # Summary - usar misma conexion
     counts = {}
     tables = [
         "bankroll_history", "bets", "predictions", "value_bets_log",
@@ -658,16 +662,17 @@ def seed_demo_data() -> dict:
     ]
     for t in tables:
         try:
-            conn = _get_conn()
-            cur = conn.cursor()
             cur.execute(f"SELECT COUNT(*) as n FROM {t}")
             row = cur.fetchone()
             counts[t] = row[0] if row else 0
-            cur.close()
-            conn.close()
         except Exception as e:
             counts[t] = 0
             logger.warning("Seed count %s: %s", t, e)
+
+    if not _USE_PG:
+        conn.commit()
+    cur.close()
+    conn.close()
 
     results["insertados"] = counts
     results["total_insertados"] = sum(counts.values())

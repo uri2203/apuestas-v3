@@ -15,6 +15,7 @@ Mercados analizados:
 
 Sin costo adicional: todos estos mercados vienen en la misma respuesta de Odds API.
 """
+import os
 import logging
 from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
