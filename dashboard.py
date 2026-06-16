@@ -70,102 +70,204 @@ tr:hover td{background:var(--surface-hover)}
 """
 
 # ── Landing page ─────────────────────────────────────────────────────────
+LANDING_CSS = r"""
+:root{--l-bg:#0b0d11;--l-bg2:#111318;--l-bg3:#181b22;--l-border:rgba(255,255,255,0.06);--l-border2:rgba(255,255,255,0.10);--l-text:#d4d6dc;--l-text2:#7a7f8c;--l-text3:#4a4e59;--l-accent:#d4a853;--l-green:#34d399;--l-green2:rgba(52,211,153,0.12);--l-red:#f43f5e;--l-red2:rgba(244,63,94,0.12);--l-amber:#f59e0b;--l-lime:#a3e635;--l-radius:10px}
+.light{--l-bg:#f1f2f6;--l-bg2:#ffffff;--l-bg3:#f4f5f8;--l-border:rgba(0,0,0,0.08);--l-border2:rgba(0,0,0,0.14);--l-text:#1a1c23;--l-text2:#5a5e6e;--l-text3:#9a9eae}
+body{margin:0;background:var(--l-bg);color:var(--l-text);font-family:'Inter',system-ui,sans-serif;font-size:13px;-webkit-font-smoothing:antialiased}
+.mono{font-family:'JetBrains Mono',monospace}
+
+/* TERMINAL HEADER */
+.th{display:flex;align-items:center;height:44px;padding:0 16px;background:var(--l-bg2);border-bottom:1px solid var(--l-border);gap:12px;flex-shrink:0}
+.th-brand{font-size:13px;font-weight:700;letter-spacing:-.2px;white-space:nowrap}
+.th-brand em{font-style:normal;color:var(--l-accent)}
+.th-brand small{margin-left:4px;font-size:8px;font-weight:500;color:var(--l-text3);text-transform:uppercase;letter-spacing:1px}
+.th-sep{width:1px;height:20px;background:var(--l-border);flex-shrink:0}
+.th-status{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--l-text2);font-family:'JetBrains Mono',monospace}
+.th-dot{width:5px;height:5px;border-radius:50%}
+.th-dot.on{background:var(--l-green);box-shadow:0 0 4px var(--l-green)}.th-dot.off{background:var(--l-red);box-shadow:0 0 4px var(--l-red)}
+.th-clock{font-size:11px;color:var(--l-text3);font-family:'JetBrains Mono',monospace;margin-left:auto}
+.th-btn{width:28px;height:28px;border-radius:6px;border:1px solid var(--l-border);background:transparent;color:var(--l-text2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;transition:.15s;flex-shrink:0}
+.th-btn:hover{background:var(--l-bg3);color:var(--l-text);border-color:var(--l-border2)}
+.th-nav{display:flex;gap:4px}
+.th-nav a{padding:4px 10px;border-radius:5px;font-size:11px;color:var(--l-text2);text-decoration:none;transition:.15s;white-space:nowrap}
+.th-nav a:hover{color:var(--l-text);background:var(--l-bg3)}
+
+/* LAYOUT */
+.l-page{max-width:1060px;margin:0 auto;padding:24px 28px}
+
+/* TICKER */
+.ticker{display:flex;gap:8px;padding:8px 16px;background:var(--l-bg2);border-bottom:1px solid var(--l-border);overflow-x:auto;font-size:10px;font-family:'JetBrains Mono',monospace;white-space:nowrap;scrollbar-width:none}
+.ticker::-webkit-scrollbar{display:none}
+.ticker-item{display:flex;align-items:center;gap:6px;padding:2px 8px;border-right:1px solid var(--l-border);flex-shrink:0}
+.ticker-item:last-child{border:0}
+.ticker-label{color:var(--l-text3);text-transform:uppercase;letter-spacing:.3px}
+.ticker-val{font-weight:600}.ticker-val.up{color:var(--l-green)}.ticker-val.down{color:var(--l-red)}.ticker-val.neutral{color:var(--l-text2)}
+
+/* HERO BANNER */
+.hero{display:flex;align-items:center;justify-content:space-between;padding:20px 0 20px;border-bottom:1px solid var(--l-border);margin-bottom:20px}
+.hero-left h1{font-size:20px;font-weight:600;letter-spacing:-.3px;margin:0 0 2px}
+.hero-left h1 em{font-style:normal;color:var(--l-accent)}
+.hero-left p{font-size:12px;color:var(--l-text2);margin:0}
+.hero-right{text-align:right;font-family:'JetBrains Mono',monospace}
+.hero-right .label{font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--l-text3)}
+.hero-right .val{font-size:22px;font-weight:700;line-height:1.2}
+.hero-right .val.inline{font-size:13px;font-weight:600}
+.hero-right .sub{font-size:10px;color:var(--l-text2);margin-top:2px}
+
+/* MARKET GRID (KPIs) */
+.grid-6{display:grid;grid-template-columns:repeat(6,1fr);gap:1px;background:var(--l-border);border:1px solid var(--l-border);border-radius:var(--l-radius);overflow:hidden;margin-bottom:20px}
+.mcell{background:var(--l-bg2);padding:14px 14px;transition:.15s}
+.mcell:hover{background:var(--l-bg3)}
+.mcell .l{font-size:9px;text-transform:uppercase;letter-spacing:.4px;color:var(--l-text3);margin-bottom:3px;font-weight:500}
+.mcell .v{font-size:17px;font-weight:700;font-family:'JetBrains Mono',monospace;line-height:1.2}
+.mcell .v.pos{color:var(--l-green)}.mcell .v.neg{color:var(--l-red)}.mcell .v.amb{color:var(--l-accent)}
+.mcell .s{font-size:9px;color:var(--l-text2);margin-top:3px}
+@media(max-width:800px){.grid-6{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:500px){.grid-6{grid-template-columns:repeat(2,1fr)}}
+
+/* INSTRUMENTS GRID (modules) */
+.section-header{display:flex;align-items:center;margin:24px 0 14px;gap:12px}
+.section-header h2{font-size:13px;font-weight:600;margin:0;white-space:nowrap}
+.section-header .line{flex:1;height:1px;background:var(--l-border)}
+.section-header small{font-size:10px;color:var(--l-text3)}
+.inst-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--l-border);border:1px solid var(--l-border);border-radius:var(--l-radius);overflow:hidden}
+@media(max-width:900px){.inst-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:600px){.inst-grid{grid-template-columns:repeat(2,1fr)}}
+.inst{background:var(--l-bg2);padding:16px 14px;cursor:pointer;transition:.15s;display:flex;flex-direction:column;gap:4px}
+.inst:hover{background:var(--l-bg3)}
+.inst-top{display:flex;align-items:center;gap:8px}
+.inst-icon{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:15px;background:var(--l-bg3);color:var(--l-text2);flex-shrink:0}
+.inst .name{font-size:12px;font-weight:600;color:var(--l-text)}
+.inst .desc{font-size:10px;color:var(--l-text2);line-height:1.3}
+.inst .ticker-line{font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--l-text3);display:flex;gap:8px;margin-top:2px}
+.inst .ticker-line .tag{color:var(--l-accent)}
+"""
+
 LANDING_HTML = r"""<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>ApuestasPro — Sistema Profesional</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
-<style>
-""" + SHARED_CSS + r"""
-.landing{max-width:960px;margin:0 auto;padding:0 20px}
-.hero{text-align:center;padding:50px 20px 30px}
-.hero h1{font-size:34px;font-weight:800;letter-spacing:-1px;margin-bottom:8px}
-.hero h1 em{color:var(--accent);font-style:normal}
-.hero p{color:var(--text2);font-size:14px;max-width:520px;margin:0 auto;line-height:1.6}
-.hero .version{font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace;margin-top:10px}
-.hero .version span{color:var(--accent)}
-.section-title{font-size:15px;font-weight:700;margin:24px 0 14px;display:flex;align-items:center;gap:8px}
-.section-title small{font-size:11px;font-weight:400;color:var(--text3)}
-.topbar{display:flex;align-items:center;padding:0 20px;height:48px;background:var(--bg2);border-bottom:1px solid var(--border);gap:10px}
-.logo{font-size:15px;font-weight:800;letter-spacing:-.3px;display:flex;align-items:center;gap:5px}
-.logo em{color:var(--accent);font-style:normal}
-.logo small{font-size:7px;color:var(--text3);font-weight:500;text-transform:uppercase;letter-spacing:1px}
-.spacer{flex:1}
-.topbar .clock{font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace}
-.top-btn{width:30px;height:30px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;transition:.2s}
-.top-btn:hover{background:var(--bg3);color:var(--text);border-color:var(--border-hover)}
-.status-dot{width:6px;height:6px;border-radius:50%;display:inline-block}
-.status-dot.on{background:var(--green);box-shadow:0 0 6px var(--green)}
-.status-dot.off{background:var(--red);box-shadow:0 0 6px var(--red)}
-</style>
+<title>ApuestasPro — Terminal</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>""" + LANDING_CSS + r"""</style>
 </head>
 <body>
-<div class="topbar">
-  <div class="logo">Apuestas<em>Pro</em> <small>v4.3</small></div>
-  <div class="spacer"></div>
-  <span id="statusDot" class="status-dot off"></span>
-  <span class="clock" id="clock">--:--</span>
-  <button class="top-btn" onclick="toggleTheme()" title="Tema">&#9681;</button>
-  <button class="top-btn" onclick="location.href='/logout'" title="Salir">&#8592;</button>
+<div class="th">
+  <div class="th-brand">Apuestas<em>Pro</em> <small>Terminal</small></div>
+  <div class="th-sep"></div>
+  <div class="th-nav">
+    <a href="/panel/value-bets">Value</a>
+    <a href="/panel/sharp">Sharp</a>
+    <a href="/panel/arbitraje">Arbitraje</a>
+    <a href="/panel/ml">ML</a>
+    <a href="/panel/bankroll">Bankroll</a>
+    <a href="/panel/rendimiento">Stats</a>
+  </div>
+  <div class="th-status">
+    <span class="th-dot off" id="sd"></span>
+    <span id="modeLabel">REAL</span>
+  </div>
+  <div class="th-clock" id="clock">--:--</div>
+  <button class="th-btn" onclick="theme()" title="Tema">&#9681;</button>
+  <button class="th-btn" onclick="location='/logout'" title="Salir">&#8592;</button>
 </div>
-<div class="landing">
+
+<div class="ticker" id="ticker">
+  <div class="ticker-item"><span class="ticker-label">SYS</span><span class="ticker-val neutral" id="tkMode">REAL</span></div>
+  <div class="ticker-item"><span class="ticker-label">BANK</span><span class="ticker-val" id="tkBr">$0</span></div>
+  <div class="ticker-item"><span class="ticker-label">WR</span><span class="ticker-val" id="tkWr">0%</span></div>
+  <div class="ticker-item"><span class="ticker-label">ROI</span><span class="ticker-val" id="tkRoi">0%</span></div>
+  <div class="ticker-item"><span class="ticker-label">SHARPE</span><span class="ticker-val" id="tkSh">0</span></div>
+  <div class="ticker-item"><span class="ticker-label">PnL</span><span class="ticker-val" id="tkPnl">$0</span></div>
+  <div class="ticker-item"><span class="ticker-label">VB</span><span class="ticker-val" id="tkVb">0</span></div>
+  <div class="ticker-item"><span class="ticker-label">DB</span><span class="ticker-val" id="tkDb">OK</span></div>
+  <div class="ticker-item"><span class="ticker-label">API</span><span class="ticker-val" id="tkApi">OK</span></div>
+</div>
+
+<div class="l-page">
   <div class="hero">
-    <h1>Sistema Profesional de <em>Apuestas</em></h1>
-    <p>Machine Learning, Sharp Money, Arbitraje, Value Bets y gesti&oacute;n de bankroll en un solo lugar.</p>
-    <div class="version">v4.3 &middot; <span id="kpiMode">REAL</span> &middot; <span id="kpiDb">DB conectada</span></div>
+    <div class="hero-left">
+      <h1>Sistema de <em>An&aacute;lisis</em> Deportivo</h1>
+      <p>ML predictivo &middot; Sharp Money &middot; Arbitraje &middot; Value Bets &middot; Bankroll &middot; Simulaci&oacute;n</p>
+    </div>
+    <div class="hero-right">
+      <div class="label">&Uacute;ltima actualizaci&oacute;n</div>
+      <div class="val" style="font-size:12px" id="lastUpd">--</div>
+      <div class="sub">v4.3 &middot; <span id="kpiMode">REAL</span></div>
+    </div>
   </div>
 
-  <div id="kpiGrid" class="kpi-grid">
-    <div class="kpi"><div class="label">Bankroll</div><div class="value" id="kpiBankroll">$0</div><div class="sub" id="kpiBrChange">---</div></div>
-    <div class="kpi"><div class="label">Win Rate</div><div class="value gold" id="kpiWinRate">0%</div><div class="sub">&Uacute;ltimos 30 d&iacute;as</div></div>
-    <div class="kpi"><div class="label">ROI</div><div class="value" id="kpiRoi">0%</div><div class="sub">Retorno sobre inversi&oacute;n</div></div>
-    <div class="kpi"><div class="label">Sharpe Ratio</div><div class="value" id="kpiSharpe">0</div><div class="sub">Ajustado por riesgo</div></div>
-    <div class="kpi"><div class="label">Ganancia Neta</div><div class="value green" id="kpiGanancia">$0</div><div class="sub">&Uacute;ltimos 30 d&iacute;as</div></div>
-    <div class="kpi"><div class="label">Value Bets Hoy</div><div class="value" id="kpiVb">0</div><div class="sub">Edge promedio: <span id="kpiVbEdge">0%</span></div></div>
+  <div class="grid-6" id="kpiGrid">
+    <div class="mcell"><div class="l">Bankroll</div><div class="v" id="kpiBr">$0</div><div class="s">Valor actual</div></div>
+    <div class="mcell"><div class="l">Win Rate</div><div class="v amb" id="kpiWr">0%</div><div class="s">30 d&iacute;as</div></div>
+    <div class="mcell"><div class="l">ROI</div><div class="v" id="kpiRoi">0%</div><div class="s">Retorno total</div></div>
+    <div class="mcell"><div class="l">Sharpe</div><div class="v" id="kpiSh">0</div><div class="s">Ajust. riesgo</div></div>
+    <div class="mcell"><div class="l">PnL Neto</div><div class="v pos" id="kpiPnl">$0</div><div class="s">30 d&iacute;as</div></div>
+    <div class="mcell"><div class="l">Value Bets</div><div class="v" id="kpiVb">0</div><div class="s">Edge: <span id="kpiEdge">0%</span></div></div>
   </div>
 
-  <div class="section-title">M&oacute;dulos <small>— Acceso r&aacute;pido</small></div>
-  <div class="module-grid" id="moduleGrid">
-    <div class="module-card" onclick="go('/panel/value-bets')"><span class="icon">&#9889;</span><div class="name">Value Bets</div><div class="desc">Edge, cuotas justas, filtros inteligentes</div></div>
-    <div class="module-card" onclick="go('/panel/sharp')"><span class="icon">&#128200;</span><div class="name">Sharp Money</div><div class="desc">Movimiento de l&iacute;neas, CLV, steam</div></div>
-    <div class="module-card" onclick="go('/panel/arbitraje')"><span class="icon">&#9878;</span><div class="name">Arbitraje</div><div class="desc">Surebets en vivo, profit garantizado</div></div>
-    <div class="module-card" onclick="go('/panel/ml')"><span class="icon">&#129302;</span><div class="name">ML Predictivo</div><div class="desc">MLP + GBM, 30+ features, confianza</div></div>
-    <div class="module-card" onclick="go('/panel/bankroll')"><span class="icon">&#128176;</span><div class="name">Bankroll</div><div class="desc">Kelly, historial, riesgo de ruina</div></div>
-    <div class="module-card" onclick="go('/panel/simulacion')"><span class="icon">&#128202;</span><div class="name">Simulaci&oacute;n</div><div class="desc">Trades simulados, verificaci&oacute;n autom&aacute;tica</div></div>
-    <div class="module-card" onclick="go('/panel/contabilidad')"><span class="icon">&#128221;</span><div class="name">Contabilidad</div><div class="desc">P&L, sync autom&aacute;tico, reportes</div></div>
-    <div class="module-card" onclick="go('/panel/journal')"><span class="icon">&#128214;</span><div class="name">Trading Journal</div><div class="desc">Bit&aacute;cora autom&aacute;tica, export CSV</div></div>
-    <div class="module-card" onclick="go('/panel/bookmakers')"><span class="icon">&#127954;</span><div class="name">Rating Casas</div><div class="desc">Overround, CLV, velocidad ajuste</div></div>
-    <div class="module-card" onclick="go('/panel/cross-market')"><span class="icon">&#8644;</span><div class="name">Cross Market</div><div class="desc">H2H vs AH, spreads, totals</div></div>
-    <div class="module-card" onclick="go('/panel/backtesting')"><span class="icon">&#128270;</span><div class="name">Backtesting</div><div class="desc">Hist&oacute;rico, estrategias, rendimiento</div></div>
-    <div class="module-card" onclick="go('/panel/rendimiento')"><span class="icon">&#128200;</span><div class="name">Rendimiento</div><div class="desc">Gr&aacute;ficas, estad&iacute;sticas avanzadas</div></div>
+  <div class="section-header">
+    <h2>Instrumentos</h2>
+    <div class="line"></div>
+    <small>12 m&oacute;dulos de an&aacute;lisis</small>
   </div>
-  <div style="height:40px"></div>
+
+  <div class="inst-grid">
+    <div class="inst" onclick="location='/panel/value-bets'"><div class="inst-top"><div class="inst-icon">V</div><div><div class="name">Value Bets</div><div class="desc">Detecci&oacute;n de edge positivo en cuotas</div></div></div><div class="ticker-line"><span class="tag">Edge</span><span>Smart Filters</span><span>CLV</span></div></div>
+    <div class="inst" onclick="location='/panel/sharp'"><div class="inst-top"><div class="inst-icon">S</div><div><div class="name">Sharp Money</div><div class="desc">Movimiento de l&iacute;neas, steam, alertas</div></div></div><div class="ticker-line"><span class="tag">Tiempo real</span><span>CLV</span><span>Alertas</span></div></div>
+    <div class="inst" onclick="location='/panel/arbitraje'"><div class="inst-top"><div class="inst-icon">A</div><div><div class="name">Arbitraje</div><div class="desc">Surebets multi-mercado, profit garantizado</div></div></div><div class="ticker-line"><span class="tag">H2H</span><span>AH</span><span>Over/Under</span></div></div>
+    <div class="inst" onclick="location='/panel/ml'"><div class="inst-top"><div class="inst-icon">M</div><div><div class="name">ML Predictivo</div><div class="desc">MLP + GBM, 30+ features, confianza calibrada</div></div></div><div class="ticker-line"><span class="tag">MLP</span><span>GBM</span><span>Ensemble</span></div></div>
+    <div class="inst" onclick="location='/panel/bankroll'"><div class="inst-top"><div class="inst-icon">B</div><div><div class="name">Bankroll</div><div class="desc">Kelly, historial, riesgo de ruina</div></div></div><div class="ticker-line"><span class="tag">Kelly</span><span>Curva</span><span>Sharpe</span></div></div>
+    <div class="inst" onclick="location='/panel/simulacion'"><div class="inst-top"><div class="inst-icon">~</div><div><div class="name">Simulaci&oacute;n</div><div class="desc">Trades simulados, verificaci&oacute;n autom&aacute;tica</div></div></div><div class="ticker-line"><span class="tag">Backtest</span><span>Verificar</span><span>PnL</span></div></div>
+    <div class="inst" onclick="location='/panel/contabilidad'"><div class="inst-top"><div class="inst-icon">C</div><div><div class="name">Contabilidad</div><div class="desc">P&L, sync autom&aacute;tico, reportes mensuales</div></div></div><div class="ticker-line"><span class="tag">P&L</span><span>Sync</span><span>Estrategias</span></div></div>
+    <div class="inst" onclick="location='/panel/journal'"><div class="inst-top"><div class="inst-icon">J</div><div><div class="name">Trading Journal</div><div class="desc">Bit&aacute;cora autom&aacute;tica, exportaci&oacute;n CSV</div></div></div><div class="ticker-line"><span class="tag">Auto-log</span><span>CSV</span><span>Historial</span></div></div>
+    <div class="inst" onclick="location='/panel/bookmakers'"><div class="inst-top"><div class="inst-icon">R</div><div><div class="name">Rating Casas</div><div class="desc">Overround, CLV, velocidad de ajuste</div></div></div><div class="ticker-line"><span class="tag">Overround</span><span>CLV</span><span>Scan</span></div></div>
+    <div class="inst" onclick="location='/panel/cross-market'"><div class="inst-top"><div class="inst-icon">X</div><div><div class="name">Cross Market</div><div class="desc">H2H vs AH, spreads, comparativa</div></div></div><div class="ticker-line"><span class="tag">H2H</span><span>AH</span><span>Spreads</span></div></div>
+    <div class="inst" onclick="location='/panel/backtesting'"><div class="inst-top"><div class="inst-icon">T</div><div><div class="name">Backtesting</div><div class="desc">Hist&oacute;rico, estrategias, rendimiento</div></div></div><div class="ticker-line"><span class="tag">Hist&oacute;rico</span><span>Estrategias</span><span>Rendimiento</span></div></div>
+    <div class="inst" onclick="location='/panel/rendimiento'"><div class="inst-top"><div class="inst-icon">G</div><div><div class="name">Rendimiento</div><div class="desc">Gr&aacute;ficas, estad&iacute;sticas avanzadas</div></div></div><div class="ticker-line"><span class="tag">Gr&aacute;ficas</span><span>Stats</span><span>Por deporte</span></div></div>
+  </div>
+  <div style="height:60px"></div>
 </div>
+
 <script>
-const LS='theme',D=document;
-function toggleTheme(){D.body.classList.toggle('light');localStorage.setItem(LS,D.body.classList.contains('light')?'light':'')}
-if(localStorage.getItem(LS)==='light')D.body.classList.add('light')
-function go(p){location.href=p}
-function clock(){const d=new Date();document.getElementById('clock').textContent=d.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})}
+function go(p){location=p}
+function clock(){var d=new Date();document.getElementById('clock').textContent=d.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});document.getElementById('lastUpd').textContent=d.toLocaleString('es-MX')}
 setInterval(clock,1e4);clock()
+function theme(){document.documentElement.classList.toggle('light');localStorage.setItem('theme',document.documentElement.classList.contains('light')?'light':'')}
+if(localStorage.getItem('theme')==='light')document.documentElement.classList.add('light')
 async function loadKPI(){try{
-  const r=await fetch('/api/dashboard/rendimiento')
+  var r=await fetch('/api/dashboard/rendimiento')
   if(!r.ok)return
-  const d=await r.json()
-  const g=d.general||{},b=d.bankroll||{},h=d.hoy||{}
-  document.getElementById('kpiBankroll').textContent='$'+(b.actual||0).toLocaleString()
-  document.getElementById('kpiWinRate').textContent=(g.win_rate||0)+'%'
+  var d=await r.json(),g=d.general||{},b=d.bankroll||{},h=d.hoy||{}
+  function n(v){return parseFloat(v)||0}
+  function s(v,c){v.className='ticker-val '+(c||(n(v.textContent.replace(/[$,%]/g,''))>0?'up':n(v.textContent.replace(/[$,%]/g,''))<0?'down':'neutral'))}
+  var br=n(b.actual).toLocaleString()
+  document.getElementById('kpiBr').textContent='$'+br
+  document.getElementById('tkBr').textContent='$'+br
+  ;['kpiWr','kpiRoi','kpiSh','kpiPnl','kpiVb','kpiEdge','tkWr','tkRoi','tkSh','tkPnl','tkVb'].forEach(function(id){var el=document.getElementById(id);if(el)el.textContent=el.textContent})
+  document.getElementById('kpiWr').textContent=(g.win_rate||0)+'%'
   document.getElementById('kpiRoi').textContent=(g.roi_pct||0)+'%'
-  document.getElementById('kpiSharpe').textContent=(g.sharpe_ratio||0).toFixed(2)
-  document.getElementById('kpiGanancia').textContent='$'+(g.ganancia_neta||0).toLocaleString()
-  const vb=h.value_bets||{}
+  document.getElementById('kpiSh').textContent=(g.sharpe_ratio||0).toFixed(2)
+  var pn=g.ganancia_neta||0
+  document.getElementById('kpiPnl').textContent='$'+n(pn).toLocaleString()
+  document.getElementById('kpiPnl').className='v '+(pn>=0?'pos':'neg')
+  document.getElementById('tkPnl').textContent='$'+n(pn).toLocaleString()
+  s(document.getElementById('tkPnl'),pn>=0?'up':'down')
+  var vb=h.value_bets||{}
   document.getElementById('kpiVb').textContent=vb.total||0
-  document.getElementById('kpiVbEdge').textContent=(vb.avg_edge||0).toFixed(1)+'%'
-  const status=document.getElementById('statusDot')
-  status.className='status-dot on'
+  document.getElementById('kpiEdge').textContent=(vb.avg_edge||0).toFixed(1)+'%'
+  document.getElementById('tkVb').textContent=vb.total||0
+  var wr=document.getElementById('kpiWr'),wrN=g.win_rate||0
+  wr.className='v '+(wrN>=50?'amb':'neg')
+  document.getElementById('tkWr').textContent=wrN+'%'
+  s(document.getElementById('tkWr'))
+  document.getElementById('tkRoi').textContent=(g.roi_pct||0)+'%'
+  document.getElementById('tkSh').textContent=(g.sharpe_ratio||0).toFixed(2)
+  document.getElementById('sd').className='th-dot on'
+  document.getElementById('tkMode').textContent='REAL'
+  document.getElementById('tkDb').textContent=d.database?.conectada?'DB OK':'DB--'
+  if(d.api_tests?.odds_api?.ok)document.getElementById('tkApi').textContent='API '+d.api_tests.odds_api.requests_restantes
 }catch(e){}
 setTimeout(loadKPI,3e4)}
 loadKPI()
