@@ -947,11 +947,22 @@ def admin_init_db():
 @app.route("/api/seed-demo")
 @login_required
 def seed_demo():
-    """Pobla la base con datos demo realistas para pruebas."""
-    from database import seed_demo_data
-    result = seed_demo_data()
-    result["mensaje"] = "Base poblada con datos demo. Refresca la página."
-    return jsonify(result)
+    """Pobla la base con datos iniciales realistas."""
+    import logging, traceback
+    logger = logging.getLogger(__name__)
+    try:
+        from database import seed_demo_data
+        result = seed_demo_data()
+        result["mensaje"] = f"OK — {result.get('total_insertados',0)} registros insertados"
+        logger.info("Seed endpoint: %d registros, %d errores",
+                    result.get("total_insertados", 0), len(result.get("errores", [])))
+        if result.get("errores"):
+            result["mensaje"] += f" ({len(result['errores'])} errores, ver consola)"
+        return jsonify(result)
+    except Exception as e:
+        tb = traceback.format_exc()
+        logger.error("Seed endpoint error: %s\n%s", e, tb)
+        return jsonify({"status": "error", "error": str(e), "traceback": tb}), 500
 
 
 @app.route("/api/admin/diag-football")
