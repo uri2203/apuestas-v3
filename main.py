@@ -944,6 +944,15 @@ def admin_init_db():
     return jsonify(resultado)
 
 
+@app.route("/api/seed-demo")
+@login_required
+def seed_demo():
+    """Pobla la base con datos demo realistas para pruebas."""
+    from database import seed_demo_data
+    result = seed_demo_data()
+    result["mensaje"] = "Base poblada con datos demo. Refresca la página."
+    return jsonify(result)
+
 
 @app.route("/api/admin/diag-football")
 def diag_football():

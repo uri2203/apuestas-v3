@@ -304,6 +304,313 @@ def _init_pg() -> None:
     conn.close()
 
 
+# ── Seed data ─────────────────────────────────────────────────────────────────
+def seed_demo_data() -> dict:
+    """Pobla la base con datos demo realistas para pruebas."""
+    from datetime import datetime, timedelta
+    import random, json
+
+    results = {"insertados": {}, "errores": []}
+    today = datetime.utcnow()
+    PH = "%s" if _USE_PG else "?"
+    SEP = "SERIAL" if _USE_PG else "INTEGER"
+
+    def _insert(table, columns, rows):
+        if not rows: return
+        cols = ", ".join(columns)
+        ph = ", ".join([PH] * len(columns))
+        sql = f"INSERT INTO {table} ({cols}) VALUES ({ph})"
+        with db() as conn:
+            for r in rows:
+                try:
+                    _execute(conn, sql, r)
+                except Exception as e:
+                    results["errores"].append(f"{table}: {str(e)[:100]}")
+
+    # - bankroll_history
+    br_rows = []
+    br = 10000.0
+    for i in range(90):
+        d = today - timedelta(days=89 - i)
+        cambio = random.uniform(-300, 400)
+        br = max(1000, br + cambio)
+        br_rows.append((d.strftime("%Y-%m-%d %H:%M:%S"), round(br, 2),
+                        f"Seed día {i+1}"))
+    _insert("bankroll_history", ("fecha", "bankroll", "evento"), br_rows)
+
+    # - bets
+    equipos = [
+        ("América", "Chivas"), ("Cruz Azul", "Pumas"), ("Tigres", "Monterrey"),
+        ("Barcelona", "Real Madrid"), ("Man City", "Liverpool"), ("Bayern", "Dortmund"),
+        ("PSG", "Marseille"), ("Juventus", "Milan"), ("Inter", "Roma"),
+        ("Lakers", "Celtics"), ("Warriors", "Nuggets"), ("Bucks", "76ers"),
+    ]
+    resultados = ["ganada", "perdida", "pendiente"]
+    bet_rows = []
+    for i in range(120):
+        d = today - timedelta(days=random.randint(0, 60), hours=random.randint(0, 23))
+        eq = random.choice(equipos)
+        cuota = round(random.uniform(1.5, 4.5), 2)
+        edge = round(random.uniform(-5, 15), 1)
+        sel = random.choice(["Local", "Visitante", "Empate"])
+        monto = round(random.uniform(200, 2000), 0)
+        res = random.choice(resultados[:2] if i < 100 else resultados)
+        pnl = round(monto * (cuota - 1), 2) if res == "ganada" else round(-monto, 2) if res == "perdida" else 0
+        bet_rows.append((
+            d.strftime("%Y-%m-%d %H:%M:%S"),
+            f"{eq[0]} vs {eq[1]}", random.choice(["Liga MX", "Premier League", "La Liga", "NBA", "Bundesliga"]),
+            "1X2", sel, cuota, monto, round(random.uniform(0.5, 5), 1), edge,
+            round(random.uniform(8000, 12000), 2), res, pnl,
+            round(random.uniform(8000, 12000), 2), ""
+        ))
+    _insert("bets",
+        ("created_at", "partido", "liga", "mercado", "seleccion", "cuota", "monto",
+         "kelly_pct", "edge_pct", "bankroll_antes", "resultado", "ganancia_neta",
+         "bankroll_despues", "notas"), bet_rows)
+
+    # - predictions
+    pred_rows = []
+    for i in range(80):
+        d = today - timedelta(days=random.randint(0, 60), hours=random.randint(0, 23))
+        eq = random.choice(equipos)
+        conf = round(random.uniform(55, 92), 1)
+        probs = [round(random.uniform(0.2, 0.6), 3) for _ in range(3)]
+        probs = [round(p / sum(probs), 3) for p in probs]
+        correcto = random.choice([0, 1, None])
+        pred_rows.append((
+            d.strftime("%Y-%m-%d %H:%M:%S"),
+            eq[0], eq[1], random.choice(["Liga MX", "Premier", "La Liga"]),
+            (today - timedelta(days=random.randint(0, 30))).strftime("%Y-%m-%d"),
+            random.choice(["Local", "Visitante", "Empate"]), conf,
+            probs[0], probs[1], probs[2],
+            round(random.uniform(0.5, 3), 2), round(random.uniform(0.3, 2.5), 2),
+            "ensemble_v1",
+            random.choice(["Local", "Visitante", "Empate", None]),
+            correcto,
+            (today - timedelta(days=random.randint(0, 5))).strftime("%Y-%m-%d") if correcto is not None else None
+        ))
+    _insert("predictions",
+        ("created_at", "home", "away", "liga", "fecha_partido", "pronostico",
+         "confianza_pct", "prob_local", "prob_empate", "prob_visitante",
+         "xg_home", "xg_away", "modelo", "resultado_real", "correcto", "verificado_at"), pred_rows)
+
+    # - value_bets_log
+    vb_rows = []
+    for i in range(40):
+        d = today - timedelta(days=random.randint(0, 14), hours=random.randint(0, 23))
+        eq = random.choice(equipos)
+        vb_rows.append((
+            d.strftime("%Y-%m-%d %H:%M:%S"),
+            f"{eq[0]} vs {eq[1]}", random.choice(["Liga MX", "Premier", "La Liga"]),
+            random.choice(["Local", "Visitante", "Empate"]),
+            random.choice(["Bet365", "DraftKings", "FanDuel", "BetMGM"]),
+            round(random.uniform(2.0, 6.0), 2), round(random.uniform(3, 25), 1), 0
+        ))
+    _insert("value_bets_log",
+        ("detected_at", "partido", "liga", "resultado", "casa", "cuota", "edge_pct", "notificado"), vb_rows)
+
+    # - simulated_trades
+    sim_rows = []
+    for i in range(50):
+        d = today - timedelta(days=random.randint(0, 45), hours=random.randint(0, 23))
+        eq = random.choice(equipos)
+        cuota = round(random.uniform(1.8, 5.0), 2)
+        edge = round(random.uniform(1, 20), 1)
+        stake = round(random.uniform(100, 1000), 0)
+        br_at = round(random.uniform(9000, 11000), 2)
+        res = random.choice(["ganada", "perdida", "pendiente"])
+        pnl = round(stake * (cuota - 1), 2) if res == "ganada" else round(-stake, 2) if res == "perdida" else 0
+        sim_rows.append((
+            d.strftime("%Y-%m-%d %H:%M:%S"),
+            f"{eq[0]} vs {eq[1]}", random.choice(["Liga MX", "NBA", "Premier"]),
+            random.choice(["Local", "Visitante"]), random.choice(["Bet365", "DraftKings"]),
+            cuota, edge, stake, br_at, res, pnl,
+            random.choice(["Local", "Visitante"]),
+            (today - timedelta(days=random.randint(0, 15))).strftime("%Y-%m-%d"),
+            (today - timedelta(days=random.randint(0, 3))).strftime("%Y-%m-%d") if res != "pendiente" else None
+        ))
+    _insert("simulated_trades",
+        ("created_at", "partido", "liga", "seleccion", "casa", "cuota", "edge_pct",
+         "stake_simulado", "bankroll_al_momento", "resultado_simulado", "pnl_real",
+         "resultado_real_partido", "fecha_partido", "verificado_at"), sim_rows)
+
+    # - accounting_transactions
+    acct_rows = []
+    saldo = 10000.0
+    for i in range(60):
+        d = today - timedelta(days=59 - i, hours=random.randint(0, 12))
+        es_ingreso = random.random() > 0.45
+        monto = round(random.uniform(100, 2000), 2) if es_ingreso else round(random.uniform(100, 1500), 2)
+        saldo = saldo + monto if es_ingreso else saldo - monto
+        acct_rows.append((
+            d.strftime("%Y-%m-%d %H:%M:%S"),
+            "ingreso" if es_ingreso else "egreso", monto, round(saldo, 2),
+            random.choice(["apuesta", "retiro", "deposito", "comision"]),
+            random.choice(["Value Bets", "Sharp Money", "ML Predictivo", "Arbitraje"]),
+            f"Seed transacción {i+1}", "", None
+        ))
+    _insert("accounting_transactions",
+        ("created_at", "tipo", "monto", "saldo_resultante", "categoria", "estrategia",
+         "descripcion", "partido", "ref_id"), acct_rows)
+
+    # - trading_journal
+    jr_rows = []
+    for i in range(80):
+        d = today - timedelta(days=random.randint(0, 30), hours=random.randint(0, 23))
+        eq = random.choice(equipos)
+        cuota = round(random.uniform(1.5, 5.0), 2)
+        edge = round(random.uniform(-3, 18), 1)
+        res = random.choice(["ganada", "perdida", "abierta"])
+        pnl = round(random.uniform(-500, 1500), 2)
+        jr_rows.append((
+            d.strftime("%Y-%m-%d %H:%M:%S"),
+            random.choice(["apuesta", "value_bet", "sharp_alerta", "simulacion"]),
+            f"{eq[0]} vs {eq[1]}", random.choice(["Liga MX", "Premier", "NBA"]),
+            "1X2", random.choice(["Local", "Visitante", "Empate"]),
+            cuota, round(random.uniform(200, 1500), 0), edge,
+            random.randint(0, 10), round(random.uniform(2, 8), 2),
+            random.choice(["Bet365", "DraftKings"]),
+            random.choice(["Value", "Sharp", "ML", "Manual"]),
+            res, pnl, "{}"
+        ))
+    _insert("trading_journal",
+        ("created_at", "tipo_accion", "partido", "liga", "mercado", "seleccion",
+         "cuota", "monto", "edge_pct", "score_sharp", "overround", "casa",
+         "estrategia", "resultado", "pnl", "snapshot"), jr_rows)
+
+    # - bookmaker_ratings
+    bm_rows = [
+        ("Bet365", round(random.uniform(2.5, 5.0), 2), round(random.uniform(1.8, 2.2), 2), random.randint(50, 200), round(random.uniform(0.002, 0.015), 4), random.randint(1, 10), today.strftime("%Y-%m-%d")),
+        ("DraftKings", round(random.uniform(3.0, 5.5), 2), round(random.uniform(1.7, 2.1), 2), random.randint(40, 180), round(random.uniform(0.003, 0.018), 4), random.randint(1, 8), today.strftime("%Y-%m-%d")),
+        ("FanDuel", round(random.uniform(2.8, 5.2), 2), round(random.uniform(1.75, 2.15), 2), random.randint(30, 150), round(random.uniform(0.002, 0.016), 4), random.randint(1, 9), today.strftime("%Y-%m-%d")),
+        ("BetMGM", round(random.uniform(3.2, 5.8), 2), round(random.uniform(1.7, 2.1), 2), random.randint(25, 120), round(random.uniform(0.004, 0.020), 4), random.randint(1, 7), today.strftime("%Y-%m-%d")),
+        ("Caesars", round(random.uniform(3.5, 6.0), 2), round(random.uniform(1.65, 2.05), 2), random.randint(20, 100), round(random.uniform(0.005, 0.022), 4), random.randint(1, 6), today.strftime("%Y-%m-%d")),
+    ]
+    _insert("bookmaker_ratings",
+        ("bookmaker", "avg_overround", "avg_cuota", "apariciones", "avg_clv", "velocidad_ajuste", "fecha_rating"), bm_rows)
+
+    # - alerts_log
+    alert_rows = []
+    for i in range(20):
+        d = today - timedelta(days=random.randint(0, 7), hours=random.randint(0, 23))
+        eq = random.choice(equipos)
+        alert_rows.append((
+            d.strftime("%Y-%m-%d %H:%M:%S"),
+            random.choice(["value_bet", "sharp_move", "steam", "arbitraje", "ml_alerta"]),
+            f"{eq[0]} vs {eq[1]}", f"Edge detectado: {round(random.uniform(2, 20), 1)}%",
+            random.choice(["alta", "media", "baja"]), "telegram"
+        ))
+    _insert("alerts_log",
+        ("created_at", "tipo", "partido", "detalle", "urgencia", "canal"), alert_rows)
+
+    # - backtest_results
+    bt_rows = [
+        (today.strftime("%Y-%m-%d %H:%M:%S"), "full", '{"estrategia":"value","edge_min":2}',
+         '{"total":120,"ganadas":65,"perdidas":55,"roi":8.5,"sharpe":1.2}', json.dumps([10000, 10200, 10100, 10500, 10800])),
+        (today.strftime("%Y-%m-%d %H:%M:%S"), "modelo", '{"modelo":"mlp","liga":"Liga MX"}',
+         '{"total":45,"ganadas":28,"perdidas":17,"roi":12.3,"sharpe":1.8}', json.dumps([10000, 10150, 10300, 10200, 10600])),
+        (today.strftime("%Y-%m-%d %H:%M:%S"), "simulacion", '{"tipo":"montecarlo","n":10000}',
+         '{"total":10000,"ganadas":5234,"perdidas":4766,"roi":6.7,"sharpe":0.95}', json.dumps([10000, 10050, 10100, 9950, 10200])),
+    ]
+    _insert("backtest_results",
+        ("created_at", "tipo", "config", "resumen", "bankroll_hist"), bt_rows)
+
+    # - feature_importance
+    feat_rows = []
+    ligas = ["Liga MX", "Premier League", "La Liga", "NBA"]
+    features = [
+        "xg_diff", "ppg_home", "ppg_away", "form_5_home", "form_5_away",
+        "gf_avg_home", "ga_avg_away", "h2h_wr", "b2b", "rest_days_diff",
+        "market_volume", "line_movement", "sharp_score", "public_pct",
+        "kelly_pct", "edge_pct", "clv", "overround", "injury_index",
+        "weather_factor", "ref_factor", "travel_dist", "altura", "presion_alta",
+    ]
+    for liga in ligas:
+        remaining = 1.0
+        f_list = features.copy()
+        random.shuffle(f_list)
+        for f in f_list[:12]:
+            imp = round(random.uniform(0.02, min(0.25, remaining)), 3)
+            remaining -= imp
+            feat_rows.append((liga, f, imp))
+        if remaining > 0:
+            feat_rows.append((liga, "other", round(remaining, 3)))
+    # Usamos insert manual para ON CONFLICT en PG
+    if _USE_PG:
+        sql = """INSERT INTO feature_importance (liga, feature_name, importance)
+                 VALUES (%s, %s, %s)
+                 ON CONFLICT (liga, feature_name) DO UPDATE SET importance = EXCLUDED.importance"""
+        with db() as conn:
+            for r in feat_rows:
+                try:
+                    _execute(conn, sql, r)
+                except Exception as e:
+                    results["errores"].append(f"feature_importance: {str(e)[:100]}")
+    else:
+        _insert("feature_importance", ("liga", "feature_name", "importance"), feat_rows)
+
+    # - model_performance
+    perf_rows = []
+    for liga in ligas:
+        for modelo in ["mlp", "gbm", "advanced_ensemble"]:
+            perf_rows.append((
+                today.strftime("%Y-%m-%d %H:%M:%S"), liga, modelo,
+                round(random.uniform(0.55, 0.82), 3), round(random.uniform(0.35, 0.65), 3),
+                random.randint(50, 300), random.randint(10, 30), "{}"
+            ))
+    _insert("model_performance",
+        ("created_at", "liga", "modelo", "accuracy", "log_loss", "n_muestras", "n_features", "pesos"), perf_rows)
+
+    # - ml_predictions_v2
+    mlp_rows = []
+    for i in range(30):
+        d = today - timedelta(days=random.randint(0, 20), hours=random.randint(0, 23))
+        eq = random.choice(equipos)
+        conf = round(random.uniform(55, 95), 1)
+        probs = [round(random.uniform(0.2, 0.6), 3) for _ in range(3)]
+        probs = [round(p / sum(probs), 3) for p in probs]
+        correcto = random.choice([0, 1, None])
+        mlp_rows.append((
+            d.strftime("%Y-%m-%d %H:%M:%S"),
+            random.choice(["Liga MX", "Premier League", "La Liga"]),
+            eq[0], eq[1],
+            random.choice(["Local", "Visitante", "Empate"]), conf,
+            probs[0], probs[1], probs[2],
+            round(1 / max(probs[0], 0.01), 2),
+            round(1 / max(probs[1], 0.01), 2),
+            round(1 / max(probs[2], 0.01), 2),
+            "advanced_ensemble",
+            (today - timedelta(days=random.randint(0, 10))).strftime("%Y-%m-%d"),
+            random.choice(["Local", "Visitante", "Empate", None]),
+            correcto,
+            (today - timedelta(days=random.randint(0, 3))).strftime("%Y-%m-%d") if correcto is not None else None
+        ))
+    _insert("ml_predictions_v2",
+        ("created_at", "liga", "home", "away", "pronostico", "confianza_pct",
+         "prob_local", "prob_empate", "prob_visitante",
+         "cuota_justa_local", "cuota_justa_empate", "cuota_justa_visitante",
+         "modelo", "fecha_partido", "resultado_real", "correcto", "verificado_at"), mlp_rows)
+
+    # Summary
+    counts = {}
+    tables = ["bankroll_history", "bets", "predictions", "value_bets_log",
+              "simulated_trades", "accounting_transactions", "trading_journal",
+              "bookmaker_ratings", "alerts_log", "backtest_results",
+              "feature_importance", "model_performance", "ml_predictions_v2"]
+    for t in tables:
+        try:
+            with db() as conn:
+                r = _fetchone(conn, f"SELECT COUNT(*) as n FROM {t}")
+                counts[t] = r["n"] if r else 0
+        except:
+            counts[t] = 0
+
+    results["insertados"] = counts
+    results["total_insertados"] = sum(counts.values())
+    results["status"] = "ok" if not results["errores"] else "con_errores"
+    return results
+
+
 def _init_sqlite() -> None:
     import sqlite3
     db_path = os.getenv("DB_PATH", "apuestaspro.db")
