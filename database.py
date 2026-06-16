@@ -335,7 +335,7 @@ def seed_demo_data() -> dict:
         cambio = random.uniform(-300, 400)
         br = max(1000, br + cambio)
         br_rows.append((d.strftime("%Y-%m-%d %H:%M:%S"), round(br, 2),
-                        f"Seed día {i+1}"))
+                        f"Inicialización {i+1}"))
     _insert("bankroll_history", ("fecha", "bankroll", "evento"), br_rows)
 
     # - bets
@@ -447,7 +447,7 @@ def seed_demo_data() -> dict:
             "ingreso" if es_ingreso else "egreso", monto, round(saldo, 2),
             random.choice(["apuesta", "retiro", "deposito", "comision"]),
             random.choice(["Value Bets", "Sharp Money", "ML Predictivo", "Arbitraje"]),
-            f"Seed transacción {i+1}", "", None
+            f"Inicialización {i+1}", "", None
         ))
     _insert("accounting_transactions",
         ("created_at", "tipo", "monto", "saldo_resultante", "categoria", "estrategia",
