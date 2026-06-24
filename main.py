@@ -1102,7 +1102,7 @@ def value_clv():
 def kpi_summary():
     """KPIs públicos para la landing — NO requiere login."""
     from database import get_bankroll_actual, get_bets_stats, count_value_bets_today, get_sharpe_ratio
-    days = 30
+    days = 90
     br = get_bankroll_actual()
     bets = get_bets_stats(days)
     sharpe = get_sharpe_ratio(days)
