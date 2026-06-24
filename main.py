@@ -114,10 +114,13 @@ def health():
     db_error = None
     db_tipo = "PostgreSQL/Supabase" if os.getenv("DATABASE_URL") else "SQLite"
     try:
-        from database import get_bankroll_actual
+        from database import get_bankroll_actual, _fetchone, db
         bankroll = get_bankroll_actual()
         db_ok = True
         estado["bankroll"] = bankroll
+        with db() as conn:
+            bc = _fetchone(conn, "SELECT COUNT(*) as n FROM bets")
+            estado["bets_count"] = bc["n"] if bc else 0
     except Exception as e:
         db_error = str(e)[:200]
 
