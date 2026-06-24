@@ -271,7 +271,7 @@ async function seedDB(){try{
 function theme(){document.documentElement.classList.toggle('light');localStorage.setItem('theme',document.documentElement.classList.contains('light')?'light':'')}
 if(localStorage.getItem('theme')==='light')document.documentElement.classList.add('light')
 async function loadKPI(){try{
-  var r=await fetch('/api/dashboard/rendimiento')
+  var r=await fetch('/api/kpi-summary')
   if(!r.ok)return
   var d=await r.json(),g=d.general||{},b=d.bankroll||{},h=d.hoy||{}
   function n(v){return parseFloat(v)||0}
@@ -280,7 +280,6 @@ async function loadKPI(){try{
   document.getElementById('kpiBr').textContent='$'+br
   document.getElementById('tkBr').textContent='$'+br
   if(n(b.actual)===0)document.getElementById('seedBanner').style.display='flex'
-  ;['kpiWr','kpiRoi','kpiSh','kpiPnl','kpiVb','kpiEdge','tkWr','tkRoi','tkSh','tkPnl','tkVb'].forEach(function(id){var el=document.getElementById(id);if(el)el.textContent=el.textContent})
   document.getElementById('kpiWr').textContent=(g.win_rate||0)+'%'
   document.getElementById('kpiRoi').textContent=(g.roi_pct||0)+'%'
   document.getElementById('kpiSh').textContent=(g.sharpe_ratio||0).toFixed(2)

@@ -1097,6 +1097,51 @@ def value_clv():
     return jsonify(clv(apostada, cierre))
 
 
+# ── DASHBOARD KPI PUBLICO ──────────────────────────────────────────────────────
+@app.route("/api/kpi-summary")
+def kpi_summary():
+    """KPIs públicos para la landing — NO requiere login."""
+    from database import get_bankroll_actual, get_bets_stats, count_value_bets_today, get_sharpe_ratio
+    days = 30
+    br = get_bankroll_actual()
+    bets = get_bets_stats(days)
+    sharpe = get_sharpe_ratio(days)
+    today_vb = count_value_bets_today()
+    win_rate = (bets["ganadas"] / bets["total"] * 100) if bets["total"] > 0 else 0
+    net = bets["ganancia_neta"]
+    roi = round((net / max(br, 1)) * 100, 2) if br > 0 else 0
+
+    db_ok = True
+    try:
+        from database import get_bankroll_actual
+        get_bankroll_actual()
+    except Exception:
+        db_ok = False
+
+    api_info = {}
+    if os.getenv("ODDS_API_KEY"):
+        try:
+            import httpx
+            r = httpx.get("https://api.the-odds-api.com/v4/sports/",
+                          params={"apiKey": os.getenv("ODDS_API_KEY")}, timeout=8)
+            api_info = {"ok": r.status_code == 200, "requests_restantes": r.headers.get("x-requests-remaining", "?")}
+        except Exception:
+            api_info = {"ok": False, "requests_restantes": "?"}
+
+    return jsonify({
+        "bankroll": {"actual": round(br, 2)},
+        "general": {
+            "win_rate": round(win_rate, 1),
+            "roi_pct": roi,
+            "ganancia_neta": round(net, 2),
+            "sharpe_ratio": sharpe,
+        },
+        "hoy": {"value_bets": today_vb},
+        "database": {"conectada": db_ok},
+        "api_tests": {"odds_api": api_info},
+    })
+
+
 # ── DASHBOARD RENDIMIENTO ─────────────────────────────────────────────────────
 @app.route("/api/dashboard/rendimiento")
 @login_required

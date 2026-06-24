@@ -143,6 +143,17 @@ def main():
         br = d.get("bankroll", {}).get("actual", 0)
         check_gt(float(br), 0, f"bankroll actual > 0: {br}")
 
+    # -- 7b. KPI publico --
+    r = client.get("/api/kpi-summary")
+    check_eq(r.status_code, 200, "GET /api/kpi-summary = 200 (publico)")
+    d = r.get_json()
+    if d:
+        check("bankroll" in d, "kpi-summary tiene 'bankroll'")
+        check("general" in d, "kpi-summary tiene 'general'")
+        check("hoy" in d, "kpi-summary tiene 'hoy'")
+        check("database" in d, "kpi-summary tiene 'database'")
+        check_gt(float(d.get("bankroll", {}).get("actual", 0)), 0, "kpi bankroll > 0")
+
     # -- 8. Module pages --
     print("\n  --- Modulos ---")
     modulos = [
