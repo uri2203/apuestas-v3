@@ -1142,6 +1142,21 @@ def kpi_summary():
     })
 
 
+@app.route("/api/diag/bets")
+def diag_bets():
+    """Diagnóstico público: conteo de bets."""
+    from database import db, _fetchone, _fetchall
+    with db() as conn:
+        total = _fetchone(conn, "SELECT COUNT(*) as n FROM bets")
+        with_date = _fetchall(conn, "SELECT created_at, resultado FROM bets ORDER BY created_at DESC LIMIT 5")
+        sample = _fetchone(conn, "SELECT MIN(created_at) as first, MAX(created_at) as last FROM bets")
+    return jsonify({
+        "total_bets": total["n"] if total else 0,
+        "sample": with_date or [],
+        "date_range": sample,
+    })
+
+
 # ── DASHBOARD RENDIMIENTO ─────────────────────────────────────────────────────
 @app.route("/api/dashboard/rendimiento")
 @login_required
