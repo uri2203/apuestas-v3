@@ -584,6 +584,7 @@ def seed_demo_data() -> dict:
     ), bt_rows)
 
     # - feature_importance
+    _exec("DELETE FROM feature_importance")
     feat_rows = []
     ligas = ["Liga MX", "Premier League", "La Liga", "NBA"]
     features = [
