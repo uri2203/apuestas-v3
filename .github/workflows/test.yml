@@ -39,33 +39,33 @@ jobs:
         FLASK_ENV: testing
       run: |
         python -c "
-import os
-os.environ['APP_PASSWORD'] = 'test123'
-os.environ['SESSION_SECRET'] = 'ci-secret-999999'
-os.environ['FLASK_ENV'] = 'testing'
+        import os
+        os.environ['APP_PASSWORD'] = 'test123'
+        os.environ['SESSION_SECRET'] = 'ci-secret-999999'
+        os.environ['FLASK_ENV'] = 'testing'
 
-from database import seed_demo_data, get_bankroll_actual, get_bets_stats
-r = seed_demo_data()
-assert r['status'] == 'ok', f'Seed failed: {r.get(\"errores\", [])}'
-assert r['total_insertados'] > 600, f'Expected >600, got {r[\"total_insertados\"]}'
+        from database import seed_demo_data, get_bankroll_actual, get_bets_stats
+        r = seed_demo_data()
+        assert r['status'] == 'ok', f'Seed failed: {r.get(\"errores\", [])}'
+        assert r['total_insertados'] > 600, f'Expected >600, got {r[\"total_insertados\"]}'
 
-br = get_bankroll_actual()
-assert float(br) > 0, f'Bankroll should be > 0, got {br}'
+        br = get_bankroll_actual()
+        assert float(br) > 0, f'Bankroll should be > 0, got {br}'
 
-stats = get_bets_stats(90)
-assert stats and stats.get('total', 0) > 0, f'Bet stats empty: {stats}'
+        stats = get_bets_stats(90)
+        assert stats and stats.get('total', 0) > 0, f'Bet stats empty: {stats}'
 
-from database import get_bankroll_history, get_prediction_stats, count_value_bets_today
-hist = get_bankroll_history(90)
-assert len(hist) > 0, 'Bankroll history empty'
-pred_stats = get_prediction_stats(90)
-assert pred_stats is not None, 'Prediction stats None'
-vb = count_value_bets_today()
-assert vb and vb.get('total', 0) > 0, f'Value bets empty: {vb}'
+        from database import get_bankroll_history, get_prediction_stats, count_value_bets_today
+        hist = get_bankroll_history(90)
+        assert len(hist) > 0, 'Bankroll history empty'
+        pred_stats = get_prediction_stats(90)
+        assert pred_stats is not None, 'Prediction stats None'
+        vb = count_value_bets_today()
+        assert vb and vb.get('total', 0) > 0, f'Value bets empty: {vb}'
 
-print(f'Bankroll: \${br}, Bets: {stats.get(\"total\", 0)}, Seed: {r[\"total_insertados\"]} records')
-print('Data integrity: ALL CHECKS PASSED')
-"
+        print(f'Bankroll: \${br}, Bets: {stats.get(\"total\", 0)}, Seed: {r[\"total_insertados\"]} records')
+        print('Data integrity: ALL CHECKS PASSED')
+        "
 
     - name: Module + API smoke test
       env:
@@ -74,46 +74,46 @@ print('Data integrity: ALL CHECKS PASSED')
         FLASK_ENV: testing
       run: |
         python -c "
-import os, json
-os.environ['APP_PASSWORD'] = 'test123'
-os.environ['SESSION_SECRET'] = 'ci-secret-999999'
-os.environ['FLASK_ENV'] = 'testing'
+        import os, json
+        os.environ['APP_PASSWORD'] = 'test123'
+        os.environ['SESSION_SECRET'] = 'ci-secret-999999'
+        os.environ['FLASK_ENV'] = 'testing'
 
-from main import app as _app
-from auth import _create_session_cookie, COOKIE_NAME
-_app.config['TESTING'] = True
-client = _app.test_client()
-token = _create_session_cookie()
-_HEADERS = {"Cookie": f"{COOKIE_NAME}={token}"}
-def g(url): return client.get(url, headers=_HEADERS)
+        from main import app as _app
+        from auth import _create_session_cookie, COOKIE_NAME
+        _app.config['TESTING'] = True
+        client = _app.test_client()
+        token = _create_session_cookie()
+        _HEADERS = {\"Cookie\": f\"{COOKIE_NAME}={token}\"}
+        def g(url): return client.get(url, headers=_HEADERS)
 
-# All module pages
-modules = ['value-bets','sharp','arbitraje','ml','bankroll','simulacion',
-           'contabilidad','journal','bookmakers','cross-market','backtesting','rendimiento']
-for m in modules:
-    r = g(f'/panel/{m}')
-    assert r.status_code == 200, f'/panel/{m} returned {r.status_code}'
-    assert 'win-frame' in r.data.decode(), f'/panel/{m} missing window frame'
-    print(f'  OK /panel/{m}')
+        # All module pages
+        modules = ['value-bets','sharp','arbitraje','ml','bankroll','simulacion',
+                   'contabilidad','journal','bookmakers','cross-market','backtesting','rendimiento']
+        for m in modules:
+            r = g(f'/panel/{m}')
+            assert r.status_code == 200, f'/panel/{m} returned {r.status_code}'
+            assert 'win-frame' in r.data.decode(), f'/panel/{m} missing window frame'
+            print(f'  OK /panel/{m}')
 
-# All API endpoints
-endpoints = [
-    '/api/dashboard/rendimiento',
-    '/api/alertas/recientes',
-    '/api/contabilidad/resumen-mensual',
-    '/api/contabilidad/pnl-estrategia',
-    '/api/journal/resumen',
-    '/api/bookmakers/rating',
-    '/api/portfolio/status',
-    '/api/simulacion/status',
-    '/api/ml/v2/features',
-    '/api/ml/v2/performance',
-]
-for ep in endpoints:
-    r = g(ep)
-    assert r.status_code == 200, f'{ep} returned {r.status_code}'
-    assert r.is_json, f'{ep} did not return JSON'
-    print(f'  OK {ep}')
+        # All API endpoints
+        endpoints = [
+            '/api/dashboard/rendimiento',
+            '/api/alertas/recientes',
+            '/api/contabilidad/resumen-mensual',
+            '/api/contabilidad/pnl-estrategia',
+            '/api/journal/resumen',
+            '/api/bookmakers/rating',
+            '/api/portfolio/status',
+            '/api/simulacion/status',
+            '/api/ml/v2/features',
+            '/api/ml/v2/performance',
+        ]
+        for ep in endpoints:
+            r = g(ep)
+            assert r.status_code == 200, f'{ep} returned {r.status_code}'
+            assert r.is_json, f'{ep} did not return JSON'
+            print(f'  OK {ep}')
 
-print('ALL MODULE SMOKE TESTS PASSED')
-"
+        print('ALL MODULE SMOKE TESTS PASSED')
+        "
