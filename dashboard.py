@@ -258,7 +258,11 @@ async function loadKPI(){try{
   document.getElementById('kpiEdge').textContent=(vb.avg_edge||0).toFixed(1)+'%'
   document.getElementById('sd').className='dot'
   document.getElementById('modeLabel').textContent='ONLINE'
-}catch(e){}
+}catch(e){
+  console.error('KPI load error:',e)
+  document.getElementById('sd').className='dot red'
+  document.getElementById('modeLabel').textContent='ERROR: '+e.message
+}
 setTimeout(loadKPI,3e4)}
 loadKPI()
 </script>
