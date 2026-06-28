@@ -347,10 +347,12 @@ async function loadVB(){try{
     h+='<tr><td>'+v.partido+'</td><td>'+v.resultado+'</td><td>'+v.casa+'</td><td class="num">'+v.cuota+'</td><td class="num" style="color:var(--amber);font-weight:600">'+v.edge_porcentaje+'%</td></tr>'
     sumE+=parseFloat(v.edge_porcentaje);maxE=Math.max(maxE,parseFloat(v.edge_porcentaje))
   })
-  document.getElementById('vbBody').innerHTML=h||'<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px">Sin value bets. Configura ODDS_API_KEY para datos reales.</td></tr>'
+  const err=d.api_error||(!vb.length?d.aviso:'')
+  document.getElementById('vbBody').innerHTML=h||'<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px">'+(err||'Sin value bets')+'</td></tr>'
   document.getElementById('vbCount').textContent=vb.length
   document.getElementById('vbAvgEdge').textContent=(vb.length?(sumE/vb.length).toFixed(1):'0')+'%'
   document.getElementById('vbMaxEdge').textContent=maxE.toFixed(1)+'%'
+  if(d.api_error)toast(d.api_error,'err')
 }catch(e){toast('Error al cargar value bets','err')}}
 loadVB()
 """)
@@ -399,7 +401,9 @@ async function loadArb(){try{
     h+='<tr><td>'+v.partido+'</td><td class="num" style="color:var(--green);font-weight:600">'+v.profit_pct+'%</td><td>'+v.n_resultados+'</td></tr>'
   })
   document.getElementById('arbMaxProfit').textContent=maxP.toFixed(2)+'%'
-  document.getElementById('arbBody').innerHTML=h||'<tr><td colspan="3" style="text-align:center;color:var(--text3);padding:20px">Sin arbitrajes. Configura ODDS_API_KEY.</td></tr>'
+  const err=d.api_error||(!a.length?d.aviso:'')
+  document.getElementById('arbBody').innerHTML=h||'<tr><td colspan="3" style="text-align:center;color:var(--text3);padding:20px">'+(err||'Sin arbitrajes')+'</td></tr>'
+  if(d.api_error)toast(d.api_error,'err')
 }catch(e){toast('Error','err')}}
 loadArb()
 """)

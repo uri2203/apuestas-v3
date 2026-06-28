@@ -342,8 +342,11 @@ def value_bets():
         if cached and now - cached[0] < 60:
             return jsonify(cached[1])
 
+        api_error = None
+        total_api_matches = 0
         for raw in raw_batches:
             if not raw:
+                api_error = "La API Odds retorno datos vacios. Verifica ODDS_API_KEY."
                 continue
             for m in raw if isinstance(raw, list) else []:
                 ht = m.get("home_team","") or ""
@@ -417,7 +420,8 @@ def value_bets():
             "total_partidos_analizados": len(partidos),
             "deportes_escaneados": deportes_escaneados,
             "multideporte": multi,
-            "aviso": None if filtered else f"Sin value bets con edge >= {edge_min}%",
+            "api_error": api_error,
+            "aviso": None if filtered else (api_error or f"Sin value bets con edge >= {edge_min}%"),
         }
         _vb_cache[cache_key] = (now, response)
         return jsonify(response)
@@ -456,8 +460,10 @@ def odds_arbitraje():
         else:
             raw = get_odds_for_sport(deporte, api_key, regions="us,uk,eu")
 
+        api_error = None
         if not raw:
             raw = []
+            api_error = "La API Odds retorno datos vacios. Verifica ODDS_API_KEY."
 
         arbitrajes = []
         for m in raw if isinstance(raw, list) else []:
@@ -537,6 +543,7 @@ def odds_arbitraje():
             "arbitrajes":        arbitrajes[:30],
             "min_profit_pct":    min_profit,
             "deporte_usado":     "upcoming" if (multi or deporte == "upcoming") else deporte,
+            "api_error": api_error,
         }
         _vb_cache[cache_key] = (now, response)
         return jsonify(response)
@@ -1166,6 +1173,36 @@ def diag_bets():
         })
     except Exception as e:
         return jsonify({"total_bets": 0, "sample": [], "date_range": None, "error": str(e)[:200]})
+
+
+@app.route("/api/diag/odds-api")
+def diag_odds_api():
+    """Diagnóstico público: verifica estado de ODDS_API_KEY."""
+    import httpx
+    api_key = os.getenv("ODDS_API_KEY", "")
+    if not api_key:
+        return jsonify({"configured": False, "error": "ODDS_API_KEY no configurada en variables de entorno"})
+    try:
+        r = httpx.get("https://api.the-odds-api.com/v4/sports/",
+                       params={"apiKey": api_key}, timeout=10)
+        remaining = r.headers.get("x-requests-remaining", "?")
+        used = r.headers.get("x-requests-used", "?")
+        if r.status_code == 200:
+            sports = r.json()
+            return jsonify({
+                "configured": True, "ok": True,
+                "requests_remaining": remaining, "requests_used": used,
+                "sports_available": len(sports) if isinstance(sports, list) else 0,
+            })
+        else:
+            return jsonify({
+                "configured": True, "ok": False,
+                "http_status": r.status_code,
+                "error": r.text[:200],
+                "requests_remaining": remaining,
+            })
+    except Exception as e:
+        return jsonify({"configured": True, "ok": False, "error": str(e)[:200]})
 
 
 # ── DASHBOARD RENDIMIENTO ─────────────────────────────────────────────────────
