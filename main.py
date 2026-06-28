@@ -829,29 +829,31 @@ def nlp_noticias():
 @app.route("/api/backtest")
 @login_required
 def backtest_run():
-    from services.backtesting import backtest, backtest_por_modelo
-    from services.api_football import get_fixtures_liga, LIGAS
-    from services.progol import HISTORIAL_DEMO
-    ventana = int(request.args.get("ventana", 20))
-    modo    = request.args.get("modo", "ensemble")
-    api_key = os.getenv("API_FOOTBALL_KEY", "")
-    # Usar datos reales si hay key, sino historial demo con aviso
-    historial = HISTORIAL_DEMO
-    es_demo   = True
-    if api_key:
-        try:
-            real = get_fixtures_liga(LIGAS["liga_mx"], None, api_key)
-            if real and len(real) >= 10:
-                historial = real
-                es_demo   = False
-        except Exception:
-            pass
-    resultado = backtest_por_modelo(historial, ventana) if modo == "comparar" else backtest(historial, ventana)
-    resultado["es_demo"]    = es_demo
-    resultado["n_partidos"] = len(historial)
-    if es_demo:
-        resultado["aviso"] = "Backtesting con historial demo (30 partidos). Configura API_FOOTBALL_KEY para datos reales."
-    return jsonify(resultado)
+    try:
+        from services.backtesting import backtest, backtest_por_modelo
+        from services.api_football import get_fixtures_liga, LIGAS
+        from services.progol import HISTORIAL_DEMO
+        ventana = int(request.args.get("ventana", 20) or 20)
+        modo    = request.args.get("modo", "ensemble")
+        api_key = os.getenv("API_FOOTBALL_KEY", "")
+        historial = HISTORIAL_DEMO
+        es_demo   = True
+        if api_key:
+            try:
+                real = get_fixtures_liga(LIGAS["liga_mx"], None, api_key)
+                if real and len(real) >= 10:
+                    historial = real
+                    es_demo   = False
+            except Exception:
+                pass
+        resultado = backtest_por_modelo(historial, ventana) if modo == "comparar" else backtest(historial, ventana)
+        resultado["es_demo"]    = es_demo
+        resultado["n_partidos"] = len(historial)
+        if es_demo:
+            resultado["aviso"] = "Backtesting con historial demo (30 partidos). Configura API_FOOTBALL_KEY para datos reales."
+        return jsonify(resultado)
+    except Exception as e:
+        return jsonify({"error": str(e)[:200], "resumen": {}, "ultimas_20_predicciones": [], "n_partidos": 0})
 
 
 @app.route("/api/alertas/recientes")
@@ -1498,9 +1500,12 @@ def bookmakers_rating():
 @login_required
 def odds_cross_market():
     """Detecta inconsistencias entre mercados (H2H vs Asian Handicap vs spreads)."""
-    from services.cross_market import get_opportunities
-    min_diff = float(request.args.get("min_diferencia", 4.0))
-    return jsonify(get_opportunities(None, min_diff))
+    try:
+        from services.cross_market import get_opportunities
+        min_diff = float(request.args.get("min_diferencia", 4.0))
+        return jsonify(get_opportunities(None, min_diff))
+    except Exception as e:
+        return jsonify({"total_alertas": 0, "alertas": [], "error": str(e)[:200]})
 
 
 # ── CONTABILIDAD ──────────────────────────────────────────────────────────────

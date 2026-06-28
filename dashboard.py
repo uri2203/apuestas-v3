@@ -427,7 +427,7 @@ async function loadML(){try{
   document.getElementById('mlConf').className='value '+(f.length?'green':'red')
   let h=''
   f.slice(0,15).forEach(v=>{
-    h+='<tr><td>'+v.feature_name+'</td><td><div style="background:var(--bg4);border-radius:3px;overflow:hidden;width:120px;display:inline-block"><div style="width:'+(v.importance*100)+'%;height:5px;background:var(--primary);border-radius:3px"></div></div> '+(v.importance*100).toFixed(1)+'%</td></tr>'
+    h+='<tr><td>'+v.feature_name+'</td><td><div style="background:var(--bg4);border-radius:3px;overflow:hidden;width:120px;display:inline-block"><div style="width:'+((v.importance||0)*100)+'%;height:5px;background:var(--primary);border-radius:3px"></div></div> '+((v.importance||0)*100).toFixed(1)+'%</td></tr>'
   })
   document.getElementById('mlBody').innerHTML=h||'<tr><td colspan="2" style="text-align:center;color:var(--text3);padding:20px">Entrena modelos primero</td></tr>'
 }catch(e){toast('Error','err')}}
@@ -507,11 +507,12 @@ MOD_CONTABILIDAD = module_page("Contabilidad", """
 """, """
 async function loadCon(){try{
   const d=await api('/api/contabilidad/pnl-estrategia')
-  document.getElementById('conCount').textContent=d.reduce((s,v)=>s+(v.total||0),0)
+  const arr=Array.isArray(d)?d:(d.pnl||d.data||[])
+  document.getElementById('conCount').textContent=arr.reduce((s,v)=>s+(v.total||0),0)
   let g=0,p=0,n=0,h=''
-  d.forEach(v=>{
+  arr.forEach(v=>{
     g+=v.ganadas||0;p+=v.perdidas||0;n+=v.neto||0
-    h+='<tr><td>'+v.estrategia+'</td><td>'+v.total+'</td><td class="green">'+v.ganadas+'</td><td class="red">'+v.perdidas+'</td><td class="'+(v.neto>=0?'green':'red')+'">$'+(v.neto||0)+'</td></tr>'
+    h+='<tr><td>'+(v.estrategia||'general')+'</td><td>'+(v.total||0)+'</td><td class="green">'+(v.ganadas||0)+'</td><td class="red">'+(v.perdidas||0)+'</td><td class="'+((v.neto||0)>=0?'green':'red')+'">$'+(v.neto||0)+'</td></tr>'
   })
   document.getElementById('conGanadas').textContent=g
   document.getElementById('conPerdidas').textContent=p
@@ -617,7 +618,10 @@ async function loadBT(){try{
   if(d.aviso) h2+='<tr><td colspan="3" style="color:var(--amber)">'+d.aviso+'</td></tr>'
   if(d.error) h2+='<tr><td colspan="3" style="color:var(--red)">'+d.error+'</td></tr>'
   preds.slice(0,15).forEach(v=>{
-    h2+='<tr><td>'+(v.home||v.local||'-')+'</td><td>'+(v.away||v.visitante||'-')+'</td><td>'+(v.prediccion||v.prediccion_modelo||'-')+'</td></tr>'
+    const parts=(v.partido||'').split(' vs ')
+    const home=parts[0]||'-'
+    const away=parts[1]||'-'
+    h2+='<tr><td>'+home+'</td><td>'+away+'</td><td>'+(v.prediccion||'-')+'</td></tr>'
   })
   document.getElementById('btBody').innerHTML=h2||'<tr><td colspan="3" style="text-align:center;color:var(--text3);padding:20px">Ejecuta un backtest con el boton de arriba</td></tr>'
 }catch(e){toast('Error','err')}}
