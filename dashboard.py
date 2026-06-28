@@ -360,16 +360,17 @@ MOD_SHARP = module_page("Sharp Money", """
   <div class="kpi"><div class="label">Alertas Sharp</div><div class="value" id="sharpCount">0</div><div class="sub">Ultimas 24h</div></div>
   <div class="kpi"><div class="label">CLV Promedio</div><div class="value amber" id="sharpClv">0</div></div>
 </div>
-<div class="table-wrap"><table><thead><tr><th>Partido</th><th>Movimiento</th><th>De</th><th>A</th><th>Urgencia</th></tr></thead><tbody id="sharpBody"></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Partido</th><th>Tipo</th><th>Detectado</th><th>Confianza</th><th>Senal</th></tr></thead><tbody id="sharpBody"></tbody></table></div>
 """, """
 async function loadSharp(){try{
   const d=await api('/api/sharp/analizar')
-  const a=d.movimientos||d.steam_moves||[]
-  document.getElementById('sharpCount').textContent=a.length
-  document.getElementById('sharpClv').textContent=(d.avg_clv||0).toFixed(1)+'%'
+  const ind=d.indicadores||[]
+  const sc=d.score_sharp||{}
+  document.getElementById('sharpCount').textContent=ind.length
+  document.getElementById('sharpClv').textContent=(sc.score||0).toFixed(0)+'/100'
   let h=''
-  a.forEach(v=>{
-    h+='<tr><td>'+(v.partido||'N/A')+'</td><td>'+(v.tipo||v.movimiento||'N/A')+'</td><td>'+(v.de||v.linea_original||'-')+'</td><td>'+(v.a||v.linea_nueva||'-')+'</td><td>'+(v.urgencia||'MEDIA')+'</td></tr>'
+  ind.forEach(v=>{
+    h+='<tr><td>'+(d.partido||'N/A')+'</td><td>'+(v.tipo||'N/A')+'</td><td>'+(v.detectado?'Si':'No')+'</td><td>'+(v.confianza_pct||0)+'%</td><td>'+(v.señal||v.senal||'-')+'</td></tr>'
   })
   document.getElementById('sharpBody').innerHTML=h||'<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px">Sin senales sharp. Configura ODDS_API_KEY.</td></tr>'
 }catch(e){toast('Error','err')}}
@@ -479,15 +480,15 @@ MOD_SIMULACION = module_page("Simulacion", """
 """, """
 async function loadSim(){try{
   const d=await api('/api/simulacion/status')
-  document.getElementById('simTotal').textContent=d.total||0
+  document.getElementById('simTotal').textContent=d.total_trades||d.total||0
   document.getElementById('simGanadas').textContent=d.ganadas||0
   document.getElementById('simPerdidas').textContent=d.perdidas||0
   document.getElementById('simPnl').textContent='$'+(d.pnl_total||0).toLocaleString()
-  const t=d.trades||[]
+  const t=d.ultimos_trades||d.trades||[]
   let h=''
   t.forEach(v=>{
-    const cls=v.resultado_simulado==='ganada'?'green':v.resultado_simulado==='perdida'?'red':'amber'
-    h+='<tr><td>'+v.partido+'</td><td>'+v.seleccion+'</td><td class="num">'+v.cuota+'</td><td class="num">'+(v.edge_pct||0)+'%</td><td class="'+cls+'">'+v.resultado_simulado+'</td><td class="num">$'+(v.pnl_real||0)+'</td></tr>'
+    const cls=v.resultado==='ganada'?'green':v.resultado==='perdida'?'red':'amber'
+    h+='<tr><td>'+v.partido+'</td><td>'+v.seleccion+'</td><td class="num">'+v.cuota+'</td><td class="num">'+(v.stake||0)+'</td><td class="'+cls+'">'+v.resultado+'</td><td class="num">$'+(v.pnl||0)+'</td></tr>'
   })
   document.getElementById('simBody').innerHTML=h||'<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:20px">Sin trades simulados</td></tr>'
 }catch(e){toast('Error','err')}}
@@ -538,7 +539,7 @@ async function loadJR(){try{
   document.getElementById('jrTipos').textContent=Object.keys(t).length
   let h=''
   u.forEach(v=>{
-    h+='<tr><td>'+(v.created_at||'').slice(0,10)+'</td><td>'+v.tipo_accion+'</td><td>'+(v.partido||'-')+'</td><td>'+v.seleccion+' $'+(v.monto||0)+'</td></tr>'
+    h+='<tr><td>'+(v.fecha||'').slice(0,10)+'</td><td>'+v.tipo+'</td><td>'+(v.partido||'-')+'</td><td>'+v.estrategia+' '+v.resultado+' $'+(v.pnl||0)+'</td></tr>'
   })
   document.getElementById('jrBody').innerHTML=h||'<tr><td colspan="4" style="text-align:center;color:var(--text3);padding:20px">Sin actividad registrada</td></tr>'
 }catch(e){toast('Error','err')}}
@@ -587,11 +588,11 @@ MOD_CROSS = module_page("Cross Market", """
 """, """
 async function loadCM(){try{
   const d=await api('/api/odds/cross-market')
-  const a=d.oportunidades||d.items||[]
+  const a=d.alertas||[]
   document.getElementById('cmCount').textContent=a.length
   let h=''
   a.slice(0,20).forEach(v=>{
-    h+='<tr><td>'+(v.partido||'N/A')+'</td><td class="num">'+(v.h2h||v.cuota_h2h||'-')+'</td><td class="num">'+(v.ah||v.cuota_ah||'-')+'</td><td class="num" style="color:var(--green)">'+(v.diferencia||v.diff||'-')+'</td></tr>'
+    h+='<tr><td>'+(v.partido||'N/A')+'</td><td class="num">'+(v.cuota_h2h_mejor||'-')+'</td><td class="num">'+(v.cuota_ah_mejor||'-')+'</td><td class="num" style="color:var(--green)">'+(v.diferencia_pct||'-')+'%</td></tr>'
   })
   document.getElementById('cmBody').innerHTML=h||'<tr><td colspan="4" style="text-align:center;color:var(--text3);padding:20px">Sin datos cross-market</td></tr>'
 }catch(e){toast('Error','err')}}
@@ -604,20 +605,20 @@ MOD_BACKTESTING = module_page("Backtesting", """
   <div class="kpi"><div class="label">Accuracy</div><div class="value amber" id="btAcc">0%</div></div>
 </div>
 <div class="top-bar"><button class="btn btn-primary" onclick="loadBT()">Actualizar</button></div>
-<div class="table-wrap"><table><thead><tr><th>Config</th><th>Tipo</th><th>Resumen</th></tr></thead><tbody id="btBody"></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Local</th><th>Visitante</th><th>Prediccion</th></tr></thead><tbody id="btBody"></tbody></table></div>
 """, """
 async function loadBT(){try{
   const d=await api('/api/backtest')
+  const res=d.resumen||{}
   document.getElementById('btTotal').textContent=d.n_partidos||0
-  document.getElementById('btAcc').textContent=(d.accuracy||d.win_rate||0)+'%'
-  const h=d.historial||d.results||d.detail||[]
+  document.getElementById('btAcc').textContent=(res.accuracy_pct||0).toFixed(1)+'%'
+  const preds=d.ultimas_20_predicciones||[]
   let h2=''
   if(d.aviso) h2+='<tr><td colspan="3" style="color:var(--amber)">'+d.aviso+'</td></tr>'
-  if(Array.isArray(h)){
-    h.slice(0,15).forEach(v=>{
-      h2+='<tr><td>'+(v.config||v.ventana||'-')+'</td><td>'+(v.tipo||v.modo||'-')+'</td><td>'+(v.resumen||v.summary||JSON.stringify(v).slice(0,80))+'</td></tr>'
-    })
-  }
+  if(d.error) h2+='<tr><td colspan="3" style="color:var(--red)">'+d.error+'</td></tr>'
+  preds.slice(0,15).forEach(v=>{
+    h2+='<tr><td>'+(v.home||v.local||'-')+'</td><td>'+(v.away||v.visitante||'-')+'</td><td>'+(v.prediccion||v.prediccion_modelo||'-')+'</td></tr>'
+  })
   document.getElementById('btBody').innerHTML=h2||'<tr><td colspan="3" style="text-align:center;color:var(--text3);padding:20px">Ejecuta un backtest con el boton de arriba</td></tr>'
 }catch(e){toast('Error','err')}}
 loadBT()
