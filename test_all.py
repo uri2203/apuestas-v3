@@ -132,7 +132,7 @@ def main():
     check_eq(r.status_code, 200, "GET / = 200")
     html = r.data.decode()
     check("Apuestas" in html, "landing contiene 'Apuestas'")
-        check("Seed Database" in html, "landing contiene boton Seed Database")
+    check("Seed Database" in html, "landing contiene boton Seed Database")
 
     r = get("/api/dashboard/rendimiento")
     check_eq(r.status_code, 200, "GET /api/dashboard/rendimiento = 200")
