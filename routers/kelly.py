@@ -17,9 +17,9 @@ def calcular_kelly():
     """
     data = request.get_json()
     return jsonify(criterio_kelly(
-        bankroll=data["bankroll"],
-        cuota_decimal=data["cuota_decimal"],
-        probabilidad_estimada=data["probabilidad_estimada_pct"] / 100,
+        bankroll=data.get("bankroll", 5000),
+        cuota_decimal=data.get("cuota_decimal", 2.0),
+        probabilidad_estimada=data.get("probabilidad_estimada_pct", 55) / 100,
         fraccion=data.get("fraccion", 0.5),
     ))
 

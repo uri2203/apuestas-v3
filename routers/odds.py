@@ -4,7 +4,7 @@ Endpoints: odds, value bets, comparador, arbitrajes.
 """
 from flask import Blueprint, jsonify, request
 from auth import login_required
-from services.scraper import obtener_odds_deportivos
+from services.deportes import get_odds_for_sport
 from services.estadisticas import detectar_value_bet, comparar_odds_casas
 import os
 
@@ -20,7 +20,28 @@ def obtener_odds(deporte="soccer_mexico_ligamx"):
     """
     casas = int(request.args.get("casas", 5))
     api_key = os.getenv("ODDS_API_KEY", "")
-    data = obtener_odds_deportivos(deporte, api_key)
+    raw = get_odds_for_sport(deporte, api_key)
+    data = []
+    for m in raw if isinstance(raw, list) else []:
+        ht = m.get("home_team", "") or ""
+        at = m.get("away_team", "") or ""
+        if not ht or not at:
+            continue
+        odds_map = {}
+        for book in m.get("bookmakers", []):
+            for o in book.get("markets", [{}])[0].get("outcomes", []):
+                name = o.get("name", "")
+                price = o.get("price", 0)
+                if name and price > 1:
+                    odds_map.setdefault(book.get("title", ""), {})[name] = price
+        data.append({
+            "id": m.get("id", ""),
+            "local": ht,
+            "visitante": at,
+            "liga": m.get("sport_title", deporte),
+            "fecha": m.get("commence_time", ""),
+            "odds": odds_map,
+        })
     return jsonify({"deporte": deporte, "total_partidos": len(data), "partidos": data[:20]})
 
 
@@ -33,7 +54,28 @@ def value_bets():
     deporte = request.args.get("deporte", "soccer_mexico_ligamx")
     edge_minimo = float(request.args.get("edge_minimo", 2.0))
     api_key = os.getenv("ODDS_API_KEY", "")
-    partidos = obtener_odds_deportivos(deporte, api_key)
+    raw = get_odds_for_sport(deporte, api_key)
+    partidos = []
+    for m in raw if isinstance(raw, list) else []:
+        ht = m.get("home_team", "") or ""
+        at = m.get("away_team", "") or ""
+        if not ht or not at:
+            continue
+        odds_map = {}
+        for book in m.get("bookmakers", []):
+            for o in book.get("markets", [{}])[0].get("outcomes", []):
+                name = o.get("name", "")
+                price = o.get("price", 0)
+                if name and price > 1:
+                    odds_map.setdefault(book.get("title", ""), {})[name] = price
+        partidos.append({
+            "id": m.get("id", ""),
+            "local": ht,
+            "visitante": at,
+            "liga": m.get("sport_title", deporte),
+            "fecha": m.get("commence_time", ""),
+            "odds": odds_map,
+        })
 
     value_bets_detectados = []
 
@@ -78,7 +120,28 @@ def comparar_partido(partido_id, deporte="soccer_mexico_ligamx"):
     Detecta arbitrajes automáticamente.
     """
     api_key = os.getenv("ODDS_API_KEY", "")
-    partidos = obtener_odds_deportivos(deporte, api_key)
+    raw = get_odds_for_sport(deporte, api_key)
+    partidos = []
+    for m in raw if isinstance(raw, list) else []:
+        ht = m.get("home_team", "") or ""
+        at = m.get("away_team", "") or ""
+        if not ht or not at:
+            continue
+        odds_map = {}
+        for book in m.get("bookmakers", []):
+            for o in book.get("markets", [{}])[0].get("outcomes", []):
+                name = o.get("name", "")
+                price = o.get("price", 0)
+                if name and price > 1:
+                    odds_map.setdefault(book.get("title", ""), {})[name] = price
+        partidos.append({
+            "id": m.get("id", ""),
+            "local": ht,
+            "visitante": at,
+            "liga": m.get("sport_title", deporte),
+            "fecha": m.get("commence_time", ""),
+            "odds": odds_map,
+        })
 
     partido = next((p for p in partidos if p["id"] == partido_id), None)
     if not partido:

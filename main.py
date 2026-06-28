@@ -2,7 +2,7 @@
 ApuestasPro v4.3 — Servidor principal.
 """
 
-import math, os, json, logging, time, queue, threading, traceback, httpx
+import math, os, json, logging, time, queue, threading, traceback, httpx, subprocess
 from datetime import datetime, timedelta
 from flask import Flask, jsonify, request, Response, stream_with_context
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -229,9 +229,9 @@ def progol_partido_completo():
     from services.progol import predecir_partido
     home=request.args.get("home","Club América"); away=request.args.get("away","Guadalajara")
     try: les_local=json.loads(request.args.get("lesiones_local","[]").replace("'",'"'))
-    except: les_local=[]
+    except Exception: les_local=[]
     try: les_visita=json.loads(request.args.get("lesiones_visitante","[]").replace("'",'"'))
-    except: les_visita=[]
+    except Exception: les_visita=[]
     return jsonify(predecir_partido(
         home,away,
         lesiones_local=les_local,lesiones_visitante=les_visita,
@@ -376,7 +376,7 @@ def value_bets():
                         "home": ht, "away": at,
                         "best": best_per_outcome,
                         "consensus": consensus,
-                        "liga": m.get("sport_title", skey),
+                        "liga": m.get("sport_title", deporte),
                     })
 
         # ── 3. Calcular edge: mejor cuota vs consenso ──
@@ -778,7 +778,7 @@ def sharp_analizar():
     from services.sharp_money import analizar_partido_sharp
     partido=request.args.get("partido","Local vs Visitante")
     try: casas=json.loads(request.args.get("lineas_casas","{}"))
-    except: casas={}
+    except Exception: casas={}
     resultado=analizar_partido_sharp(
         partido,float(request.args.get("linea_apertura",2.10)),
         float(request.args.get("linea_actual",1.95)),
@@ -793,7 +793,7 @@ def sharp_analizar():
 def sharp_steam():
     from services.sharp_money import detectar_steam
     try: movs=json.loads(request.args.get("movimientos","[]"))
-    except: movs=[]
+    except Exception: movs=[]
     if not movs:
         movs=[{"casa":"Pinnacle","linea_antes":2.10,"linea_ahora":1.85},
               {"casa":"Bet365","linea_antes":2.15,"linea_ahora":1.90},

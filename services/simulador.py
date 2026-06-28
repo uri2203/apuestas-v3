@@ -208,7 +208,12 @@ def resumen_simulacion(dias: int = 1) -> dict:
 def _fetchone(conn, sql, params=None):
     if params is None:
         params = ()
-    cur = conn.execute(sql, params)
+    cur = conn.cursor()
+    cur.execute(sql, params)
     row = cur.fetchone()
     cur.close()
-    return dict(row) if row else None
+    if row is None:
+        return None
+    if hasattr(row, "keys"):
+        return dict(row)
+    return dict(zip([d[0] for d in cur.description], row)) if cur.description else None

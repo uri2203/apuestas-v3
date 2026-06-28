@@ -7,6 +7,7 @@ Rating Automático de Casas — ranking de bookmakers por:
 
 Sin costo adicional: todo se calcula con los datos que Odds API ya devuelve.
 """
+import os
 import logging
 from datetime import datetime
 

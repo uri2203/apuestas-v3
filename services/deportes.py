@@ -21,7 +21,7 @@ SPORTS_BY_ROI = [
     "baseball_mlb",
     "soccer_usa_mls",
     "soccer_mexico_ligamx",
-    "soccer_england_epermierleague",
+    "soccer_england_premierleague",
     "soccer_spain_la_liga",
     "soccer_germany_bundesliga",
     "soccer_italy_serie_a",

@@ -20,8 +20,8 @@ router = Blueprint("avanzado", __name__)
 @login_required
 def clv_calcular():
     """Calcula el Closing Line Value de una apuesta."""
-    cuota_apostada = float(request.args.get("cuota_apostada"))
-    cuota_cierre = float(request.args.get("cuota_cierre"))
+    cuota_apostada = float(request.args.get("cuota_apostada", 2.0))
+    cuota_cierre = float(request.args.get("cuota_cierre", 1.9))
     return jsonify(calcular_clv(cuota_apostada, cuota_cierre))
 
 @router.route("/clv/analizar-historial", methods=["POST"])
@@ -37,9 +37,9 @@ def clv_historial():
 @login_required
 def sharp_detectar():
     """Detecta Sharp Money y Reverse Line Movement."""
-    cuota_apertura = float(request.args.get("cuota_apertura"))
-    cuota_actual = float(request.args.get("cuota_actual"))
-    pct_publico = float(request.args.get("pct_publico"))
+    cuota_apertura = float(request.args.get("cuota_apertura", 2.0))
+    cuota_actual = float(request.args.get("cuota_actual", 1.9))
+    pct_publico = float(request.args.get("pct_publico", 50))
     return jsonify(detectar_sharp_money(cuota_apertura, cuota_actual, pct_publico))
 
 # ┄┄ MONTE CARLO ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
