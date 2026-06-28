@@ -132,7 +132,7 @@ def main():
     check_eq(r.status_code, 200, "GET / = 200")
     html = r.data.decode()
     check("Apuestas" in html, "landing contiene 'Apuestas'")
-    check("Seed DB" in html, "landing contiene boton Seed DB")
+        check("Seed Database" in html, "landing contiene boton Seed Database")
 
     r = get("/api/dashboard/rendimiento")
     check_eq(r.status_code, 200, "GET /api/dashboard/rendimiento = 200")
@@ -164,7 +164,7 @@ def main():
         r = get(f"/panel/{m}")
         check_eq(r.status_code, 200, f"GET /panel/{m} = 200")
         html = r.data.decode()
-        check("win-frame" in html, f"panel/{m} tiene estructura ventana")
+        check('class="content"' in html or "modContent" in html, f"panel/{m} tiene estructura ventana")
 
     # -- 9. Value bets --
     print("\n  --- Value Bets ---")

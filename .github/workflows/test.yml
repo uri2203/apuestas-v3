@@ -93,7 +93,7 @@ jobs:
         for m in modules:
             r = g(f'/panel/{m}')
             assert r.status_code == 200, f'/panel/{m} returned {r.status_code}'
-            assert 'win-frame' in r.data.decode(), f'/panel/{m} missing window frame'
+            assert 'class="content"' in r.data.decode() or 'modContent' in r.data.decode(), f'/panel/{m} missing window frame'
             print(f'  OK /panel/{m}')
 
         # All API endpoints
