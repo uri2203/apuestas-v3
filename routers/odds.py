@@ -29,7 +29,7 @@ def obtener_odds(deporte="soccer_mexico_ligamx"):
             continue
         odds_map = {}
         for book in m.get("bookmakers", []):
-            for o in book.get("markets", [{}])[0].get("outcomes", []):
+            for o in book.get("markets", [{}])[0].get("outcomes", []) if book.get("markets") else []:
                 name = o.get("name", "")
                 price = o.get("price", 0)
                 if name and price > 1:
@@ -63,7 +63,7 @@ def value_bets():
             continue
         odds_map = {}
         for book in m.get("bookmakers", []):
-            for o in book.get("markets", [{}])[0].get("outcomes", []):
+            for o in book.get("markets", [{}])[0].get("outcomes", []) if book.get("markets") else []:
                 name = o.get("name", "")
                 price = o.get("price", 0)
                 if name and price > 1:
@@ -129,7 +129,7 @@ def comparar_partido(partido_id, deporte="soccer_mexico_ligamx"):
             continue
         odds_map = {}
         for book in m.get("bookmakers", []):
-            for o in book.get("markets", [{}])[0].get("outcomes", []):
+            for o in book.get("markets", [{}])[0].get("outcomes", []) if book.get("markets") else []:
                 name = o.get("name", "")
                 price = o.get("price", 0)
                 if name and price > 1:

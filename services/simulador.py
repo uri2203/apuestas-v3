@@ -211,9 +211,10 @@ def _fetchone(conn, sql, params=None):
     cur = conn.cursor()
     cur.execute(sql, params)
     row = cur.fetchone()
+    desc = [d[0] for d in cur.description] if cur.description else None
     cur.close()
     if row is None:
         return None
     if hasattr(row, "keys"):
         return dict(row)
-    return dict(zip([d[0] for d in cur.description], row)) if cur.description else None
+    return dict(zip(desc, row)) if desc else None

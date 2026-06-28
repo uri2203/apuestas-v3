@@ -728,8 +728,12 @@ def odds_bookmakers():
 @app.route("/api/kelly/calcular",methods=["POST"])
 @login_required
 def kelly_calcular():
-    d=request.get_json(); bank=float(d.get("bankroll",5000)); odds=float(d.get("cuota_decimal",2.10))
-    prob=float(d.get("probabilidad_estimada_pct",55))/100; frac=float(d.get("fraccion",0.5))
+    d=request.get_json(silent=True) or {}
+    try:
+        bank=float(d.get("bankroll",5000)); odds=float(d.get("cuota_decimal",2.10))
+        prob=float(d.get("probabilidad_estimada_pct",55))/100; frac=float(d.get("fraccion",0.5))
+    except (ValueError, TypeError):
+        bank=5000; odds=2.10; prob=0.55; frac=0.5
     b=odds-1; q=1-prob; kp=(b*prob-q)/b if b>0 else 0; ka=kp*frac; bet=max(0,bank*ka)
     return jsonify({"kelly_puro_pct":round(kp*100,2),"kelly_ajustado_pct":round(ka*100,2),
         "apuesta_sugerida":round(bet,2),"hay_valor":kp>0,
@@ -1147,16 +1151,19 @@ def kpi_summary():
 @app.route("/api/diag/bets")
 def diag_bets():
     """Diagnóstico público: conteo de bets."""
-    from database import db, _fetchone, _fetchall
-    with db() as conn:
-        total = _fetchone(conn, "SELECT COUNT(*) as n FROM bets")
-        with_date = _fetchall(conn, "SELECT created_at, resultado FROM bets ORDER BY created_at DESC LIMIT 5")
-        sample = _fetchone(conn, "SELECT MIN(created_at) as first, MAX(created_at) as last FROM bets")
-    return jsonify({
-        "total_bets": total["n"] if total else 0,
-        "sample": with_date or [],
-        "date_range": sample,
-    })
+    try:
+        from database import db, _fetchone, _fetchall
+        with db() as conn:
+            total = _fetchone(conn, "SELECT COUNT(*) as n FROM bets")
+            with_date = _fetchall(conn, "SELECT created_at, resultado FROM bets ORDER BY created_at DESC LIMIT 5")
+            sample = _fetchone(conn, "SELECT MIN(created_at) as first, MAX(created_at) as last FROM bets")
+        return jsonify({
+            "total_bets": total["n"] if total else 0,
+            "sample": with_date or [],
+            "date_range": sample,
+        })
+    except Exception as e:
+        return jsonify({"total_bets": 0, "sample": [], "date_range": None, "error": str(e)[:200]})
 
 
 # ── DASHBOARD RENDIMIENTO ─────────────────────────────────────────────────────
@@ -1534,7 +1541,7 @@ def contabilidad_pnl():
         dias = int(request.args.get("dias", 30))
         return jsonify(pnl_por_estrategia(dias))
     except Exception as e:
-        return jsonify([], error=str(e))
+        return jsonify({"error": str(e)[:200], "pnl": []})
 
 
 @app.route("/api/contabilidad/sync")

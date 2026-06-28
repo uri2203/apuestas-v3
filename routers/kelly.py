@@ -31,25 +31,25 @@ def analizar_historial():
     Analiza el historial de apuestas y calcula métricas de rendimiento.
     """
     apuestas = request.get_json()
-    if not apuestas:
+    if not apuestas or not isinstance(apuestas, list):
         return jsonify({"error": "Sin apuestas para analizar"})
 
-    ganadas = [a for a in apuestas if a["resultado"]]
-    perdidas = [a for a in apuestas if not a["resultado"]]
+    ganadas = [a for a in apuestas if a.get("resultado")]
+    perdidas = [a for a in apuestas if not a.get("resultado")]
 
-    total_apostado = sum(a["apuesta"] for a in apuestas)
-    ganancias = sum(a["apuesta"] * (a["cuota"] - 1) for a in ganadas)
-    perdidas_total = sum(a["apuesta"] for a in perdidas)
+    total_apostado = sum(a.get("apuesta", 0) for a in apuestas)
+    ganancias = sum(a.get("apuesta", 0) * (a.get("cuota", 2) - 1) for a in ganadas)
+    perdidas_total = sum(a.get("apuesta", 0) for a in perdidas)
     profit = ganancias - perdidas_total
 
     tasa_acierto = len(ganadas) / len(apuestas) if apuestas else 0
     roi = (profit / total_apostado * 100) if total_apostado > 0 else 0
 
-    cuotas_avg = sum(a["cuota"] for a in apuestas) / len(apuestas)
+    cuotas_avg = sum(a.get("cuota", 2) for a in apuestas) / len(apuestas) if apuestas else 2
 
     racha = 0
     for a in reversed(apuestas):
-        if a["resultado"]:
+        if a.get("resultado"):
             if racha >= 0:
                 racha += 1
             else:

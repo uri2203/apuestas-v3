@@ -127,8 +127,8 @@ def get_ranking() -> list[dict]:
     for i, r in enumerate(rows, 1):
         over = r.get("avg_overround", 5) or 5
         score_over = round((1 - (over - min_over) / rango) * 60, 1)
-        score_ap = min(r.get("apariciones", 0) or 0 * 2, 20)
-        score_clv = max(min(r.get("avg_clv", 0) or 0 * 10, 20), 0)
+        score_ap = min((r.get("apariciones", 0) or 0) * 2, 20)
+        score_clv = max(min((r.get("avg_clv", 0) or 0) * 10, 20), 0)
         score_total = round(score_over + score_ap + score_clv, 1)
 
         ranking.append({

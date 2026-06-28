@@ -260,7 +260,7 @@ async function loadKPI(){try{
   document.getElementById('modeLabel').textContent='ONLINE'
 }catch(e){
   console.error('KPI load error:',e)
-  document.getElementById('sd').className='dot red'
+  document.getElementById('sd').className='dot off'
   document.getElementById('modeLabel').textContent='ERROR: '+e.message
 }
 setTimeout(loadKPI,3e4)}
@@ -363,12 +363,13 @@ MOD_SHARP = module_page("Sharp Money", """
 <div class="table-wrap"><table><thead><tr><th>Partido</th><th>Movimiento</th><th>De</th><th>A</th><th>Urgencia</th></tr></thead><tbody id="sharpBody"></tbody></table></div>
 """, """
 async function loadSharp(){try{
-  const d=await api('/api/odds/arbitraje?min_profit=0.1')
-  const a=d.arbitrajes||[]
+  const d=await api('/api/sharp/analizar')
+  const a=d.movimientos||d.steam_moves||[]
   document.getElementById('sharpCount').textContent=a.length
+  document.getElementById('sharpClv').textContent=(d.avg_clv||0).toFixed(1)+'%'
   let h=''
   a.forEach(v=>{
-    h+='<tr><td>'+v.partido+'</td><td>'+v.profit_pct+'%</td><td>'+v.n_bookmakers+'</td><td>'+v.profit_pct+'%</td><td>MEDIA</td></tr>'
+    h+='<tr><td>'+(v.partido||'N/A')+'</td><td>'+(v.tipo||v.movimiento||'N/A')+'</td><td>'+(v.de||v.linea_original||'-')+'</td><td>'+(v.a||v.linea_nueva||'-')+'</td><td>'+(v.urgencia||'MEDIA')+'</td></tr>'
   })
   document.getElementById('sharpBody').innerHTML=h||'<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px">Sin senales sharp. Configura ODDS_API_KEY.</td></tr>'
 }catch(e){toast('Error','err')}}
@@ -585,12 +586,12 @@ MOD_CROSS = module_page("Cross Market", """
 <div class="table-wrap"><table><thead><tr><th>Partido</th><th>H2H</th><th>AH</th><th>Diferencia</th></tr></thead><tbody id="cmBody"></tbody></table></div>
 """, """
 async function loadCM(){try{
-  const d=await api('/api/odds/arbitraje?min_profit=0.1')
-  const a=d.arbitrajes||[]
+  const d=await api('/api/odds/cross-market')
+  const a=d.oportunidades||d.items||[]
   document.getElementById('cmCount').textContent=a.length
   let h=''
   a.slice(0,20).forEach(v=>{
-    h+='<tr><td>'+v.partido+'</td><td>H2H</td><td class="num">'+v.profit_pct+'%</td><td class="num" style="color:var(--green)">'+v.profit_pct+'%</td></tr>'
+    h+='<tr><td>'+(v.partido||'N/A')+'</td><td class="num">'+(v.h2h||v.cuota_h2h||'-')+'</td><td class="num">'+(v.ah||v.cuota_ah||'-')+'</td><td class="num" style="color:var(--green)">'+(v.diferencia||v.diff||'-')+'</td></tr>'
   })
   document.getElementById('cmBody').innerHTML=h||'<tr><td colspan="4" style="text-align:center;color:var(--text3);padding:20px">Sin datos cross-market</td></tr>'
 }catch(e){toast('Error','err')}}
@@ -606,10 +607,18 @@ MOD_BACKTESTING = module_page("Backtesting", """
 <div class="table-wrap"><table><thead><tr><th>Config</th><th>Tipo</th><th>Resumen</th></tr></thead><tbody id="btBody"></tbody></table></div>
 """, """
 async function loadBT(){try{
-  const d=await api('/api/dashboard/rendimiento')
-  const g=d.general||{}
-  document.getElementById('btTotal').textContent=g.total_apuestas||0
-  document.getElementById('btAcc').textContent=(g.win_rate||0)+'%'
+  const d=await api('/api/backtest')
+  document.getElementById('btTotal').textContent=d.n_partidos||0
+  document.getElementById('btAcc').textContent=(d.accuracy||d.win_rate||0)+'%'
+  const h=d.historial||d.results||d.detail||[]
+  let h2=''
+  if(d.aviso) h2+='<tr><td colspan="3" style="color:var(--amber)">'+d.aviso+'</td></tr>'
+  if(Array.isArray(h)){
+    h.slice(0,15).forEach(v=>{
+      h2+='<tr><td>'+(v.config||v.ventana||'-')+'</td><td>'+(v.tipo||v.modo||'-')+'</td><td>'+(v.resumen||v.summary||JSON.stringify(v).slice(0,80))+'</td></tr>'
+    })
+  }
+  document.getElementById('btBody').innerHTML=h2||'<tr><td colspan="3" style="text-align:center;color:var(--text3);padding:20px">Ejecuta un backtest con el boton de arriba</td></tr>'
 }catch(e){toast('Error','err')}}
 loadBT()
 """)
