@@ -381,7 +381,10 @@ def seed_demo_data() -> dict:
     resultados = ["ganada", "perdida", "pendiente"]
     bet_rows = []
     for i in range(120):
-        d = today - timedelta(days=random.randint(0, 60), hours=random.randint(0, 23))
+        if i < 10:
+            d = today - timedelta(hours=random.randint(0, 12))
+        else:
+            d = today - timedelta(days=random.randint(1, 60), hours=random.randint(0, 23))
         eq = random.choice(equipos)
         cuota = round(random.uniform(1.5, 4.5), 2)
         edge = round(random.uniform(-5, 15), 1)
@@ -407,7 +410,10 @@ def seed_demo_data() -> dict:
     # - predictions
     pred_rows = []
     for i in range(80):
-        d = today - timedelta(days=random.randint(0, 60), hours=random.randint(0, 23))
+        if i < 8:
+            d = today - timedelta(hours=random.randint(0, 12))
+        else:
+            d = today - timedelta(days=random.randint(1, 60), hours=random.randint(0, 23))
         eq = random.choice(equipos)
         conf = round(random.uniform(55, 92), 1)
         probs = [round(random.uniform(0.2, 0.6), 3) for _ in range(3)]
@@ -437,7 +443,10 @@ def seed_demo_data() -> dict:
     # - value_bets_log
     vb_rows = []
     for i in range(40):
-        d = today - timedelta(days=random.randint(0, 14), hours=random.randint(0, 23))
+        if i < 5:
+            d = today - timedelta(hours=random.randint(0, 12))
+        else:
+            d = today - timedelta(days=random.randint(1, 14), hours=random.randint(0, 23))
         eq = random.choice(equipos)
         vb_rows.append((
             d.strftime("%Y-%m-%d %H:%M:%S"),
@@ -486,13 +495,14 @@ def seed_demo_data() -> dict:
     saldo = 10000.0
     for i in range(60):
         d = today - timedelta(days=59 - i, hours=random.randint(0, 12))
-        es_ingreso = random.random() > 0.45
-        monto = round(random.uniform(100, 2000), 2) if es_ingreso else round(random.uniform(100, 1500), 2)
-        saldo = saldo + monto if es_ingreso else saldo - monto
+        es_ganada = random.random() > 0.45
+        monto = round(random.uniform(100, 2000), 2) if es_ganada else round(random.uniform(-1500, -100), 2)
+        saldo = saldo + monto
+        tipo = "bet_gain" if es_ganada else "bet_loss"
         acct_rows.append((
             d.strftime("%Y-%m-%d %H:%M:%S"),
-            "ingreso" if es_ingreso else "egreso", monto, round(saldo, 2),
-            random.choice(["apuesta", "retiro", "deposito", "comision"]),
+            tipo, monto, round(saldo, 2),
+            "apuesta",
             random.choice(["Value Bets", "Sharp Money", "ML Predictivo", "Arbitraje"]),
             f"Inicialización {i+1}", "", None,
         ))
