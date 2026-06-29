@@ -158,6 +158,7 @@ LANDING_HTML = r"""<!DOCTYPE html>
   <div class="links">
     <a href="/" class="active">Home</a>
     <a href="/panel/value-bets">Value</a>
+    <a href="/panel/alta-prob">Alta Prob</a>
     <a href="/panel/sharp">Sharp</a>
     <a href="/panel/copa">Copa</a>
     <a href="/panel/bankroll">Bankroll</a>
@@ -206,7 +207,7 @@ LANDING_HTML = r"""<!DOCTYPE html>
   <div class="section">
     <div class="section-header">
       <h2>VALUE &amp; EDGE</h2>
-      <span class="count">7 modulos</span>
+      <span class="count">8 modulos</span>
       <div class="line"></div>
     </div>
     <div class="mod-grid">
@@ -215,6 +216,7 @@ LANDING_HTML = r"""<!DOCTYPE html>
       <div class="mod" onclick="location='/panel/arbitraje'"><span class="tag">ARB</span><div class="icon" style="color:var(--amber)">&#8734;</div><div class="name">Arbitraje</div><div class="desc">Surebets multi-casa garantizadas</div></div>
       <div class="mod" onclick="location='/panel/cross-market'"><span class="tag">X</span><div class="icon" style="color:var(--blue)">&#8644;</div><div class="name">Cross Market</div><div class="desc">H2H vs AH comparativa</div></div>
       <div class="mod" onclick="location='/panel/kelly'"><span class="tag">CALC</span><div class="icon" style="color:var(--teal)">K</div><div class="name">Kelly Calculator</div><div class="desc">Fraccion optimal de bankroll</div></div>
+      <div class="mod" onclick="location='/panel/alta-prob'"><span class="tag" style="background:var(--green-bg);color:var(--green)">PRO</span><div class="icon" style="color:var(--green)">&#9733;</div><div class="name">Alta Probabilidad</div><div class="desc">Tenis, MMA, NBA, NFL, Caballos, Esports - 2 resultados</div></div>
       <div class="mod" onclick="location='/panel/value-engine'"><span class="tag">PRO</span><div class="icon" style="color:var(--purple)">V</div><div class="name">Value Engine</div><div class="desc">Analisis profesional CLV + EV</div></div>
       <div class="mod" onclick="location='/panel/copa'"><span class="tag">WC</span><div class="icon" style="color:var(--green)">&#9917;</div><div class="name">Copa del Mundo</div><div class="desc">2026: value bets, standings, sharp</div></div>
     </div>
@@ -397,7 +399,7 @@ MOD_VALUE_BETS = module_page("Value Bets", """
   <div class="kpi"><div class="label">Partidos</div><div class="value" id="vbMatches">0</div></div>
 </div>
 <div class="top-bar">
-  <select id="vbSport"><option value="upcoming">Todos los deportes</option><option value="soccer_fifa_world_cup">Copa del Mundo 2026</option><option value="soccer_mexico_ligamx">Liga MX</option><option value="basketball_nba">NBA</option><option value="soccer_epl">Premier League</option><option value="soccer_spain_la_liga">La Liga</option><option value="soccer_germany_bundesliga">Bundesliga</option><option value="soccer_italy_serie_a">Serie A</option><option value="icehockey_nhl">NHL</option><option value="baseball_mlb">MLB</option><option value="americanfootball_nfl">NFL</option></select>
+  <select id="vbSport"><option value="upcoming">Todos los deportes</option><optgroup label="ALTA PREDECIBILIDAD"><option value="soccer_fifa_world_cup">Copa del Mundo 2026</option><option value="tennis_atp_world_tour">Tenis ATP</option><option value="tennis_wta">Tenis WTA</option><option value="mma_mixed_martial_arts">MMA/UFC</option><option value="boxing_boxing">Boxing</option></optgroup><optgroup label="ALTO VOLUMEN"><option value="basketball_nba">NBA</option><option value="basketball_wnba">WNBA</option><option value="americanfootball_nfl">NFL</option><option value="icehockey_nhl">NHL</option><option value="baseball_mlb">MLB</option></optgroup><optgroup label="CARRERAS"><option value="horse_racing">Carreras de Caballos</option></optgroup><optgroup label="CRICKET & RUGBY"><option value="cricket_ipl">Cricket IPL</option><option value="cricket_big_bash">Cricket Big Bash</option><option value="rugby_league_nrl">Rugby NRL</option></optgroup><optgroup label="ESPORTS"><option value="esports_lol_lck">LoL LCK</option><option value="esports_lol_lec">LoL LEC</option><option value="esports_csgo_esl">CS2 ESL</option><option value="esports_dota2_dpc">Dota 2 DPC</option></optgroup><optgroup label="MOTORSPORT"><option value="motorsport_f1_race_winner">F1 Ganador Carrera</option></optgroup><optgroup label="FUTBOL"><option value="soccer_mexico_ligamx">Liga MX</option><option value="soccer_epl">Premier League</option><option value="soccer_spain_la_liga">La Liga</option><option value="soccer_germany_bundesliga">Bundesliga</option><option value="soccer_italy_serie_a">Serie A</option><option value="soccer_uefa_champions_league">Champions League</option></optgroup></select>
   <input id="vbMinEdge" type="number" value="2" step="0.5" style="width:70px" placeholder="Edge min"/>
   <button class="btn btn-primary" onclick="loadVB()">Buscar Value Bets</button>
   <button class="btn" onclick="loadVB()">Actualizar</button>
@@ -441,7 +443,7 @@ MOD_SHARP = module_page("Sharp Money", """
   <div class="kpi"><div class="label">Mejor Edge</div><div class="value amber" id="sharpBestEdge">0%</div></div>
 </div>
 <div class="top-bar">
-  <select id="sharpSport"><option value="upcoming">Todos</option><option value="soccer_fifa_world_cup">Copa del Mundo</option><option value="soccer_mexico_ligamx">Liga MX</option><option value="basketball_nba">NBA</option><option value="soccer_epl">Premier</option><option value="icehockey_nhl">NHL</option><option value="baseball_mlb">MLB</option><option value="americanfootball_nfl">NFL</option></select>
+  <select id="sharpSport"><option value="upcoming">Todos</option><option value="soccer_fifa_world_cup">Copa del Mundo</option><option value="tennis_atp_world_tour">Tenis ATP</option><option value="tennis_wta">Tenis WTA</option><option value="mma_mixed_martial_arts">MMA/UFC</option><option value="basketball_nba">NBA</option><option value="horse_racing">Caballos</option><option value="cricket_ipl">Cricket IPL</option><option value="esports_lol_lck">LoL LCK</option><option value="motorsport_f1_race_winner">F1</option></select>
   <button class="btn btn-primary" onclick="loadSharp()">Escanear Partidos</button>
   <button class="btn" onclick="loadSharp()">Actualizar</button>
   <span id="sharpStatus" style="font-size:11px;color:var(--text3)"></span>
@@ -744,6 +746,86 @@ async function loadCopaSharp(){try{
   document.getElementById('copaContent').innerHTML=html||'<div class="card"><p>Sin partidos disponibles</p></div>'
 }catch(e){toast('Error: '+e.message,'err')}}
 loadCopa()
+""")
+
+# ════════════════════════════════════════════════════════════════════════════
+# MODULE: ALTA PROBABILIDAD
+# ════════════════════════════════════════════════════════════════════════════
+MOD_ALTA_PROB = module_page("Alta Probabilidad", """
+<div class="kpi-grid">
+  <div class="kpi"><div class="label">Deportes</div><div class="value green" id="apCount">0</div></div>
+  <div class="kpi"><div class="label">Con Value</div><div class="value amber" id="apValue">0</div></div>
+  <div class="kpi"><div class="label">Mejor Edge</div><div class="value" id="apBestEdge">0%</div></div>
+</div>
+<div class="card" style="margin-bottom:16px">
+  <h3>Por que estos deportes son mas predecibles?</h3>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:8px;font-size:12px">
+    <div style="padding:8px;background:var(--green-bg);border-radius:var(--radius-sm)"><strong style="color:var(--green)">Tenis ATP/WTA</strong><br/>2 resultados (sin empate). Modelo 1v1 con ELO, superficie, H2H. Acierto 65-75%.</div>
+    <div style="padding:8px;background:var(--green-bg);border-radius:var(--radius-sm)"><strong style="color:var(--green)">MMA/Boxing</strong><br/>2 resultados. Analisis fisico, estilo, recencia. Menos datos pero mas claro.</div>
+    <div style="padding:8px;background:var(--blue-bg);border-radius:var(--radius-sm)"><strong style="color:var(--blue)">NBA</strong><br/>Alto scoring = menos variance. Favoritos ganan 65%+. Back-to-backs predecibles.</div>
+    <div style="padding:8px;background:var(--blue-bg);border-radius:var(--radius-sm)"><strong style="color:var(--blue)">NFL</strong><br/>Spreads claros en desajustes. Bye weeks, lesiones, home field importan.</div>
+    <div style="padding:8px;background:var(--amber-bg);border-radius:var(--radius-sm)"><strong style="color:var(--amber)">Caballos</strong><br/>Mercado eficiente pero hay valor en challengers. Jockey + track + forma.</div>
+    <div style="padding:8px;background:var(--purple-bg);border-radius:var(--radius-sm)"><strong style="color:var(--purple)">Esports</strong><br/>Mercado nuevo = inefficiencias. Datos objetivos (KDA, GPM, draft).</div>
+  </div>
+</div>
+<div class="top-bar">
+  <select id="apSport"><option value="all">Todos los deportes alta prob.</option><option value="tennis_atp_world_tour">Tenis ATP</option><option value="tennis_wta">Tenis WTA</option><option value="mma_mixed_martial_arts">MMA/UFC</option><option value="boxing_boxing">Boxing</option><option value="basketball_nba">NBA</option><option value="americanfootball_nfl">NFL</option><option value="horse_racing">Caballos</option><option value="cricket_ipl">Cricket IPL</option><option value="esports_lol_lck">LoL LCK</option><option value="motorsport_f1_race_winner">F1</option></select>
+  <button class="btn btn-primary" onclick="loadAP()">Escanear Value Bets</button>
+  <button class="btn" onclick="loadAPSharp()">Sharp Money</button>
+  <span id="apStatus" style="font-size:11px;color:var(--text3)"></span>
+</div>
+<div id="apContent"></div>
+""", """
+async function loadAP(){try{
+  document.getElementById('apStatus').textContent='Escaneando deportes de alta probabilidad...'
+  const s=document.getElementById('apSport').value
+  const urls=s==='all'?['tennis_atp_world_tour','tennis_wta','mma_mixed_martial_arts','boxing_boxing','basketball_nba','americanfootball_nfl','horse_racing','cricket_ipl','esports_lol_lck','motorsport_f1_race_winner']:[s]
+  let totalMatches=0,totalVb=0,bestEdge=0,html=''
+  for(const sport of urls){
+    try{
+      const d=await api('/api/odds/value-bets?deporte='+sport+'&edge_minimo=1&multi=0')
+      const vb=d.value_bets||[]
+      const matches=d.total_partidos_analizados||0
+      totalMatches+=matches
+      totalVb+=vb.length
+      if(vb.length){
+        const sportName=sport.replace('soccer_','').replace('_world_tour','').replace('_mixed_martial_arts','MMA').replace('_boxing','Boxing').replace('_nba','NBA').replace('_nfl','NFL').replace('horse_racing','Caballos').replace('cricket_ipl','IPL').replace('esports_lol_lck','LoL LCK').replace('motorsport_f1_race_winner','F1')
+        html+='<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px">'+sportName+' ('+vb.length+' value bets)</div>'
+        html+='<div class="table-wrap"><table><thead><tr><th>Edge</th><th>Partido</th><th>Resultado</th><th>Casa</th><th>Cuota</th></tr></thead><tbody>'
+        vb.slice(0,5).forEach(v=>{
+          const edge=parseFloat(v.edge_porcentaje)||0
+          if(edge>bestEdge)bestEdge=edge
+          html+='<tr><td>'+edgeBadge(edge)+'</td><td><strong>'+v.partido+'</strong></td><td>'+v.resultado+'</td><td><span class="badge badge-blue">'+v.casa+'</span></td><td class="num">'+v.cuota+'</td></tr>'
+        })
+        html+='</tbody></table></div></div>'
+      }
+    }catch(e){}
+  }
+  document.getElementById('apCount').textContent=urls.length
+  document.getElementById('apValue').textContent=totalVb
+  document.getElementById('apBestEdge').textContent=bestEdge.toFixed(1)+'%'
+  document.getElementById('apContent').innerHTML=html||'<div class="card"><p>Sin value bets encontrados en estos deportes</p></div>'
+  document.getElementById('apStatus').textContent=totalVb+' value bets de '+totalMatches+' partidos'
+}catch(e){toast('Error: '+e.message,'err')}}
+async function loadAPSharp(){try{
+  document.getElementById('apStatus').textContent='Escaneando sharp money...'
+  const d=await api('/api/sharp/scan?deporte=upcoming')
+  const recs=(d.recomendaciones||[]).filter(r=>['tennis_atp_world_tour','tennis_wta','mma_mixed_martial_arts','boxing_boxing','basketball_nba','americanfootball_nfl','horse_racing','cricket_ipl','esports_lol_lck','motorsport_f1_race_winner'].some(s=>(r.liga||'').includes(s)||r.partido.toLowerCase().includes(s)))
+  let html=''
+  recs.slice(0,10).forEach(v=>{
+    const edge=parseFloat(v.edge)||0
+    const sig=v.tipo_senal||'SIN SEÑAL'
+    const color=edge>=5?'border-left:4px solid var(--green)':edge>=2?'border-left:4px solid var(--amber)':'border-left:4px solid var(--border)'
+    html+='<div class="card" style="'+color+'margin-bottom:8px;padding:12px">'
+    html+='<div style="font-size:13px;font-weight:600">'+v.partido+'</div>'
+    if(sig==='VALUE BET'||sig==='VALUE MENOR'){
+      html+='<div style="font-size:12px;color:var(--green);font-weight:600;margin-top:4px">APOSTAR: '+v.seleccion+' en '+v.casa_recomendada+' | Cuota: '+v.cuota+' | Edge: '+edge.toFixed(1)+'%</div>'
+    }
+    html+='</div>'
+  })
+  document.getElementById('apContent').innerHTML=html||'<div class="card"><p>Sin señales sharp en deportes alta probabilidad</p></div>'
+}catch(e){toast('Error: '+e.message,'err')}}
+loadAP()
 """)
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -1263,6 +1345,7 @@ loadRP()
 MODULES = {
     "value-bets":    ("Value Bets",          MOD_VALUE_BETS),
     "sharp":         ("Sharp Money",         MOD_SHARP),
+    "alta-prob":     ("Alta Probabilidad",   MOD_ALTA_PROB),
     "arbitraje":     ("Arbitraje",           MOD_ARBITRAJE),
     "cross-market":  ("Cross Market",        MOD_CROSS),
     "kelly":         ("Kelly Calculator",    MOD_KELLY),

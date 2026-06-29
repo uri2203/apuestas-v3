@@ -15,14 +15,37 @@ logger = logging.getLogger(__name__)
 ODDS_API_BASE = "https://api.the-odds-api.com/v4/sports"
 
 # Deportes con mayor ROI potencial (ordenados por rentabilidad documentada)
+# 2 resultados = más predecible que fútbol (3 resultados)
 SPORTS_BY_ROI = [
+    # ★ ALTA PREDECIBILIDAD (2 resultados, favoritos ganan seguido)
     "soccer_fifa_world_cup",
+    "tennis_atp_world_tour",
+    "tennis_wta",
+    "mma_mixed_martial_arts",
+    "boxing_boxing",
+    # ★ ALTO VOLUMEN (datos abundantes, modelos precisos)
+    "basketball_nba",
+    "basketball_wnba",
+    "basketball_ncaab",
     "americanfootball_nfl",
     "americanfootball_ncaaf",
-    "basketball_nba",
-    "basketball_ncaab",
     "icehockey_nhl",
     "baseball_mlb",
+    # ★ CARRERAS (mercado eficiente, alto odds)
+    "horse_racing",
+    # ★ CRICKET & RUGBY (mercados crecientes)
+    "cricket_ipl",
+    "cricket_big_bash",
+    "rugby_league_nrl",
+    "rugby_union_international",
+    # ★ ESPORTS (mercado nuevo = oportunidades)
+    "esports_lol_lck",
+    "esports_lol_lec",
+    "esports_csgo_esl",
+    "esports_dota2_dpc",
+    # ★ F1 / MOTORSPORT
+    "motorsport_f1_race_winner",
+    # ★ FÚTBOL (3 resultados = menos predecible)
     "soccer_usa_mls",
     "soccer_mexico_ligamx",
     "soccer_england_premierleague",
@@ -31,9 +54,13 @@ SPORTS_BY_ROI = [
     "soccer_italy_serie_a",
     "soccer_france_ligue_one",
     "soccer_uefa_champions_league",
-    "tennis_atp_world_tour",
-    "mma_mixed_martial_arts",
-    "boxing_boxing",
+    "soccer_uefa_europa_league",
+    # ★ OTROS
+    "australianrules_afl",
+    "volleyball_brazil_superliga",
+    "handball_germany_bundesliga",
+    "darts_pdc",
+    "snooker_championship",
 ]
 
 _cached_sports = None

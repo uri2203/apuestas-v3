@@ -157,7 +157,7 @@ def main():
     # -- 8. Module pages --
     print("\n  --- Modulos ---")
     modulos = [
-        "value-bets", "sharp", "arbitraje", "cross-market", "kelly", "value-engine",
+        "value-bets", "sharp", "alta-prob", "arbitraje", "cross-market", "kelly", "value-engine",
         "copa", "ml", "backtesting", "nlp", "montecarlo",
         "bankroll", "simulacion", "contabilidad", "journal", "mercados",
         "bookmakers", "progol", "cuentas", "portfolio", "rendimiento"
