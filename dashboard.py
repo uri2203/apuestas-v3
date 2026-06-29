@@ -402,6 +402,12 @@ MOD_VALUE_BETS = module_page("Value Bets", """
 <div class="top-bar">
   <select id="vbSport"><option value="upcoming">Todos los deportes</option><optgroup label="ALTA PREDECIBILIDAD"><option value="soccer_fifa_world_cup">Copa del Mundo 2026</option><option value="tennis_atp_world_tour">Tenis ATP</option><option value="tennis_wta">Tenis WTA</option><option value="mma_mixed_martial_arts">MMA/UFC</option><option value="boxing_boxing">Boxing</option></optgroup><optgroup label="ALTO VOLUMEN"><option value="basketball_nba">NBA</option><option value="basketball_wnba">WNBA</option><option value="americanfootball_nfl">NFL</option><option value="icehockey_nhl">NHL</option><option value="baseball_mlb">MLB</option></optgroup><optgroup label="CARRERAS"><option value="horse_racing">Carreras de Caballos</option></optgroup><optgroup label="CRICKET & RUGBY"><option value="cricket_ipl">Cricket IPL</option><option value="cricket_big_bash">Cricket Big Bash</option><option value="rugby_league_nrl">Rugby NRL</option></optgroup><optgroup label="ESPORTS"><option value="esports_lol_lck">LoL LCK</option><option value="esports_lol_lec">LoL LEC</option><option value="esports_csgo_esl">CS2 ESL</option><option value="esports_dota2_dpc">Dota 2 DPC</option></optgroup><optgroup label="MOTORSPORT"><option value="motorsport_f1_race_winner">F1 Ganador Carrera</option></optgroup><optgroup label="FUTBOL"><option value="soccer_mexico_ligamx">Liga MX</option><option value="soccer_epl">Premier League</option><option value="soccer_spain_la_liga">La Liga</option><option value="soccer_germany_bundesliga">Bundesliga</option><option value="soccer_italy_serie_a">Serie A</option><option value="soccer_uefa_champions_league">Champions League</option></optgroup></select>
   <input id="vbMinEdge" type="number" value="2" step="0.5" style="width:70px" placeholder="Edge min"/>
+  <select id="vbConf" onchange="filterVBConf()">
+    <option value="all">Todas las confianzas</option>
+    <option value="ALTA">Solo ALTA (75+)</option>
+    <option value="MEDIA">Solo MEDIA (55-74)</option>
+    <option value="BAJA">BAJA / MUY BAJA (&lt;55)</option>
+  </select>
   <button class="btn btn-primary" onclick="loadVB()">Buscar Value Bets</button>
   <button class="btn" onclick="loadVB()">Actualizar</button>
   <span id="vbStatus" style="font-size:11px;color:var(--text3)"></span>
@@ -415,14 +421,37 @@ function confBadge(score,label){
   if(score>=55)return'<span class="badge badge-amber">'+label+' ('+score+')</span>'
   return'<span class="badge badge-red">'+label+' ('+score+')</span>'
 }
+let vbAllData=[]
+function filterVBConf(){
+  const f=document.getElementById('vbConf').value
+  const rows=document.querySelectorAll('#vbBody tr[data-conf]')
+  let h='',sumE=0,maxE=0,count=0
+  rows.forEach(r=>{
+    const conf=r.getAttribute('data-conf')
+    const show=f==='all'||conf===f||(f==='BAJA'&&(conf==='BAJA'||conf==='MUY BAJA'))
+    r.style.display=show?'':'none'
+    if(show){
+      const e=parseFloat(r.dataset.edge)||0
+      const m=parseFloat(r.dataset.monto)||0
+      sumE+=e;maxE=Math.max(maxE,e);count++
+      h+=r.outerHTML
+    }
+  })
+  if(f!=='all'){
+    document.getElementById('vbBody').innerHTML=h||'<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:20px">Sin signals con confianza '+f+'</td></tr>'
+    document.getElementById('vbCount').textContent=count
+    document.getElementById('vbAvgEdge').textContent=(count?(sumE/count).toFixed(1):'0')+'%'
+    document.getElementById('vbMaxEdge').textContent=maxE.toFixed(1)+'%'
+  }
+}
 async function loadVB(){try{
   document.getElementById('vbStatus').textContent='Escaneando...'
   const s=document.getElementById('vbSport').value
   const e=document.getElementById('vbMinEdge').value
   const d=await api('/api/odds/value-bets?deporte='+s+'&edge_minimo='+e+'&multi='+(s==='upcoming'?'1':'0'))
   const vb=d.value_bets||[]
+  vbAllData=vb
   let h='',sumE=0,maxE=0
-  // Cards agrupados por deporte
   const bySport={}
   vb.forEach(v=>{const k=v.deporte||'other';if(!bySport[k])bySport[k]=[];bySport[k].push(v)})
   let cardsHtml=''
@@ -445,7 +474,7 @@ async function loadVB(){try{
     const kellyPct=kelly.kelly_ajustado_pct||0
     const monto=kelly.monto_sugerido||0
     const score=v.confianza_score||0
-    h+='<tr>'
+    h+='<tr data-conf="'+confL+'" data-edge="'+edge+'" data-monto="'+monto+'">'
     h+='<td>'+confBadge(score,confL)+'</td>'
     h+='<td>'+edgeBadge(edge)+'</td>'
     h+='<td>'+v.partido+'</td>'
@@ -482,6 +511,12 @@ MOD_SHARP = module_page("Sharp Money", """
 </div>
 <div class="top-bar">
   <select id="sharpSport"><option value="upcoming">Todos</option><option value="soccer_fifa_world_cup">Copa del Mundo</option><option value="tennis_atp_world_tour">Tenis ATP</option><option value="tennis_wta">Tenis WTA</option><option value="mma_mixed_martial_arts">MMA/UFC</option><option value="basketball_nba">NBA</option><option value="horse_racing">Caballos</option><option value="cricket_ipl">Cricket IPL</option><option value="esports_lol_lck">LoL LCK</option><option value="motorsport_f1_race_winner">F1</option></select>
+  <select id="sharpConf" onchange="filterSharpConf()">
+    <option value="all">Todas las confianzas</option>
+    <option value="ALTA">Solo ALTA (75+)</option>
+    <option value="MEDIA">Solo MEDIA (55-74)</option>
+    <option value="BAJA">BAJA / MUY BAJA (&lt;55)</option>
+  </select>
   <button class="btn btn-primary" onclick="loadSharp()">Escanear Partidos</button>
   <button class="btn" onclick="loadSharp()">Actualizar</button>
   <span id="sharpStatus" style="font-size:11px;color:var(--text3)"></span>
@@ -490,6 +525,19 @@ MOD_SHARP = module_page("Sharp Money", """
 """, """
 function sharpBadge(conf){if(conf==='ALTA')return '<span class="badge badge-green">ALTA</span>';if(conf==='MEDIA')return '<span class="badge badge-amber">MEDIA</span>';return '<span class="badge badge-red">'+conf+'</span>'}
 function signalBadge(t){if(t==='VALUE BET')return '<span class="badge badge-green">VALUE BET</span>';if(t==='VALUE MENOR')return '<span class="badge badge-amber">VALUE</span>';if(t==='STEAM')return '<span class="badge badge-purple">STEAM</span>';return '<span class="badge badge-red">SIN SEÑAL</span>'}
+let sharpAllCards=[]
+function filterSharpConf(){
+  const f=document.getElementById('sharpConf').value
+  let totalM=0,count=0,html=''
+  sharpAllCards.forEach(c=>{
+    const conf=c.conf
+    const show=f==='all'||conf===f||(f==='BAJA'&&(conf==='BAJA'||conf==='MUY BAJA'))
+    if(show){html+=c.html;totalM+=c.monto;count++}
+  })
+  document.getElementById('sharpCards').innerHTML=html||'<div class="empty"><div class="icon">$</div><h3>Sin signals con confianza '+f+'</h3></div>'
+  document.getElementById('sharpSignal').textContent=count
+  document.getElementById('sharpTotal$').textContent='$'+totalM.toFixed(0)
+}
 async function loadSharp(){try{
   document.getElementById('sharpStatus').textContent='Escaneando...'
   const s=document.getElementById('sharpSport').value
@@ -498,10 +546,12 @@ async function loadSharp(){try{
   document.getElementById('sharpCount').textContent=d.total_partidos||0
   document.getElementById('sharpSignal').textContent=d.con_señal||0
   let bestE=0,totalMonto=0,html=''
+  sharpAllCards=[]
   recs.forEach(v=>{
     const edge=parseFloat(v.edge)||0
     if(edge>bestE)bestE=edge
     const conf=v.confianza||'-'
+    const confS=v.confianza_score||0
     const sel=v.seleccion||''
     const casa=v.casa_recomendada||''
     const cuota=v.cuota||0
@@ -515,49 +565,48 @@ async function loadSharp(){try{
     const monto=k.monto_sugerido||0
     if(monto>0)totalMonto+=monto
     const color=edge>=5?'border-left:4px solid var(--green)':edge>=2?'border-left:4px solid var(--amber)':'border-left:4px solid var(--border)'
-    html+='<div class="card" style="'+color+'margin-bottom:12px;padding:16px">'
-    html+='<div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:8px">'
-    html+='<div>'
-    html+='<div style="font-size:15px;font-weight:700;margin-bottom:4px">'+v.partido+'</div>'
-    html+='<div style="font-size:11px;color:var(--text3)">'+liga+' | '+nCasas+' casas | '+fecha+'</div>'
-    html+='</div>'
-    html+='<div>'+signalBadge(sig)+' '+sharpBadge(conf)+'</div>'
-    html+='</div>'
+    let cardHtml=''
+    cardHtml+='<div class="card" style="'+color+'margin-bottom:12px;padding:16px">'
+    cardHtml+='<div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:8px">'
+    cardHtml+='<div>'
+    cardHtml+='<div style="font-size:15px;font-weight:700;margin-bottom:4px">'+v.partido+'</div>'
+    cardHtml+='<div style="font-size:11px;color:var(--text3)">'+liga+' | '+nCasas+' casas | '+fecha+'</div>'
+    cardHtml+='</div>'
+    cardHtml+='<div>'+signalBadge(sig)+' '+sharpBadge(conf)+'</div>'
+    cardHtml+='</div>'
     if(sig==='VALUE BET'||sig==='VALUE MENOR'){
-      const k=v.kelly||{}
-      const monto=k.monto_sugerido||0
       const kellyPct=k.kelly_ajustado_pct||0
-      const cs=v.confianza_score||0
-      const confL=v.confianza||'-'
-      html+='<div style="margin-top:12px;padding:12px;background:var(--green-bg);border-radius:var(--radius-sm)">'
-      html+='<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'
-      html+='<div style="font-size:14px;font-weight:700;color:var(--green)">&#9650; APOSTAR: '+sel+'</div>'
-      html+='<div>'+(cs>=75?'<span class="badge badge-green">CONFIANZA '+confL+' ('+cs+')</span>':cs>=55?'<span class="badge badge-amber">CONFIANZA '+confL+' ('+cs+')</span>':'<span class="badge badge-red">CONFIANZA '+confL+' ('+cs+')</span>')+'</div>'
-      html+='</div>'
-      html+='<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;margin-top:6px">'
-      html+='<div><strong>Casa:</strong> '+casa+'</div>'
-      html+='<div><strong>Cuota:</strong> '+cuota+'</div>'
-      html+='<div><strong>Edge:</strong> <span style="color:var(--green);font-weight:700">'+edge.toFixed(1)+'%</span></div>'
-      html+='<div><strong>Kelly:</strong> '+kellyPct+'%</div>'
-      html+='<div style="font-weight:700;color:var(--green)">MONTO: $'+monto+'</div>'
-      html+='</div>'
-      html+='<div><strong>Ejemplo:</strong> '+accion+'</div>'
-      html+='</div></div>'
+      cardHtml+='<div style="margin-top:12px;padding:12px;background:var(--green-bg);border-radius:var(--radius-sm)">'
+      cardHtml+='<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'
+      cardHtml+='<div style="font-size:14px;font-weight:700;color:var(--green)">&#9650; APOSTAR: '+sel+'</div>'
+      cardHtml+='<div>'+(confS>=75?'<span class="badge badge-green">CONFIANZA '+conf+' ('+confS+')</span>':confS>=55?'<span class="badge badge-amber">CONFIANZA '+conf+' ('+confS+')</span>':'<span class="badge badge-red">CONFIANZA '+conf+' ('+confS+')</span>')+'</div>'
+      cardHtml+='</div>'
+      cardHtml+='<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;margin-top:6px">'
+      cardHtml+='<div><strong>Casa:</strong> '+casa+'</div>'
+      cardHtml+='<div><strong>Cuota:</strong> '+cuota+'</div>'
+      cardHtml+='<div><strong>Edge:</strong> <span style="color:var(--green);font-weight:700">'+edge.toFixed(1)+'%</span></div>'
+      cardHtml+='<div><strong>Kelly:</strong> '+kellyPct+'%</div>'
+      cardHtml+='<div style="font-weight:700;color:var(--green)">MONTO: $'+monto+'</div>'
+      cardHtml+='</div>'
+      cardHtml+='<div><strong>Ejemplo:</strong> '+accion+'</div>'
+      cardHtml+='</div></div>'
       if(v.casas&&v.casas.length>0){
-        html+='<div style="margin-top:8px;font-size:11px;color:var(--text3)"><strong>Odds comparadas:</strong> '
+        cardHtml+='<div style="margin-top:8px;font-size:11px;color:var(--text3)"><strong>Odds comparadas:</strong> '
         v.casas.slice(0,6).forEach(c=>{
           const odds=c.odds||{}
           const oH=odds[sel]||'-'
-          html+='<span class="badge badge-blue" style="margin:2px">'+c.casa+': '+oH+'</span> '
+          cardHtml+='<span class="badge badge-blue" style="margin:2px">'+c.casa+': '+oH+'</span> '
         })
-        html+='</div>'
+        cardHtml+='</div>'
       }
     }else if(sig==='STEAM'){
-      html+='<div style="margin-top:8px;font-size:12px;color:var(--purple)">Steam detectado — '+((v.nota||'').slice(0,100))+'</div>'
+      cardHtml+='<div style="margin-top:8px;font-size:12px;color:var(--purple)">Steam detectado — '+((v.nota||'').slice(0,100))+'</div>'
     }else{
-      html+='<div style="margin-top:8px;font-size:12px;color:var(--text3)">Sin señal clara en este partido</div>'
+      cardHtml+='<div style="margin-top:8px;font-size:12px;color:var(--text3)">Sin señal clara en este partido</div>'
     }
-    html+='</div>'
+    cardHtml+='</div>'
+    html+=cardHtml
+    sharpAllCards.push({conf:conf,monto:monto,html:cardHtml})
   })
   document.getElementById('sharpCards').innerHTML=html||'<div class="empty"><div class="icon">$</div><h3>Sin partidos disponibles</h3><p>Escanea para encontrar value bets con análisis sharp</p></div>'
   document.getElementById('sharpStatus').textContent=(d.con_señal||0)+' señales de '+(d.total_partidos||0)+' partidos'
