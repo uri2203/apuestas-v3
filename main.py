@@ -1205,6 +1205,65 @@ def diag_odds_api():
         return jsonify({"configured": True, "ok": False, "error": str(e)[:200]})
 
 
+@app.route("/api/system-status")
+def system_status():
+    """Estado completo del sistema — una sola llamada para diagnosticar todo."""
+    result = {"version": "4.4", "modules": {}}
+
+    # 1. Database check
+    try:
+        from database import (
+            get_bankroll_actual, get_bets_stats, count_bets_today,
+            count_predictions_today, count_value_bets_today,
+        )
+        br = get_bankroll_actual()
+        bets = get_bets_stats(365)
+        today_bets = count_bets_today()
+        today_preds = count_predictions_today()
+        today_vb = count_value_bets_today()
+        result["database"] = {
+            "connected": True,
+            "bankroll": round(br, 2),
+            "total_bets": bets.get("total", 0),
+            "today_bets": today_bets.get("total", 0),
+            "today_preds": today_preds.get("total", 0),
+            "today_value_bets": today_vb.get("total", 0),
+        }
+    except Exception as e:
+        result["database"] = {"connected": False, "error": str(e)[:200]}
+
+    # 2. Odds API check
+    api_key = os.getenv("ODDS_API_KEY", "")
+    if api_key:
+        try:
+            import httpx
+            r = httpx.get("https://api.the-odds-api.com/v4/sports/",
+                           params={"apiKey": api_key}, timeout=10)
+            result["odds_api"] = {
+                "configured": True,
+                "ok": r.status_code == 200,
+                "remaining": r.headers.get("x-requests-remaining", "?"),
+                "status_code": r.status_code,
+            }
+        except Exception as e:
+            result["odds_api"] = {"configured": True, "ok": False, "error": str(e)[:100]}
+    else:
+        result["odds_api"] = {"configured": False}
+
+    # 3. Module status (can each module get data?)
+    for name, check_fn in [
+        ("bankroll", lambda: get_bankroll_actual() > 0),
+        ("bets", lambda: get_bets_stats(30).get("total", 0) > 0),
+        ("today_bets", lambda: count_bets_today().get("total", 0) > 0),
+    ]:
+        try:
+            result["modules"][name] = {"has_data": check_fn()}
+        except Exception:
+            result["modules"][name] = {"has_data": False}
+
+    return jsonify(result)
+
+
 # ── DASHBOARD RENDIMIENTO ─────────────────────────────────────────────────────
 @app.route("/api/dashboard/rendimiento")
 @login_required
