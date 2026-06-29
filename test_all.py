@@ -160,7 +160,7 @@ def main():
         "value-bets", "sharp", "alta-prob", "arbitraje", "cross-market", "kelly", "value-engine",
         "copa", "ml", "backtesting", "nlp", "montecarlo",
         "bankroll", "simulacion", "contabilidad", "journal", "mercados",
-        "bookmakers", "progol", "cuentas", "portfolio", "rendimiento"
+        "bookmakers", "progol", "cuentas", "portfolio", "rendimiento", "modelos-avanzados"
     ]
     for m in modulos:
         r = get(f"/panel/{m}")
@@ -280,6 +280,60 @@ def main():
     check_eq(r.status_code, 200, "GET /api/ml/v2/features = 200")
     r = get("/api/ml/v2/performance")
     check_eq(r.status_code, 200, "GET /api/ml/v2/performance = 200")
+
+    # -- 26. Modelos Avanzados endpoints --
+    print("\n  --- Modelos Avanzados ---")
+    r = get("/api/advanced/dixon-coles/predict?home=Team+A&away=Team+B")
+    check_eq(r.status_code, 200, "GET /api/advanced/dixon-coles/predict = 200")
+    d = r.get_json()
+    check(d and "probabilidades" in d, "dixon-coles retorna probabilidades")
+
+    r = get("/api/advanced/dixon-coles/value?home=Team+A&away=Team+B&local_odds=2.10&empate_odds=3.40&visitante_odds=3.20")
+    check_eq(r.status_code, 200, "GET /api/advanced/dixon-coles/value = 200")
+
+    r = get("/api/advanced/elo/predict?home=Team+A&away=Team+B")
+    check_eq(r.status_code, 200, "GET /api/advanced/elo/predict = 200")
+    d = r.get_json()
+    check(d and "probabilidades" in d, "elo/predict retorna probabilidades")
+
+    r = get("/api/advanced/elo/ratings")
+    check_eq(r.status_code, 200, "GET /api/advanced/elo/ratings = 200")
+
+    r = post("/api/advanced/elo/update", json_data={"home":"Team+A","away":"Team+B","home_goals":2,"away_goals":1})
+    check_eq(r.status_code, 200, "POST /api/advanced/elo/update = 200")
+
+    r = get("/api/advanced/fatigue/analyze?schedule=2026-06-01,2026-06-03,2026-06-05&sport=basketball")
+    check_eq(r.status_code, 200, "GET /api/advanced/fatigue/analyze = 200")
+
+    r = get("/api/advanced/fatigue/travel?origin=New+York&destination=Los+Angeles")
+    check_eq(r.status_code, 200, "GET /api/advanced/fatigue/travel = 200")
+
+    r = get("/api/advanced/weather/analyze?temperature_f=30&wind_mph=20&precipitation_pct=80&humidity_pct=90&outdoor=true")
+    check_eq(r.status_code, 200, "GET /api/advanced/weather/analyze = 200")
+    d = r.get_json()
+    check(d and "impacto" in d, "weather/analyze retorna impacto")
+
+    r = get("/api/advanced/clv/calculate?bet_odds=2.10&closing_odds=1.90")
+    check_eq(r.status_code, 200, "GET /api/advanced/clv/calculate = 200")
+    d = r.get_json()
+    check(d and "clv_pct" in d, "clv/calculate retorna clv_pct")
+
+    r = post("/api/advanced/clv/track", json_data={"match_id":"test","team":"A","bet_odds":2.10,"model_prob":0.5})
+    check_eq(r.status_code, 200, "POST /api/advanced/clv/track = 200")
+
+    r = get("/api/advanced/clv/summary")
+    check_eq(r.status_code, 200, "GET /api/advanced/clv/summary = 200")
+
+    r = get("/api/advanced/calibration/status")
+    check_eq(r.status_code, 200, "GET /api/advanced/calibration/status = 200")
+
+    r = post("/api/advanced/calibration/add", json_data={"predicted_prob":0.6,"actual":True})
+    check_eq(r.status_code, 200, "POST /api/advanced/calibration/add = 200")
+
+    r = get("/api/advanced/combined/predict?home=Team+A&away=Team+B")
+    check_eq(r.status_code, 200, "GET /api/advanced/combined/predict = 200")
+    d = r.get_json()
+    check(d and "modelo_combinado" in d, "combined/predict retorna modelo_combinado")
 
     # -- Summary --
     total = PASS + FAIL

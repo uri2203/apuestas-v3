@@ -1,5 +1,5 @@
 """
-ApuestasPro v4.3 — Servidor principal.
+ApuestasPro v5.1 — Servidor principal.
 """
 
 import math, os, json, logging, time, queue, threading, traceback, httpx, subprocess
@@ -1841,6 +1841,255 @@ def journal_log():
 def journal_auto():
     from services.trading_journal import auto_log_from_recent
     return jsonify(auto_log_from_recent())
+
+
+# ── MODELOS AVANZADOS (Dixon-Coles, ELO, Fatiga, Clima, CLV) ──────────────────
+@app.route("/api/advanced/dixon-coles/predict")
+@login_required
+def advanced_dixon_coles():
+    """Predicción Dixon-Coles para un partido de fútbol."""
+    try:
+        from services.advanced_models import dixon_coles
+        home = request.args.get("home", "Team A")
+        away = request.args.get("away", "Team B")
+        result = dixon_coles.predict_match(home, away)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)[:300]})
+
+
+@app.route("/api/advanced/dixon-coles/value")
+@login_required
+def advanced_dixon_coles_value():
+    """Value bets usando Dixon-Coles vs cuotas de bookmaker."""
+    try:
+        from services.advanced_models import dixon_coles
+        home = request.args.get("home", "Team A")
+        away = request.args.get("away", "Team B")
+        local_odds = float(request.args.get("local_odds", 2.10))
+        empate_odds = float(request.args.get("empate_odds", 3.40))
+        visitante_odds = float(request.args.get("visitante_odds", 3.20))
+        min_edge = float(request.args.get("min_edge", 2.0))
+        bookmaker_odds = {"local": local_odds, "empate": empate_odds, "visitante": visitante_odds}
+        value_bets = dixon_coles.find_value_bets(home, away, bookmaker_odds, min_edge)
+        return jsonify({
+            "partido": f"{home} vs {away}",
+            "value_bets": value_bets,
+            "total": len(value_bets),
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)[:300], "value_bets": [], "total": 0})
+
+
+@app.route("/api/advanced/elo/predict")
+@login_required
+def advanced_elo_predict():
+    """Predicción basada en ELO mejorado."""
+    try:
+        from services.advanced_models import improved_elo
+        home = request.args.get("home", "Team A")
+        away = request.args.get("away", "Team B")
+        result = improved_elo.predict_match(home, away)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)[:300]})
+
+
+@app.route("/api/advanced/elo/ratings")
+@login_required
+def advanced_elo_ratings():
+    """Ratings ELO actuales de todos los equipos."""
+    try:
+        from services.advanced_models import improved_elo
+        ratings = {team: round(rating, 0) for team, rating in improved_elo.ratings.items()}
+        sorted_ratings = sorted(ratings.items(), key=lambda x: x[1], reverse=True)
+        return jsonify({
+            "total_equipos": len(ratings),
+            "ratings": [{"equipo": t, "elo": r} for t, r in sorted_ratings],
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)[:300], "ratings": []})
+
+
+@app.route("/api/advanced/elo/update", methods=["POST"])
+@login_required
+def advanced_elo_update():
+    """Actualiza ratings ELO después de un partido."""
+    try:
+        from services.advanced_models import improved_elo
+        data = request.get_json() or {}
+        home = data.get("home", "Team A")
+        away = data.get("away", "Team B")
+        home_goals = int(data.get("home_goals", 0))
+        away_goals = int(data.get("away_goals", 0))
+        match_date = data.get("date")
+        improved_elo.update(home, away, home_goals, away_goals, match_date)
+        return jsonify({
+            "ok": True,
+            "home": {"team": home, "elo": round(improved_elo.get_rating(home), 0)},
+            "away": {"team": away, "elo": round(improved_elo.get_rating(away), 0)},
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)[:300]})
+
+
+@app.route("/api/advanced/fatigue/analyze")
+@login_required
+def advanced_fatigue():
+    """Análisis de fatiga y schedule spots."""
+    try:
+        from services.advanced_models import fatigue_analyzer
+        schedule_str = request.args.get("schedule", "")
+        sport = request.args.get("sport", "basketball")
+        schedule = [s.strip() for s in schedule_str.split(",") if s.strip()] if schedule_str else []
+        result = fatigue_analyzer.analyze_fatigue(schedule, sport)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)[:300], "fatiga_score": 0, "factores": [], "impacto_pct": 0})
+
+
+@app.route("/api/advanced/fatigue/travel")
+@login_required
+def advanced_fatigue_travel():
+    """Análisis de impacto de viaje entre ciudades."""
+    try:
+        from services.advanced_models import fatigue_analyzer
+        origin = request.args.get("origin", "New York")
+        destination = request.args.get("destination", "Los Angeles")
+        result = fatigue_analyzer.analyze_travel(origin, destination)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)[:300], "impacto_pct": 0})
+
+
+@app.route("/api/advanced/weather/analyze")
+@login_required
+def advanced_weather():
+    """Análisis de impacto del clima."""
+    try:
+        from services.advanced_models import weather_analyzer
+        temp_f = float(request.args.get("temperature_f", 72))
+        wind = float(request.args.get("wind_mph", 5))
+        precip = float(request.args.get("precipitation_pct", 0))
+        humidity = float(request.args.get("humidity_pct", 50))
+        outdoor = request.args.get("outdoor", "true").lower() == "true"
+        result = weather_analyzer.analyze_weather(temp_f, wind, precip, humidity, outdoor)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)[:300], "impacto": "ERROR", "factores": [], "impacto_total_pct": 0})
+
+
+@app.route("/api/advanced/clv/calculate")
+@login_required
+def advanced_clv_calc():
+    """Calcula Closing Line Value (CLV)."""
+    try:
+        from services.advanced_models import clv_tracker
+        bet_odds = float(request.args.get("bet_odds", 2.10))
+        closing_odds = float(request.args.get("closing_odds", 1.90))
+        side = request.args.get("side", "back")
+        result = clv_tracker.calculate_clv(bet_odds, closing_odds, side)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)[:300]})
+
+
+@app.route("/api/advanced/clv/track", methods=["POST"])
+@login_required
+def advanced_clv_track():
+    """Registra una apuesta para tracking de CLV."""
+    try:
+        from services.advanced_models import clv_tracker
+        data = request.get_json() or {}
+        result = clv_tracker.track_bet(
+            data.get("match_id", ""),
+            data.get("team", ""),
+            float(data.get("bet_odds", 2.10)),
+            float(data.get("model_prob", 0.5)),
+            data.get("closing_odds"),
+        )
+        return jsonify({"ok": True, "bet": result})
+    except Exception as e:
+        return jsonify({"error": str(e)[:300]})
+
+
+@app.route("/api/advanced/clv/summary")
+@login_required
+def advanced_clv_summary():
+    """Resumen de CLV de todas las apuestas tracked."""
+    try:
+        from services.advanced_models import clv_tracker
+        return jsonify(clv_tracker.get_summary())
+    except Exception as e:
+        return jsonify({"error": str(e)[:300], "total": 0})
+
+
+@app.route("/api/advanced/calibration/status")
+@login_required
+def advanced_calibration():
+    """Estado de calibración del modelo."""
+    try:
+        from services.advanced_models import calibrator
+        if len(calibrator.predictions) < 20:
+            return jsonify({
+                "n_predicciones": len(calibrator.predictions),
+                "necesita_minimo": 20,
+                "estado": "INSUFICIENTE",
+                "mensaje": f"Solo {len(calibrator.predictions)} predicciones registradas. Mínimo 20 para calibrar.",
+            })
+        result = calibrator.calibrate()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)[:300]})
+
+
+@app.route("/api/advanced/calibration/add", methods=["POST"])
+@login_required
+def advanced_calibration_add():
+    """Agrega una predicción para calibración."""
+    try:
+        from services.advanced_models import calibrator
+        data = request.get_json() or {}
+        prob = float(data.get("predicted_prob", 0.5))
+        actual = bool(data.get("actual", False))
+        calibrator.add_prediction(prob, actual)
+        return jsonify({"ok": True, "total_predicciones": len(calibrator.predictions)})
+    except Exception as e:
+        return jsonify({"error": str(e)[:300]})
+
+
+@app.route("/api/advanced/combined/predict")
+@login_required
+def advanced_combined():
+    """Predicción combinada usando todos los modelos (ensemble)."""
+    try:
+        from services.advanced_models import dixon_coles, improved_elo
+        home = request.args.get("home", "Team A")
+        away = request.args.get("away", "Team B")
+
+        dc = dixon_coles.predict_match(home, away)
+        elo = improved_elo.predict_match(home, away)
+
+        # Promedio ponderado (Dixon-Coles pesa más para fútbol)
+        w_dc, w_elo = 0.6, 0.4
+        combined = {
+            "local": round(dc["probabilidades"]["local"] * w_dc + elo["probabilidades"]["local"] * w_elo, 1),
+            "empate": round(dc["probabilidades"]["empate"] * w_dc + elo["probabilidades"]["empate"] * w_elo, 1),
+            "visitante": round(dc["probabilidades"]["visitante"] * w_dc + elo["probabilidades"]["visitante"] * w_elo, 1),
+        }
+
+        return jsonify({
+            "partido": f"{home} vs {away}",
+            "modelo_combinado": combined,
+            "dixon_coles": dc["probabilidades"],
+            "elo": elo["probabilidades"],
+            "pesos": {"dixon_coles": w_dc, "elo": w_elo},
+            "goles_esperados": dc.get("goles_esperados", 0),
+            "over_25": dc.get("over_25", 0),
+            "btts": dc.get("btts", 0),
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)[:300]})
 
 
 @app.route("/api/journal/resumen")

@@ -1341,6 +1341,133 @@ async function loadRP(){try{
 loadRP()
 """)
 
+# ════════════════════════════════════════════════════════════════════════════
+# MODULE: MODELOS AVANZADOS
+# ════════════════════════════════════════════════════════════════════════════
+MOD_MODELOS_AVANZADOS = module_page("Modelos Avanzados", """
+<div class="kpi-grid">
+  <div class="kpi"><div class="label">Dixon-Coles</div><div class="value green" id="maDC">—</div></div>
+  <div class="kpi"><div class="label">ELO Promedio</div><div class="value amber" id="maELO">—</div></div>
+  <div class="kpi"><div class="label">CLV Promedio</div><div class="value purple" id="maCLV">—</div></div>
+  <div class="kpi"><div class="label">Calibracion</div><div class="value teal" id="maCal">—</div></div>
+</div>
+
+<h3 style="margin:12px 0 6px;color:var(--text1)">Predicción Dixon-Coles + ELO</h3>
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+  <input id="maHome" placeholder="Equipo Local" style="flex:1;min-width:140px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text1)">
+  <input id="maAway" placeholder="Equipo Visitante" style="flex:1;min-width:140px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text1)">
+  <button class="btn primary" onclick="maPredict()">Predecir</button>
+</div>
+<div id="maPredResult" style="margin-bottom:12px"></div>
+
+<h3 style="margin:12px 0 6px;color:var(--text1)">Análisis de Fatiga</h3>
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+  <input id="maFatSchedule" placeholder="Fechas (separadas por coma: 2026-06-01,2026-06-03,...)" style="flex:2;min-width:200px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text1)">
+  <select id="maFatSport" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text1)">
+    <option value="basketball">Basketball</option>
+    <option value="football">Football</option>
+    <option value="soccer">Soccer</option>
+  </select>
+  <button class="btn primary" onclick="maFatigue()">Analizar</button>
+</div>
+<div id="maFatResult" style="margin-bottom:12px"></div>
+
+<h3 style="margin:12px 0 6px;color:var(--text1)">Análisis de Clima</h3>
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+  <input id="maTempF" type="number" placeholder="Temp °F" value="72" style="width:80px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text1)">
+  <input id="maWind" type="number" placeholder="Viento mph" value="5" style="width:80px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text1)">
+  <input id="maPrecip" type="number" placeholder="Lluvia %" value="0" style="width:80px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text1)">
+  <input id="maHumid" type="number" placeholder="Humedad %" value="50" style="width:80px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text1)">
+  <button class="btn primary" onclick="maWeather()">Analizar</button>
+</div>
+<div id="maWeatherResult" style="margin-bottom:12px"></div>
+
+<h3 style="margin:12px 0 6px;color:var(--text1)">Calcular CLV</h3>
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+  <input id="maBetOdds" type="number" step="0.01" placeholder="Cuota apostada" value="2.10" style="width:100px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text1)">
+  <input id="maCloseOdds" type="number" step="0.01" placeholder="Cuota cierre" value="1.90" style="width:100px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text1)">
+  <button class="btn primary" onclick="maCLV()">Calcular</button>
+</div>
+<div id="maCLVResult"></div>
+""", """
+async function maPredict(){
+  const h=document.getElementById('maHome').value||'Club América'
+  const a=document.getElementById('maAway').value||'Guadalajara'
+  try{
+    const d=await api('/api/advanced/combined/predict?home='+encodeURIComponent(h)+'&away='+encodeURIComponent(a))
+    const dc=d.dixon_coles||{},elo=d.elo||{},comb=d.modelo_combinado||{}
+    let html='<div class="kpi-grid" style="margin-top:8px">'
+    html+='<div class="kpi"><div class="label">Dixon-Coles Local</div><div class="value green">'+(dc.local||0)+'%</div></div>'
+    html+='<div class="kpi"><div class="label">ELO Local</div><div class="value amber">'+(elo.local||0)+'%</div></div>'
+    html+='<div class="kpi"><div class="label">Combinado Local</div><div class="value green">'+(comb.local||0)+'%</div></div>'
+    html+='<div class="kpi"><div class="label">Combinado Empate</div><div class="value purple">'+(comb.empate||0)+'%</div></div>'
+    html+='<div class="kpi"><div class="label">Combinado Visitante</div><div class="value red">'+(comb.visitante||0)+'%</div></div>'
+    html+='<div class="kpi"><div class="label">Goles Esperados</div><div class="value">'+d.goles_esperados+'</div></div>'
+    html+='<div class="kpi"><div class="label">Over 2.5</div><div class="value teal">'+d.over_25+'%</div></div>'
+    html+='<div class="kpi"><div class="label">BTTS</div><div class="value purple">'+d.btts+'%</div></div>'
+    html+='</div>'
+    document.getElementById('maPredResult').innerHTML=html
+    document.getElementById('maDC').textContent=(dc.local||0)+'%'
+    document.getElementById('maELO').textContent=(elo.elo_home||1500)
+  }catch(e){document.getElementById('maPredResult').innerHTML='<span class="red">Error: '+e.message+'</span>'}
+}
+async function maFatigue(){
+  const s=document.getElementById('maFatSchedule').value
+  const sp=document.getElementById('maFatSport').value
+  try{
+    const d=await api('/api/advanced/fatigue/analyze?schedule='+encodeURIComponent(s)+'&sport='+sp)
+    let html='<div class="kpi-grid" style="margin-top:8px">'
+    html+='<div class="kpi"><div class="label">Fatiga Score</div><div class="value '+(d.fatiga_score>=50?'red':d.fatiga_score>=30?'amber':'green')+'">'+d.fatiga_score+'/100</div></div>'
+    html+='<div class="kpi"><div class="label">Nivel</div><div class="value">'+d.nivel+'</div></div>'
+    html+='<div class="kpi"><div class="label">Impacto</div><div class="value '+(d.impacto_pct<0?'red':'green')+'">'+d.impacto_pct+'%</div></div>'
+    html+='</div>'
+    if(d.factores&&d.factores.length){
+      html+='<div class="table-wrap"><table><thead><tr><th>Tipo</th><th>Severidad</th><th>Detalle</th><th>Impacto</th></tr></thead><tbody>'
+      d.factores.forEach(f=>{html+='<tr><td>'+f.tipo+'</td><td class="'+(f.severidad==='ALTA'?'red':f.severidad==='MEDIA'?'amber':'')+'">'+f.severidad+'</td><td>'+f.detalle+'</td><td class="'+(f.impacto_pct<0?'red':'green')+'">'+f.impacto_pct+'%</td></tr>'})
+      html+='</tbody></table></div>'
+    }
+    document.getElementById('maFatResult').innerHTML=html
+  }catch(e){document.getElementById('maFatResult').innerHTML='<span class="red">Error: '+e.message+'</span>'}
+}
+async function maWeather(){
+  const t=document.getElementById('maTempF').value,w=document.getElementById('maWind').value,p=document.getElementById('maPrecip').value,h=document.getElementById('maHumid').value
+  try{
+    const d=await api('/api/advanced/weather/analyze?temperature_f='+t+'&wind_mph='+w+'&precipitation_pct='+p+'&humidity_pct='+h+'&outdoor=true')
+    let html='<div class="kpi-grid" style="margin-top:8px">'
+    html+='<div class="kpi"><div class="label">Impacto</div><div class="value '+(d.impacto_total_pct<=-5?'red':d.impacto_total_pct<=-2?'amber':'green')+'">'+d.impacto+'</div></div>'
+    html+='<div class="kpi"><div class="label">Total Impacto</div><div class="value '+(d.impacto_total_pct<0?'red':'green')+'">'+d.impacto_total_pct+'%</div></div>'
+    html+='</div>'
+    if(d.factores&&d.factores.length){
+      html+='<div class="table-wrap"><table><thead><tr><th>Tipo</th><th>Severidad</th><th>Mercado</th><th>Impacto</th></tr></thead><tbody>'
+      d.factores.forEach(f=>{html+='<tr><td>'+f.tipo+'</td><td class="'+(f.severidad==='ALTA'?'red':'amber')+'">'+f.severidad+'</td><td>'+(f.mercado_afectado||'-')+'</td><td class="red">'+f.impacto_pct+'%</td></tr>'})
+      html+='</tbody></table></div>'
+    }
+    document.getElementById('maWeatherResult').innerHTML=html
+  }catch(e){document.getElementById('maWeatherResult').innerHTML='<span class="red">Error: '+e.message+'</span>'}
+}
+async function maCLV(){
+  const b=document.getElementById('maBetOdds').value,c=document.getElementById('maCloseOdds').value
+  try{
+    const d=await api('/api/advanced/clv/calculate?bet_odds='+b+'&closing_odds='+c)
+    let html='<div class="kpi-grid" style="margin-top:8px">'
+    html+='<div class="kpi"><div class="label">CLV</div><div class="value '+(d.es_positivo?'green':'red')+'">'+d.clv_pct+'%</div></div>'
+    html+='<div class="kpi"><div class="label">Nivel</div><div class="value">'+d.nivel+'</div></div>'
+    html+='<div class="kpi"><div class="label">Prob Apostada</div><div class="value">'+d.bet_implied_prob+'%</div></div>'
+    html+='<div class="kpi"><div class="label">Prob Cierre</div><div class="value">'+d.closing_implied_prob+'%</div></div>'
+    html+='</div>'
+    html+='<div style="margin-top:6px;color:var(--text2)">'+d.recomendacion+'</div>'
+    document.getElementById('maCLVResult').innerHTML=html
+    document.getElementById('maCLV').textContent=d.clv_pct+'%'
+    document.getElementById('maCal').textContent=d.nivel
+  }catch(e){document.getElementById('maCLVResult').innerHTML='<span class="red">Error: '+e.message+'</span>'}
+}
+// Cargar ratings ELO al inicio
+(async()=>{try{
+  const d=await api('/api/advanced/elo/ratings')
+  if(d.total_equipos>0)document.getElementById('maELO').textContent=d.total_equipos+' equipos'
+}catch(e){}})()
+""")
+
 # ── Module map ──────────────────────────────────────────────────────────────
 MODULES = {
     "value-bets":    ("Value Bets",          MOD_VALUE_BETS),
@@ -1365,6 +1492,7 @@ MODULES = {
     "cuentas":       ("Cuentas",             MOD_CUENTAS),
     "portfolio":     ("Portfolio",           MOD_PORTFOLIO),
     "rendimiento":   ("Rendimiento",         MOD_RENDIMIENTO),
+    "modelos-avanzados": ("Modelos Avanzados", MOD_MODELOS_AVANZADOS),
 }
 
 # ── Main export ──────────────────────────────────────────────────────────
