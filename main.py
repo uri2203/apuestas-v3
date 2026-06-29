@@ -1177,32 +1177,22 @@ def diag_bets():
 
 @app.route("/api/diag/odds-api")
 def diag_odds_api():
-    """Diagnóstico público: verifica estado de ODDS_API_KEY."""
-    import httpx
-    api_key = os.getenv("ODDS_API_KEY", "")
-    if not api_key:
-        return jsonify({"configured": False, "error": "ODDS_API_KEY no configurada en variables de entorno"})
-    try:
-        r = httpx.get("https://api.the-odds-api.com/v4/sports/",
-                       params={"apiKey": api_key}, timeout=10)
-        remaining = r.headers.get("x-requests-remaining", "?")
-        used = r.headers.get("x-requests-used", "?")
-        if r.status_code == 200:
-            sports = r.json()
-            return jsonify({
-                "configured": True, "ok": True,
-                "requests_remaining": remaining, "requests_used": used,
-                "sports_available": len(sports) if isinstance(sports, list) else 0,
-            })
-        else:
-            return jsonify({
-                "configured": True, "ok": False,
-                "http_status": r.status_code,
-                "error": r.text[:200],
-                "requests_remaining": remaining,
-            })
-    except Exception as e:
-        return jsonify({"configured": True, "ok": False, "error": str(e)[:200]})
+    """Diagnóstico: estado de TODAS las API keys configuradas (cascadeo)."""
+    from services.deportes import get_key_status, _get_api_keys
+    keys = _get_api_keys()
+    if not keys:
+        return jsonify({
+            "configured": False,
+            "error": "No hay API keys configuradas. Agrega ODDS_API_KEYS=key1,key2 en Render.",
+        })
+    status = get_key_status()
+    any_ok = any(s.get("ok") for s in status)
+    return jsonify({
+        "configured": True,
+        "total_keys": len(keys),
+        "any_working": any_ok,
+        "keys": status,
+    })
 
 
 @app.route("/api/system-status")
@@ -1232,21 +1222,17 @@ def system_status():
     except Exception as e:
         result["database"] = {"connected": False, "error": str(e)[:200]}
 
-    # 2. Odds API check
-    api_key = os.getenv("ODDS_API_KEY", "")
-    if api_key:
-        try:
-            import httpx
-            r = httpx.get("https://api.the-odds-api.com/v4/sports/",
-                           params={"apiKey": api_key}, timeout=10)
-            result["odds_api"] = {
-                "configured": True,
-                "ok": r.status_code == 200,
-                "remaining": r.headers.get("x-requests-remaining", "?"),
-                "status_code": r.status_code,
-            }
-        except Exception as e:
-            result["odds_api"] = {"configured": True, "ok": False, "error": str(e)[:100]}
+    # 2. Odds API check (cascade)
+    from services.deportes import _get_api_keys, _is_key_exhausted
+    keys = _get_api_keys()
+    if keys:
+        working = [k for k in keys if not _is_key_exhausted(k)]
+        result["odds_api"] = {
+            "configured": True,
+            "total_keys": len(keys),
+            "keys_available": len(working),
+            "any_working": len(working) > 0,
+        }
     else:
         result["odds_api"] = {"configured": False}
 

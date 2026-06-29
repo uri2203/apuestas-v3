@@ -19,6 +19,8 @@ services:
         sync: false
       - key: ODDS_API_KEY
         sync: false
+      - key: ODDS_API_KEYS
+        sync: false
       - key: API_FOOTBALL_KEY
         sync: false
       - key: OPENWEATHER_KEY
