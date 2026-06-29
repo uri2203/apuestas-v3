@@ -814,6 +814,176 @@ def sharp_steam():
     if resultado.get("detectado"): _broadcast({"tipo":"steam_move","data":resultado})
     return jsonify(resultado)
 
+
+@app.route("/api/sharp/scan")
+@login_required
+def sharp_scan():
+    """Escanea partidos reales y da recomendaciones accionables de apuesta.
+    Compara odds entre casas, detecta dónde está el dinero sharp,
+    y dice exactamente: a quién apostar, en qué casa, y por cuánto."""
+    try:
+        api_key = get_any_odds_key()
+        if not api_key:
+            return jsonify({"error": "No hay API keys configuradas", "recomendaciones": []})
+
+        deporte = request.args.get("deporte", "upcoming")
+        if deporte == "upcoming":
+            raw = get_odds_upcoming(api_key, regions="us,uk,eu", markets="h2h")
+        else:
+            raw = get_odds_for_sport(deporte, api_key, regions="us,uk,eu", markets="h2h")
+
+        if not raw:
+            return jsonify({"error": "API retornó datos vacíos", "recomendaciones": []})
+
+        recomendaciones = []
+        for match in raw if isinstance(raw, list) else []:
+            ht = match.get("home_team", "")
+            at = match.get("away_team", "")
+            if not ht or not at:
+                continue
+
+            bookmakers = match.get("bookmakers", [])
+            if len(bookmakers) < 2:
+                continue
+
+            # Recopilar mejores odds por resultado
+            best_odds = {}  # {outcome: {price, bookmaker}}
+            all_odds = {}   # {outcome: [prices]}
+            overrounds = []
+
+            for book in bookmakers:
+                casa = book.get("title", "")
+                markets = book.get("markets", [])
+                if not markets:
+                    continue
+                h2h = markets[0]
+                outcomes = h2h.get("outcomes", [])
+                prices = {}
+                for o in outcomes:
+                    name = o.get("name", "")
+                    price = o.get("price", 0)
+                    if name and price > 1:
+                        prices[name] = price
+                        if name not in all_odds:
+                            all_odds[name] = []
+                        all_odds[name].append(price)
+                        prev = best_odds.get(name)
+                        if not prev or price > prev["price"]:
+                            best_odds[name] = {"price": price, "bookmaker": casa}
+
+                # Calcular overround de esta casa
+                if prices:
+                    overround = sum(1.0/p for p in prices.values()) - 1
+                    overrounds.append({"casa": casa, "overround": round(overround*100, 2)})
+
+            if not best_odds or not all_odds:
+                continue
+
+            # Calcular promedio por outcome
+            avg_odds = {}
+            for name, prices in all_odds.items():
+                avg_odds[name] = sum(prices) / len(prices) if prices else 0
+
+            # Encontrar el MEJOR valor: donde la best odd supera al promedio significativamente
+            best_value = None
+            best_edge = 0
+
+            for name in best_odds:
+                if name == "Draw":
+                    continue  # Empate generalmente no tiene value sharp
+                best_price = best_odds[name]["price"]
+                avg_price = avg_odds.get(name, 0)
+                if avg_price > 0:
+                    edge = ((best_price - avg_price) / avg_price) * 100
+                    if edge > best_edge:
+                        best_edge = edge
+                        best_value = {
+                            "seleccion": name,
+                            "mejor_cuota": best_price,
+                            "mejor_casa": best_odds[name]["bookmaker"],
+                            "cuota_promedio": round(avg_price, 2),
+                            "edge_pct": round(edge, 2),
+                        }
+
+            # Detectar steam: si una casa tiene odds MUY diferentes
+            steam_detected = False
+            steam_info = ""
+            for name in all_odds:
+                prices = all_odds[name]
+                if len(prices) >= 3:
+                    avg = sum(prices) / len(prices)
+                    std = (sum((p-avg)**2 for p in prices) / len(prices)) ** 0.5
+                    cv = (std / avg * 100) if avg > 0 else 0
+                    if cv > 8:  # Alta variación = posible steam
+                        steam_detected = True
+                        steam_info = f"Alta variación entre casas ({cv:.1f}%)"
+
+            # Determinar señal sharp
+            n_bookmakers = len(bookmakers)
+            match_date = match.get("commence_time", "")
+
+            # Construir recomendación
+            rec = {
+                "partido": f"{ht} vs {at}",
+                "liga": match.get("sport_key", "").replace("soccer_", "").replace("basketball_", "").replace("americanfootball_", "").replace("icehockey_", "").replace("baseball_", ""),
+                "fecha": match_date[:16] if match_date else "",
+                "n_casas": n_bookmakers,
+            }
+
+            if best_value and best_edge >= 1.0:
+                # HAY VALUE - dar recomendación clara
+                prob_impl = (1 / best_value["mejor_cuota"]) * 100
+                rec["recomendacion"] = f"APOSTAR en {best_value['seleccion']}"
+                rec["casa_recomendada"] = best_value["mejor_casa"]
+                rec["cuota"] = best_value["mejor_cuota"]
+                rec["seleccion"] = best_value["seleccion"]
+                rec["edge"] = best_value["edge_pct"]
+                rec["probabilidad_implicita"] = round(prob_impl, 1)
+                rec["confianza"] = "ALTA" if best_edge >= 5 else "MEDIA" if best_edge >= 2 else "BAJA"
+                rec["tipo_senal"] = "VALUE BET" if best_edge >= 5 else "VALUE MENOR"
+                rec["accion"] = f"Apostar ${100} → ganas ${round(100 * (best_value['mejor_cuota']-1), 2)}"
+            elif steam_detected:
+                rec["recomendacion"] = "STEAM DETECTADO - monitorear"
+                rec["tipo_senal"] = "STEAM"
+                rec["confianza"] = "MONITOREAR"
+                rec["edge"] = 0
+                rec["nota"] = steam_info
+            else:
+                rec["recomendacion"] = "Sin señal clara"
+                rec["tipo_senal"] = "SIN SEÑAL"
+                rec["confianza"] = "-"
+                rec["edge"] = 0
+
+            # Agregar info de todas las casas
+            rec["casas"] = []
+            for book in bookmakers:
+                casa = book.get("title", "")
+                markets = book.get("markets", [])
+                if not markets:
+                    continue
+                outcomes = markets[0].get("outcomes", [])
+                odds_dict = {}
+                for o in outcomes:
+                    odds_dict[o.get("name", "")] = o.get("price", 0)
+                rec["casas"].append({"casa": casa, "odds": odds_dict})
+
+            recomendaciones.append(rec)
+
+        # Ordenar por edge (mayor primero)
+        recomendaciones.sort(key=lambda x: x.get("edge", 0), reverse=True)
+
+        return jsonify({
+            "total_partidos": len(recomendaciones),
+            "con_señal": len([r for r in recomendaciones if r.get("tipo_senal") not in ("SIN SEÑAL", "-")]),
+            "recomendaciones": recomendaciones[:30],
+        })
+
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        logging.error("sharp_scan error: %s", e)
+        return jsonify({"error": str(e), "recomendaciones": [], "traceback": tb})
+
 # ── NLP ─────────────────────────────────────────────────────────────────────────
 @app.route("/api/nlp/scan")
 @login_required

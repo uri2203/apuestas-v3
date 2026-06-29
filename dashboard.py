@@ -435,36 +435,79 @@ loadVB()
 # ════════════════════════════════════════════════════════════════════════════
 MOD_SHARP = module_page("Sharp Money", """
 <div class="kpi-grid">
-  <div class="kpi"><div class="label">Alertas Sharp</div><div class="value" id="sharpCount">0</div><div class="sub">Ultimas 24h</div></div>
-  <div class="kpi"><div class="label">Score Sharp</div><div class="value amber" id="sharpScore">0/100</div></div>
-  <div class="kpi"><div class="label">Steam Moves</div><div class="value red" id="sharpSteam">0</div></div>
+  <div class="kpi"><div class="label">Partidos Escaneados</div><div class="value" id="sharpCount">0</div></div>
+  <div class="kpi"><div class="label">Con Señal</div><div class="value green" id="sharpSignal">0</div></div>
+  <div class="kpi"><div class="label">Mejor Edge</div><div class="value amber" id="sharpBestEdge">0%</div></div>
 </div>
 <div class="top-bar">
-  <input id="sharpInput" type="text" placeholder="Ej: Chivas vs America" style="width:220px"/>
-  <button class="btn btn-primary" onclick="loadSharp()">Analizar</button>
-  <button class="btn" onclick="detectSteam()">Detectar Steam</button>
+  <select id="sharpSport"><option value="upcoming">Todos</option><option value="soccer_mexico_ligamx">Liga MX</option><option value="basketball_nba">NBA</option><option value="soccer_epl">Premier</option><option value="icehockey_nhl">NHL</option><option value="baseball_mlb">MLB</option><option value="americanfootball_nfl">NFL</option></select>
+  <button class="btn btn-primary" onclick="loadSharp()">Escanear Partidos</button>
+  <button class="btn" onclick="loadSharp()">Actualizar</button>
+  <span id="sharpStatus" style="font-size:11px;color:var(--text3)"></span>
 </div>
-<div class="table-wrap"><table><thead><tr><th>Tipo</th><th>Detectado</th><th>Confianza</th><th>Senal</th><th>Detalle</th></tr></thead><tbody id="sharpBody"></tbody></table></div>
+<div id="sharpCards"></div>
 """, """
+function sharpBadge(conf){if(conf==='ALTA')return '<span class="badge badge-green">ALTA</span>';if(conf==='MEDIA')return '<span class="badge badge-amber">MEDIA</span>';return '<span class="badge badge-red">'+conf+'</span>'}
+function signalBadge(t){if(t==='VALUE BET')return '<span class="badge badge-green">VALUE BET</span>';if(t==='VALUE MENOR')return '<span class="badge badge-amber">VALUE</span>';if(t==='STEAM')return '<span class="badge badge-purple">STEAM</span>';return '<span class="badge badge-red">SIN SEÑAL</span>'}
 async function loadSharp(){try{
-  const q=document.getElementById('sharpInput').value
-  const url=q?'/api/sharp/analizar?partido='+encodeURIComponent(q):'/api/sharp/analizar'
-  const d=await api(url)
-  const ind=d.indicadores||[]
-  const sc=d.score_sharp||{}
-  document.getElementById('sharpCount').textContent=ind.length
-  document.getElementById('sharpScore').textContent=(sc.score||0).toFixed(0)+'/100'
-  let h=''
-  ind.forEach(v=>{
-    const det=v.detectado?'<span class="badge badge-green">SI</span>':'<span class="badge badge-red">NO</span>'
-    h+='<tr><td><span class="badge badge-blue">'+(v.tipo||'N/A')+'</span></td><td>'+det+'</td><td>'+(v.confianza_pct||0)+'%</td><td>'+(v.señal||v.senal||'-')+'</td><td>'+(v.detalle||'-')+'</td></tr>'
+  document.getElementById('sharpStatus').textContent='Escaneando...'
+  const s=document.getElementById('sharpSport').value
+  const d=await api('/api/sharp/scan?deporte='+s)
+  const recs=d.recomendaciones||[]
+  document.getElementById('sharpCount').textContent=d.total_partidos||0
+  document.getElementById('sharpSignal').textContent=d.con_señal||0
+  let bestE=0,html=''
+  recs.forEach(v=>{
+    const edge=parseFloat(v.edge)||0
+    if(edge>bestE)bestE=edge
+    const conf=v.confianza||'-'
+    const sel=v.seleccion||''
+    const casa=v.casa_recomendada||''
+    const cuota=v.cuota||0
+    const accion=v.accion||''
+    const sig=v.tipo_senal||'SIN SEÑAL'
+    const liga=v.liga||''
+    const fecha=v.fecha||''
+    const nCasas=v.n_casas||0
+    const prob=v.probabilidad_implicita||0
+    const color=edge>=5?'border-left:4px solid var(--green)':edge>=2?'border-left:4px solid var(--amber)':'border-left:4px solid var(--border)'
+    html+='<div class="card" style="'+color+'margin-bottom:12px;padding:16px">'
+    html+='<div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:8px">'
+    html+='<div>'
+    html+='<div style="font-size:15px;font-weight:700;margin-bottom:4px">'+v.partido+'</div>'
+    html+='<div style="font-size:11px;color:var(--text3)">'+liga+' | '+nCasas+' casas | '+fecha+'</div>'
+    html+='</div>'
+    html+='<div>'+signalBadge(sig)+' '+sharpBadge(conf)+'</div>'
+    html+='</div>'
+    if(sig==='VALUE BET'||sig==='VALUE MENOR'){
+      html+='<div style="margin-top:12px;padding:12px;background:var(--green-bg);border-radius:var(--radius-sm)">'
+      html+='<div style="font-size:14px;font-weight:700;color:var(--green);margin-bottom:4px">&#9650; APOSTAR: '+sel+'</div>'
+      html+='<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px">'
+      html+='<div><strong>Casa:</strong> '+casa+'</div>'
+      html+='<div><strong>Cuota:</strong> '+cuota+'</div>'
+      html+='<div><strong>Edge:</strong> <span style="color:var(--green);font-weight:700">'+edge.toFixed(1)+'%</span></div>'
+      html+='<div><strong>Prob implícita:</strong> '+prob+'%</div>'
+      html+='<div><strong>Ejemplo:</strong> '+accion+'</div>'
+      html+='</div></div>'
+      if(v.casas&&v.casas.length>0){
+        html+='<div style="margin-top:8px;font-size:11px;color:var(--text3)"><strong>Odds comparadas:</strong> '
+        v.casas.slice(0,6).forEach(c=>{
+          const odds=c.odds||{}
+          const oH=odds[sel]||'-'
+          html+='<span class="badge badge-blue" style="margin:2px">'+c.casa+': '+oH+'</span> '
+        })
+        html+='</div>'
+      }
+    }else if(sig==='STEAM'){
+      html+='<div style="margin-top:8px;font-size:12px;color:var(--purple)">Steam detectado — '+((v.nota||'').slice(0,100))+'</div>'
+    }else{
+      html+='<div style="margin-top:8px;font-size:12px;color:var(--text3)">Sin señal clara en este partido</div>'
+    }
+    html+='</div>'
   })
-  document.getElementById('sharpBody').innerHTML=h||'<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px">Ingresa un partido para analizar o usa /api/sharp/analizar</td></tr>'
-}catch(e){toast('Error','err')}}
-async function detectSteam(){try{
-  const d=await api('/api/sharp/steam')
-  toast(d.detectado?'Steam detectado!':'Sin steam moves','info')
-}catch(e){toast('Error steam: '+e.message,'err')}}
+  document.getElementById('sharpCards').innerHTML=html||'<div class="empty"><div class="icon">$</div><h3>Sin partidos disponibles</h3><p>Escanea para encontrar value bets con análisis sharp</p></div>'
+  document.getElementById('sharpStatus').textContent=(d.con_señal||0)+' señales de '+(d.total_partidos||0)+' partidos'
+}catch(e){toast('Error scan: '+e.message,'err')}}
 loadSharp()
 """)
 

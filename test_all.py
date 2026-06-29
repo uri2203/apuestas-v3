@@ -188,6 +188,10 @@ def main():
     check_eq(r.status_code, 200, "GET /api/sharp/analizar = 200")
     r = get("/api/sharp/steam")
     check_eq(r.status_code, 200, "GET /api/sharp/steam = 200")
+    r = get("/api/sharp/scan")
+    check_eq(r.status_code, 200, "GET /api/sharp/scan = 200")
+    d = r.get_json()
+    check("recomendaciones" in d, "sharp/scan tiene recomendaciones")
 
     # -- 12. Alertas --
     print("\n  --- Alertas ---")
