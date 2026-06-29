@@ -61,9 +61,11 @@ ALIASES = {
 }
 
 RSS_SOURCES = [
+    "https://news.google.com/rss/search?q=futbol+mexico+lesiones&hl=es-419&gl=MX&ceid=MX:es-419",
+    "https://news.google.com/rss/search?q=liga+mx+bajas+titulares&hl=es-419&gl=MX&ceid=MX:es-419",
+    "https://news.google.com/rss/search?q=chivas+america+cruz+azul+noticias&hl=es-419&gl=MX&ceid=MX:es-419",
     "https://www.record.com.mx/rss/futbol-mexico",
     "https://www.mediotiempo.com/rss",
-    "https://www.espn.com.mx/rss/futbol/feeds/rssid",
 ]
 
 
@@ -83,30 +85,74 @@ def _get_aliases(equipo):
 def fetch_noticias(limite=25):
     """
     Obtiene noticias recientes de RSS de fútbol mexicano.
-    Fallback a noticias demo si no hay conexión.
+    Usa Google News (confiable) + fuentes mexicanas como fallback.
     """
     if not HAS_HTTPX:
         return _demo_noticias()
 
     noticias = []
-    for url in RSS_SOURCES[:2]:
+    # Intentar Google News primero (siempre actualizado)
+    for url in RSS_SOURCES[:3]:
         try:
-            r = httpx.get(url, timeout=8, headers={
-                "User-Agent": "Mozilla/5.0 ApuestasPro/4.0"
-            })
+            r = httpx.get(url, timeout=10, headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ApuestasPro/5.0"
+            }, follow_redirects=True)
+            if r.status_code != 200:
+                continue
             if HAS_BS4:
                 soup = BeautifulSoup(r.text, "lxml-xml")
                 for item in soup.find_all("item")[:limite]:
                     t = item.find("title")
                     d = item.find("description")
+                    pub = item.find("pubDate")
+                    link = item.find("link")
+                    fecha = datetime.now().isoformat()
+                    if pub and pub.text:
+                        try:
+                            from email.utils import parsedate_to_datetime
+                            fecha = parsedate_to_datetime(pub.text).isoformat()
+                        except Exception:
+                            pass
                     noticias.append({
                         "titulo": t.text.strip() if t else "",
                         "desc":   (d.text.strip()[:200] if d else ""),
                         "fuente": url.split("/")[2],
-                        "fecha":  datetime.now().isoformat(),
+                        "fecha":  fecha,
+                        "url":    link.text.strip() if link else "",
                     })
+                if noticias:
+                    break  # Google News funcionó, no necesitamos más
         except Exception:
             continue
+
+    # Fallback a fuentes mexicanas si Google News no funcionó
+    if not noticias:
+        for url in RSS_SOURCES[3:]:
+            try:
+                r = httpx.get(url, timeout=8, headers={
+                    "User-Agent": "Mozilla/5.0 ApuestasPro/5.0"
+                }, follow_redirects=True)
+                if HAS_BS4:
+                    soup = BeautifulSoup(r.text, "lxml-xml")
+                    for item in soup.find_all("item")[:limite]:
+                        t = item.find("title")
+                        d = item.find("description")
+                        pub = item.find("pubDate")
+                        fecha = datetime.now().isoformat()
+                        if pub and pub.text:
+                            try:
+                                from email.utils import parsedate_to_datetime
+                                fecha = parsedate_to_datetime(pub.text).isoformat()
+                            except Exception:
+                                pass
+                        noticias.append({
+                            "titulo": t.text.strip() if t else "",
+                            "desc":   (d.text.strip()[:200] if d else ""),
+                            "fuente": url.split("/")[2],
+                            "fecha":  fecha,
+                        })
+            except Exception:
+                continue
 
     return noticias if noticias else _demo_noticias()
 
@@ -314,6 +360,10 @@ def scan_completo(home, away):
     fL = round(max(0.6, (1.0 - imp_h) * sent_h["factor_moral"]), 3)
     fA = round(max(0.6, (1.0 - imp_a) * sent_a["factor_moral"]), 3)
 
+    # Detectar si los datos son demo o reales
+    es_demo = any(n.get("fuente", "") == "demo" for n in noticias[:3])
+    fuentes_unicas = list(set(n.get("fuente", "") for n in noticias))
+
     return {
         "home": home,
         "away": away,
@@ -329,6 +379,8 @@ def scan_completo(home, away):
             "lambda_visitante": fA,
         },
         "n_noticias":  len(noticias),
+        "fuentes":     fuentes_unicas,
+        "es_demo":     es_demo,
         "tiene_edge":  len(edges) > 0,
         "timestamp":   datetime.now().isoformat(),
     }

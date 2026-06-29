@@ -225,10 +225,11 @@ LANDING_HTML = r"""<!DOCTYPE html>
   <div class="section">
     <div class="section-header">
       <h2>ANALISIS &amp; MODELOS</h2>
-      <span class="count">4 modulos</span>
+      <span class="count">5 modulos</span>
       <div class="line"></div>
     </div>
     <div class="mod-grid">
+      <div class="mod" onclick="location='/panel/modelos-avanzados'"><span class="tag">ADV</span><div class="icon" style="color:var(--green)">&#9878;</div><div class="name">Modelos Avanzados</div><div class="desc">Dixon-Coles, ELO, Fatiga, Clima, CLV</div></div>
       <div class="mod" onclick="location='/panel/ml'"><span class="tag">ML</span><div class="icon" style="color:var(--purple)">&#9734;</div><div class="name">ML Predictivo</div><div class="desc">MLP + GBM ensemble + feature importance</div></div>
       <div class="mod" onclick="location='/panel/backtesting'"><span class="tag">BT</span><div class="icon" style="color:var(--blue)">&#8634;</div><div class="name">Backtesting</div><div class="desc">Historico y validacion de modelos</div></div>
       <div class="mod" onclick="location='/panel/nlp'"><span class="tag">NLP</span><div class="icon" style="color:var(--teal)">&#9998;</div><div class="name">Noticias &amp; Lesiones</div><div class="desc">Sentimiento y lesiones NLP</div></div>
@@ -919,6 +920,7 @@ MOD_NLP = module_page("Noticias & Lesiones", """
 <div class="kpi-grid">
   <div class="kpi"><div class="label">Noticias</div><div class="value blue" id="nlpCount">0</div></div>
   <div class="kpi"><div class="label">Alertas Edge</div><div class="value amber" id="nlpAlerts">0</div></div>
+  <div class="kpi"><div class="label">Fuente</div><div class="value teal" id="nlpSource">—</div></div>
 </div>
 <div class="top-bar">
   <button class="btn btn-primary" onclick="loadNLP()">Escanear Noticias</button>
@@ -932,18 +934,23 @@ async function loadNLP(){try{
   const d=await api('/api/nlp/noticias')
   const ns=d.noticias||[]
   document.getElementById('nlpCount').textContent=ns.length
+  const fuentes=d.fuentes||(ns.length?ns.map(n=>n.fuentes||'?').filter((v,i,a)=>a.indexOf(v)===i):[])
+  document.getElementById('nlpSource').textContent=(Array.isArray(fuentes)?fuentes.join(', '):(fuentes||'?'))
   let h=''
   ns.forEach(n=>{
     let alertHtml=''
     if(n.alertas&&n.alertas.length)alertHtml='<div class="alert">&#9888; '+n.alertas.join(', ')+'</div>'
-    h+='<div class="news-item"><div class="title">'+n.titulo+'</div><div class="meta">'+(n.desc||'').slice(0,120)+'</div>'+alertHtml+'</div>'
+    const fecha=n.fecha?new Date(n.fecha):null
+    const fechaStr=fecha?fecha.toLocaleDateString('es-MX',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):''
+    h+='<div class="news-item"><div class="title">'+n.titulo+'</div><div class="meta">'+(n.desc||'').slice(0,120)+'</div><div style="font-size:10px;color:var(--text3);margin-top:2px">'+fechaStr+' — '+(n.fuente||'')+'</div>'+alertHtml+'</div>'
   })
   document.getElementById('nlpResults').innerHTML=h||'<div class="empty"><p>Sin noticias recientes</p></div>'
   document.getElementById('nlpStatus').textContent=ns.length+' noticias'
 }catch(e){toast('Error NLP: '+e.message,'err')}}
 async function loadScan(){try{
   const d=await api('/api/nlp/scan')
-  toast(d.tiene_edge?'Alertas edge detectadas!':'Sin alertas de edge','info')
+  const msg=d.es_demo?'Datos DEMO — configura APIs para datos reales':(d.tiene_edge?'Alertas edge detectadas!':'Sin alertas de edge')
+  toast(msg,'info')
 }catch(e){toast('Error scan: '+e.message,'err')}}
 loadNLP()
 """)

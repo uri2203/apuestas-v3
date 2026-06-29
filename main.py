@@ -1001,7 +1001,8 @@ def nlp_noticias():
     from services.nlp_sentiment import fetch_noticias,detectar_lesiones
     noticias=fetch_noticias(20)
     for n in noticias: n["alertas"]=detectar_lesiones(n["titulo"]+" "+n["desc"])
-    return jsonify({"noticias":noticias,"total":len(noticias)})
+    fuentes=list(set(n.get("fuente","") for n in noticias))
+    return jsonify({"noticias":noticias,"total":len(noticias),"fuentes":fuentes})
 
 # ── BACKTESTING ────────────────────────────────────────────────────────────────
 @app.route("/api/backtest")
