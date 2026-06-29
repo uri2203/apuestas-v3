@@ -406,8 +406,10 @@ MOD_VALUE_BETS = module_page("Value Bets", """
   <button class="btn" onclick="loadVB()">Actualizar</button>
   <span id="vbStatus" style="font-size:11px;color:var(--text3)"></span>
 </div>
-<div class="table-wrap"><table><thead><tr><th>Edge</th><th>Partido</th><th>Resultado</th><th>Casa</th><th>Cuota</th><th>Prob Modelo</th><th>Clasificacion</th></tr></thead><tbody id="vbBody"></tbody></table></div>
+<div id="vbCards"></div>
+<div class="table-wrap"><table><thead><tr><th>Edge</th><th>Deporte</th><th>Partido</th><th>Resultado</th><th>Casa</th><th>Cuota</th><th>Clasif</th></tr></thead><tbody id="vbBody"></tbody></table></div>
 """, """
+function sportIcon(d){if(d==='combat')return'🥊';if(d==='tennis')return'🎾';if(d==='team')return'🏈';if(d==='racing')return'🏇';if(d==='soccer')return'⚽';return'🏆'}
 async function loadVB(){try{
   document.getElementById('vbStatus').textContent='Escaneando...'
   const s=document.getElementById('vbSport').value
@@ -415,10 +417,24 @@ async function loadVB(){try{
   const d=await api('/api/odds/value-bets?deporte='+s+'&edge_minimo='+e+'&multi='+(s==='upcoming'?'1':'0'))
   const vb=d.value_bets||[]
   let h='',sumE=0,maxE=0
+  // Cards agrupados por deporte
+  const bySport={}
+  vb.forEach(v=>{const k=v.deporte||'other';if(!bySport[k])bySport[k]=[];bySport[k].push(v)})
+  let cardsHtml=''
+  Object.entries(bySport).forEach(([sport,items])=>{
+    const icon=sportIcon(sport)
+    const best=items[0]
+    cardsHtml+='<div class="card" style="border-left:4px solid var(--green);margin-bottom:10px;padding:12px">'
+    cardsHtml+='<div style="display:flex;justify-content:space-between;align-items:center">'
+    cardsHtml+='<div><strong>'+icon+' '+sport.toUpperCase()+'</strong> — '+items.length+' value bets</div>'
+    cardsHtml+='<div style="font-size:12px;color:var(--text3)">Mejor edge: <strong style="color:var(--green)">'+best.edge_porcentaje+'%</strong> en '+best.partido+'</div>'
+    cardsHtml+='</div></div>'
+  })
+  document.getElementById('vbCards').innerHTML=cardsHtml
   vb.forEach(v=>{
     const edge=parseFloat(v.edge_porcentaje)||0
-    const prob=v.prob_modelo_pct?((v.prob_modelo_pct*100).toFixed(1)+'%'):'-'
-    h+='<tr><td>'+edgeBadge(edge)+'</td><td>'+v.partido+'</td><td>'+v.resultado+'</td><td><span class="badge badge-blue">'+v.casa+'</span></td><td class="num">'+v.cuota+'</td><td class="num">'+prob+'</td><td>'+(v.clasificacion||'-')+'</td></tr>'
+    const icon=sportIcon(v.deporte)
+    h+='<tr><td>'+edgeBadge(edge)+'</td><td>'+icon+' '+(v.deporte||'-')+'</td><td>'+v.partido+'</td><td>'+v.resultado+'</td><td><span class="badge badge-blue">'+v.casa+'</span></td><td class="num">'+v.cuota+'</td><td>'+(v.clasificacion||'-')+'</td></tr>'
     sumE+=edge;maxE=Math.max(maxE,edge)
   })
   const err=d.api_error||(!vb.length?d.aviso:'')

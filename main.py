@@ -272,6 +272,58 @@ def _prob_implicita(cuota):
     except Exception:
         return 0.01
 
+def _sport_type(sport_key):
+    """Detecta tipo de deporte para filtrar outcomes inválidos.
+    Retorna: 'combat', 'racing', 'tennis', 'team', 'soccer', 'other'
+    """
+    sk = (sport_key or "").lower()
+    if any(x in sk for x in ["boxing", "mma", "ufc", "wrestling", "judo"]):
+        return "combat"
+    if any(x in sk for x in ["horse", "greyhound", "harness"]):
+        return "racing"
+    if any(x in sk for x in ["tennis"]):
+        return "tennis"
+    if any(x in sk for x in ["nfl", "nba", "mlb", "nhl", "ncaa", "football", "basketball", "baseball", "hockey"]):
+        return "team"
+    if any(x in sk for x in ["soccer", "futbol", "football_europe", "fifa"]):
+        return "soccer"
+    return "other"
+
+def _valid_outcomes(sport_key, outcomes_dict):
+    """Filtra outcomes inválidos según el deporte.
+    En boxeo/MMA: solo Fighter1, Fighter2 (sin Draw)
+    En tenis: solo Player1, Player2 (sin Draw)
+    En NFL/NBA/MLB/NHL: solo Team1, Team2 (sin Draw)
+    En caballo: no aplica (cada corredor es un outcome)
+    """
+    st = _sport_type(sport_key)
+    result = {}
+
+    if st in ("combat", "tennis", "team"):
+        # Estos deportes NO tienen empate real
+        for name, info in outcomes_dict.items():
+            name_lower = name.lower()
+            if name_lower in ("draw", "empate", "tie", "draw no bet"):
+                continue  # Saltar Draw en estos deportes
+            result[name] = info
+    else:
+        result = dict(outcomes_dict)
+
+    return result
+
+def _edge_cap(sport_key):
+    """Edge máximo razonable por deporte. Evita falsos positivos absurdos."""
+    st = _sport_type(sport_key)
+    if st == "combat":
+        return 25.0  # Boxeo/MMA: edges altos son sospechosos
+    if st == "racing":
+        return 30.0
+    if st == "tennis":
+        return 20.0
+    if st == "team":
+        return 15.0  # NFL/NBA: edges > 15% son raros
+    return 20.0  # Default
+
 _vb_cache = {}  # {key: (timestamp, response)}
 
 @app.route("/api/odds/sports")
@@ -352,12 +404,15 @@ def value_bets():
             for m in raw if isinstance(raw, list) else []:
                 ht = m.get("home_team","") or ""
                 at = m.get("away_team","") or ""
+                sport_key = m.get("sport_key", deporte)
                 if not ht or not at:
                     continue
                 total_escaneados += 1
                 consensus_sum = {}
                 consensus_count = {}
                 best_per_outcome = {}
+                bookmaker_count = len(m.get("bookmakers", []))
+
                 for book in m.get("bookmakers", []):
                     casa = book.get("title","")
                     for o in book.get("markets", [{}])[0].get("outcomes", []):
@@ -370,10 +425,16 @@ def value_bets():
                         prev = best_per_outcome.get(name)
                         if not prev or price > prev["cuota"]:
                             best_per_outcome[name] = {"cuota": min(price, 50.0), "casa": casa}
-                if consensus_sum and best_per_outcome:
+
+                # Filtrar outcomes inválidos según deporte
+                best_per_outcome = _valid_outcomes(sport_key, best_per_outcome)
+                consensus_sum_filtered = {k: v for k, v in consensus_sum.items() if k in best_per_outcome}
+                consensus_count_filtered = {k: v for k, v in consensus_count.items() if k in best_per_outcome}
+
+                if consensus_sum_filtered and best_per_outcome:
                     raw_probs = {}
-                    for outcome, inv_sum in consensus_sum.items():
-                        raw_probs[outcome] = inv_sum / consensus_count[outcome]
+                    for outcome, inv_sum in consensus_sum_filtered.items():
+                        raw_probs[outcome] = inv_sum / consensus_count_filtered[outcome]
                     total_prob = sum(raw_probs.values())
                     consensus = {k: (v / total_prob) if total_prob > 0 else 0.01 for k, v in raw_probs.items()}
                     partidos.append({
@@ -381,6 +442,8 @@ def value_bets():
                         "best": best_per_outcome,
                         "consensus": consensus,
                         "liga": m.get("sport_title", deporte),
+                        "sport_key": sport_key,
+                        "n_bookmakers": bookmaker_count,
                     })
 
         # ── 3. Calcular edge: mejor cuota vs consenso ──
@@ -389,13 +452,38 @@ def value_bets():
             ht, at = m["home"], m["away"]
             best = m["best"]
             consensus = m["consensus"]
+            sport_key = m.get("sport_key", deporte)
+            n_books = m.get("n_bookmakers", 0)
+            max_edge = _edge_cap(sport_key)
+            st = _sport_type(sport_key)
+
+            # Requiere mínimo 2 bookmakers para consensus confiable
+            if n_books < 2:
+                continue
+
             for resultado, info in best.items():
                 prob = consensus.get(resultado, 0.01)
                 edge = _edge_simple(prob, info["cuota"])
+
+                # Aplicar cap de edge según deporte
+                if edge > max_edge:
+                    edge = max_edge
+
                 if edge >= edge_min:
+                    # Clasificación contextual por deporte
+                    if st == "combat":
+                        tipo = "PELEA" if edge >= 10 else "VALUE" if edge >= 5 else "MARGINAL"
+                    elif st == "team":
+                        tipo = "FUERTE" if edge >= 7 else "BUENO" if edge >= 4 else "MODERADO" if edge >= 2 else "MARGINAL"
+                    elif st == "racing":
+                        tipo = "CABALLO" if edge >= 8 else "VALUE" if edge >= 4 else "MARGINAL"
+                    else:
+                        tipo = "FUERTE" if edge > 7 else "BUENO" if edge > 4 else "MODERADO" if edge > 2 else "MARGINAL"
+
                     real.append({
                         "partido":          f"{ht} vs {at}",
                         "liga":             m.get("liga", deporte),
+                        "deporte":          st,
                         "fecha":            "",
                         "resultado":        resultado,
                         "casa":             info["casa"],
@@ -404,7 +492,8 @@ def value_bets():
                         "edge_modelo_pct":  edge,
                         "prob_modelo_pct":  round(prob * 100, 1),
                         "es_value_bet":     True,
-                        "clasificacion":    "FUERTE" if edge > 7 else "BUENO" if edge > 4 else "MODERADO" if edge > 2 else "MARGINAL",
+                        "clasificacion":    tipo,
+                        "n_bookmakers":     n_books,
                     })
 
         seen = {}
@@ -839,12 +928,16 @@ def sharp_scan():
         for match in raw if isinstance(raw, list) else []:
             ht = match.get("home_team", "")
             at = match.get("away_team", "")
+            sport_key = match.get("sport_key", "")
             if not ht or not at:
                 continue
 
             bookmakers = match.get("bookmakers", [])
             if len(bookmakers) < 2:
                 continue
+
+            st = _sport_type(sport_key)
+            max_edge = _edge_cap(sport_key)
 
             # Recopilar mejores odds por resultado
             best_odds = {}  # {outcome: {price, bookmaker}}
@@ -863,6 +956,9 @@ def sharp_scan():
                     name = o.get("name", "")
                     price = o.get("price", 0)
                     if name and price > 1:
+                        # Filtrar Draw para deportes sin empate
+                        if st in ("combat", "tennis", "team") and name.lower() in ("draw", "empate", "tie"):
+                            continue
                         prices[name] = price
                         if name not in all_odds:
                             all_odds[name] = []
@@ -889,12 +985,13 @@ def sharp_scan():
             best_edge = 0
 
             for name in best_odds:
-                if name == "Draw":
-                    continue  # Empate generalmente no tiene value sharp
                 best_price = best_odds[name]["price"]
                 avg_price = avg_odds.get(name, 0)
                 if avg_price > 0:
                     edge = ((best_price - avg_price) / avg_price) * 100
+                    # Aplicar cap de edge
+                    if edge > max_edge:
+                        edge = max_edge
                     if edge > best_edge:
                         best_edge = edge
                         best_value = {
@@ -925,7 +1022,8 @@ def sharp_scan():
             # Construir recomendación
             rec = {
                 "partido": f"{ht} vs {at}",
-                "liga": match.get("sport_key", "").replace("soccer_", "").replace("basketball_", "").replace("americanfootball_", "").replace("icehockey_", "").replace("baseball_", ""),
+                "liga": match.get("sport_title", sport_key),
+                "deporte": st,
                 "fecha": match_date[:16] if match_date else "",
                 "n_casas": n_bookmakers,
             }
