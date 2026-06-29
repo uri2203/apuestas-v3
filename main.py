@@ -1200,7 +1200,7 @@ def diag_odds_api():
 @app.route("/api/system-status")
 def system_status():
     """Estado completo del sistema — una sola llamada para diagnosticar todo."""
-    result = {"version": "4.4", "modules": {}}
+    result = {"version": "5.0", "modules": {}}
 
     # 1. Database check
     try:

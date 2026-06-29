@@ -157,8 +157,10 @@ def main():
     # -- 8. Module pages --
     print("\n  --- Modulos ---")
     modulos = [
-        "value-bets", "sharp", "arbitraje", "ml", "bankroll", "simulacion",
-        "contabilidad", "journal", "bookmakers", "cross-market", "backtesting", "rendimiento"
+        "value-bets", "sharp", "arbitraje", "cross-market", "kelly", "value-engine",
+        "ml", "backtesting", "nlp", "montecarlo",
+        "bankroll", "simulacion", "contabilidad", "journal", "mercados",
+        "bookmakers", "progol", "cuentas", "portfolio", "rendimiento"
     ]
     for m in modulos:
         r = get(f"/panel/{m}")
