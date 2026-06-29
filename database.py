@@ -382,7 +382,7 @@ def seed_demo_data() -> dict:
     bet_rows = []
     for i in range(120):
         if i < 10:
-            d = today - timedelta(hours=random.randint(0, 12))
+            d = today.replace(hour=12, minute=0, second=0) - timedelta(hours=random.randint(0, 6))
         else:
             d = today - timedelta(days=random.randint(1, 60), hours=random.randint(0, 23))
         eq = random.choice(equipos)
@@ -410,8 +410,8 @@ def seed_demo_data() -> dict:
     # - predictions
     pred_rows = []
     for i in range(80):
-        if i < 8:
-            d = today - timedelta(hours=random.randint(0, 12))
+        if i < 10:
+            d = today.replace(hour=12, minute=0, second=0) - timedelta(hours=random.randint(0, 6))
         else:
             d = today - timedelta(days=random.randint(1, 60), hours=random.randint(0, 23))
         eq = random.choice(equipos)
@@ -443,8 +443,8 @@ def seed_demo_data() -> dict:
     # - value_bets_log
     vb_rows = []
     for i in range(40):
-        if i < 5:
-            d = today - timedelta(hours=random.randint(0, 12))
+        if i < 10:
+            d = today.replace(hour=12, minute=0, second=0) - timedelta(hours=random.randint(0, 6))
         else:
             d = today - timedelta(days=random.randint(1, 14), hours=random.randint(0, 23))
         eq = random.choice(equipos)
