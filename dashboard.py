@@ -407,9 +407,14 @@ MOD_VALUE_BETS = module_page("Value Bets", """
   <span id="vbStatus" style="font-size:11px;color:var(--text3)"></span>
 </div>
 <div id="vbCards"></div>
-<div class="table-wrap"><table><thead><tr><th>Edge</th><th>Deporte</th><th>Partido</th><th>Resultado</th><th>Casa</th><th>Cuota</th><th>Clasif</th></tr></thead><tbody id="vbBody"></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Conf</th><th>Edge</th><th>Partido</th><th>Apostar</th><th>Casa</th><th>Cuota</th><th>Kelly %</th><th>Monto</th></tr></thead><tbody id="vbBody"></tbody></table></div>
 """, """
 function sportIcon(d){if(d==='combat')return'🥊';if(d==='tennis')return'🎾';if(d==='team')return'🏈';if(d==='racing')return'🏇';if(d==='soccer')return'⚽';return'🏆'}
+function confBadge(score,label){
+  if(score>=75)return'<span class="badge badge-green">'+label+' ('+score+')</span>'
+  if(score>=55)return'<span class="badge badge-amber">'+label+' ('+score+')</span>'
+  return'<span class="badge badge-red">'+label+' ('+score+')</span>'
+}
 async function loadVB(){try{
   document.getElementById('vbStatus').textContent='Escaneando...'
   const s=document.getElementById('vbSport').value
@@ -434,11 +439,26 @@ async function loadVB(){try{
   vb.forEach(v=>{
     const edge=parseFloat(v.edge_porcentaje)||0
     const icon=sportIcon(v.deporte)
-    h+='<tr><td>'+edgeBadge(edge)+'</td><td>'+icon+' '+(v.deporte||'-')+'</td><td>'+v.partido+'</td><td>'+v.resultado+'</td><td><span class="badge badge-blue">'+v.casa+'</span></td><td class="num">'+v.cuota+'</td><td>'+(v.clasificacion||'-')+'</td></tr>'
+    const conf=v.confianza_score||0
+    const confL=v.confianza||'-'
+    const kelly=v.kelly||{}
+    const kellyPct=kelly.kelly_ajustado_pct||0
+    const monto=kelly.monto_sugerido||0
+    const score=v.confianza_score||0
+    h+='<tr>'
+    h+='<td>'+confBadge(score,confL)+'</td>'
+    h+='<td>'+edgeBadge(edge)+'</td>'
+    h+='<td>'+v.partido+'</td>'
+    h+='<td><strong>'+v.resultado+'</strong></td>'
+    h+='<td><span class="badge badge-blue">'+v.casa+'</span></td>'
+    h+='<td class="num">'+v.cuota+'</td>'
+    h+='<td class="num" style="color:'+(kellyPct>0?'var(--green)':'var(--red)')+'">'+kellyPct+'%</td>'
+    h+='<td class="num" style="font-weight:700;color:'+(monto>0?'var(--green)':'var(--red)')+'">$'+monto+'</td>'
+    h+='</tr>'
     sumE+=edge;maxE=Math.max(maxE,edge)
   })
   const err=d.api_error||(!vb.length?d.aviso:'')
-  document.getElementById('vbBody').innerHTML=h||'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">'+(err||'Sin value bets encontrados')+'</td></tr>'
+  document.getElementById('vbBody').innerHTML=h||'<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:20px">'+(err||'Sin value bets encontrados')+'</td></tr>'
   document.getElementById('vbCount').textContent=vb.length
   document.getElementById('vbAvgEdge').textContent=(vb.length?(sumE/vb.length).toFixed(1):'0')+'%'
   document.getElementById('vbMaxEdge').textContent=maxE.toFixed(1)+'%'
@@ -458,6 +478,7 @@ MOD_SHARP = module_page("Sharp Money", """
   <div class="kpi"><div class="label">Partidos Escaneados</div><div class="value" id="sharpCount">0</div></div>
   <div class="kpi"><div class="label">Con Señal</div><div class="value green" id="sharpSignal">0</div></div>
   <div class="kpi"><div class="label">Mejor Edge</div><div class="value amber" id="sharpBestEdge">0%</div></div>
+  <div class="kpi"><div class="label">Total Sugerido</div><div class="value green" id="sharpTotal$">$0</div></div>
 </div>
 <div class="top-bar">
   <select id="sharpSport"><option value="upcoming">Todos</option><option value="soccer_fifa_world_cup">Copa del Mundo</option><option value="tennis_atp_world_tour">Tenis ATP</option><option value="tennis_wta">Tenis WTA</option><option value="mma_mixed_martial_arts">MMA/UFC</option><option value="basketball_nba">NBA</option><option value="horse_racing">Caballos</option><option value="cricket_ipl">Cricket IPL</option><option value="esports_lol_lck">LoL LCK</option><option value="motorsport_f1_race_winner">F1</option></select>
@@ -476,7 +497,7 @@ async function loadSharp(){try{
   const recs=d.recomendaciones||[]
   document.getElementById('sharpCount').textContent=d.total_partidos||0
   document.getElementById('sharpSignal').textContent=d.con_señal||0
-  let bestE=0,html=''
+  let bestE=0,totalMonto=0,html=''
   recs.forEach(v=>{
     const edge=parseFloat(v.edge)||0
     if(edge>bestE)bestE=edge
@@ -490,6 +511,9 @@ async function loadSharp(){try{
     const fecha=v.fecha||''
     const nCasas=v.n_casas||0
     const prob=v.probabilidad_implicita||0
+    const k=v.kelly||{}
+    const monto=k.monto_sugerido||0
+    if(monto>0)totalMonto+=monto
     const color=edge>=5?'border-left:4px solid var(--green)':edge>=2?'border-left:4px solid var(--amber)':'border-left:4px solid var(--border)'
     html+='<div class="card" style="'+color+'margin-bottom:12px;padding:16px">'
     html+='<div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:8px">'
@@ -500,13 +524,23 @@ async function loadSharp(){try{
     html+='<div>'+signalBadge(sig)+' '+sharpBadge(conf)+'</div>'
     html+='</div>'
     if(sig==='VALUE BET'||sig==='VALUE MENOR'){
+      const k=v.kelly||{}
+      const monto=k.monto_sugerido||0
+      const kellyPct=k.kelly_ajustado_pct||0
+      const cs=v.confianza_score||0
+      const confL=v.confianza||'-'
       html+='<div style="margin-top:12px;padding:12px;background:var(--green-bg);border-radius:var(--radius-sm)">'
-      html+='<div style="font-size:14px;font-weight:700;color:var(--green);margin-bottom:4px">&#9650; APOSTAR: '+sel+'</div>'
-      html+='<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px">'
+      html+='<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'
+      html+='<div style="font-size:14px;font-weight:700;color:var(--green)">&#9650; APOSTAR: '+sel+'</div>'
+      html+='<div>'+(cs>=75?'<span class="badge badge-green">CONFIANZA '+confL+' ('+cs+')</span>':cs>=55?'<span class="badge badge-amber">CONFIANZA '+confL+' ('+cs+')</span>':'<span class="badge badge-red">CONFIANZA '+confL+' ('+cs+')</span>')+'</div>'
+      html+='</div>'
+      html+='<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;margin-top:6px">'
       html+='<div><strong>Casa:</strong> '+casa+'</div>'
       html+='<div><strong>Cuota:</strong> '+cuota+'</div>'
       html+='<div><strong>Edge:</strong> <span style="color:var(--green);font-weight:700">'+edge.toFixed(1)+'%</span></div>'
-      html+='<div><strong>Prob implícita:</strong> '+prob+'%</div>'
+      html+='<div><strong>Kelly:</strong> '+kellyPct+'%</div>'
+      html+='<div style="font-weight:700;color:var(--green)">MONTO: $'+monto+'</div>'
+      html+='</div>'
       html+='<div><strong>Ejemplo:</strong> '+accion+'</div>'
       html+='</div></div>'
       if(v.casas&&v.casas.length>0){
@@ -527,6 +561,7 @@ async function loadSharp(){try{
   })
   document.getElementById('sharpCards').innerHTML=html||'<div class="empty"><div class="icon">$</div><h3>Sin partidos disponibles</h3><p>Escanea para encontrar value bets con análisis sharp</p></div>'
   document.getElementById('sharpStatus').textContent=(d.con_señal||0)+' señales de '+(d.total_partidos||0)+' partidos'
+  document.getElementById('sharpTotal$').textContent='$'+totalMonto.toFixed(0)
 }catch(e){toast('Error scan: '+e.message,'err')}}
 loadSharp()
 """)

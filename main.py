@@ -324,6 +324,97 @@ def _edge_cap(sport_key):
         return 15.0  # NFL/NBA: edges > 15% son raros
     return 20.0  # Default
 
+def _calcular_confianza(cuota, edge_pct, n_bookmakers, casa):
+    """
+    Score de confianza 0-100 basado en múltiples factores.
+    
+    Factores:
+    - Odds range: 2-5 = más plausible, 10+ = extremo
+    - Edge: 2-8% = sweet spot, >15% = sospechoso
+    - N bookmakers: más = mejor consenso
+    - Casa: exchanges son más eficientes
+    """
+    score = 50  # Base
+
+    # 1. Odds range (0-30 puntos)
+    if cuota <= 2.0:
+        score += 5   # Favorito: poco value pero seguro
+    elif cuota <= 3.5:
+        score += 25  # Sweet spot: underdog plausible
+    elif cuota <= 5.0:
+        score += 20  # Moderado
+    elif cuota <= 8.0:
+        score += 10  # Alto riesgo
+    elif cuota <= 15.0:
+        score += 0   # Muy alto riesgo
+    else:
+        score -= 10  # Extremo
+
+    # 2. Edge range (-15 a +20 puntos)
+    if edge_pct < 2:
+        score -= 15  # Edge muy bajo
+    elif edge_pct <= 5:
+        score += 15  # Sweet spot
+    elif edge_pct <= 10:
+        score += 10  # Bueno
+    elif edge_pct <= 15:
+        score += 5   # Alto pero aceptable
+    elif edge_pct <= 25:
+        score -= 5   # Sospechoso
+    else:
+        score -= 15  # Muy sospechoso
+
+    # 3. N bookmakers (0-15 puntos)
+    if n_bookmakers >= 40:
+        score += 15
+    elif n_bookmakers >= 20:
+        score += 10
+    elif n_bookmakers >= 10:
+        score += 5
+    elif n_bookmakers >= 5:
+        score += 0
+    else:
+        score -= 10  # Pocas casas = dato poco confiable
+
+    # 4. Casa (exchange = más eficiente)
+    casa_lower = (casa or "").lower()
+    if any(x in casa_lower for x in ["pinnacle", "betfair", "smarkets", "matchbook"]):
+        score += 10  # Exchange/market leader
+    elif any(x in casa_lower for x in ["bet365", "betsson", "unibet", "william hill"]):
+        score += 5   # Bookmaker grande
+    elif any(x in casa_lower for x in ["1xbet", "marathon"]):
+        score -= 5   # Menos confiable
+
+    # Clamp 0-100
+    return max(0, min(100, score))
+
+def _clasificar_confianza(score):
+    """Convierte score a clasificación legible."""
+    if score >= 75:
+        return "ALTA", "var(--green)"
+    elif score >= 55:
+        return "MEDIA", "var(--amber)"
+    elif score >= 35:
+        return "BAJA", "var(--red)"
+    else:
+        return "MUY BAJA", "var(--red)"
+
+def _kelly_sizing(cuota, prob_estimada, bankroll, fraccion=0.25):
+    """Calcula tamaño de apuesta usando Kelly Criterion fraccionado."""
+    b = cuota - 1  # Ganancia neta por $1 apostado
+    q = 1 - prob_estimada
+    kelly_puro = (b * prob_estimada - q) / b if b > 0 else 0
+    kelly_frac = max(0, kelly_puro * fraccion)
+    monto = round(bankroll * kelly_frac, 2)
+    roi_esperado = round((b * prob_estimada - q) * 100, 2)
+    return {
+        "kelly_puro_pct": round(kelly_puro * 100, 2),
+        "kelly_ajustado_pct": round(kelly_frac * 100, 2),
+        "monto_sugerido": monto,
+        "roi_esperado_pct": roi_esperado,
+        "hay_valor": kelly_puro > 0,
+    }
+
 _vb_cache = {}  # {key: (timestamp, response)}
 
 @app.route("/api/odds/sports")
@@ -480,6 +571,11 @@ def value_bets():
                     else:
                         tipo = "FUERTE" if edge > 7 else "BUENO" if edge > 4 else "MODERADO" if edge > 2 else "MARGINAL"
 
+                    # Score de confianza y Kelly sizing
+                    conf_score = _calcular_confianza(info["cuota"], edge, n_books, info["casa"])
+                    conf_label, conf_color = _clasificar_confianza(conf_score)
+                    kelly = _kelly_sizing(info["cuota"], prob, get_bankroll_seguro(), 0.25)
+
                     real.append({
                         "partido":          f"{ht} vs {at}",
                         "liga":             m.get("liga", deporte),
@@ -494,6 +590,10 @@ def value_bets():
                         "es_value_bet":     True,
                         "clasificacion":    tipo,
                         "n_bookmakers":     n_books,
+                        "confianza_score":  conf_score,
+                        "confianza":        conf_label,
+                        "confianza_color":  conf_color,
+                        "kelly":            kelly,
                     })
 
         seen = {}
@@ -1031,15 +1131,23 @@ def sharp_scan():
             if best_value and best_edge >= 1.0:
                 # HAY VALUE - dar recomendación clara
                 prob_impl = (1 / best_value["mejor_cuota"]) * 100
+                prob_modelo = prob_impl / 100 + (best_edge / 100 * prob_impl / 100)
+                conf_score = _calcular_confianza(best_value["mejor_cuota"], best_edge, n_bookmakers, best_value["mejor_casa"])
+                conf_label, conf_color = _clasificar_confianza(conf_score)
+                kelly = _kelly_sizing(best_value["mejor_cuota"], min(0.95, prob_modelo), get_bankroll_seguro(), 0.25)
+
                 rec["recomendacion"] = f"APOSTAR en {best_value['seleccion']}"
                 rec["casa_recomendada"] = best_value["mejor_casa"]
                 rec["cuota"] = best_value["mejor_cuota"]
                 rec["seleccion"] = best_value["seleccion"]
                 rec["edge"] = best_value["edge_pct"]
                 rec["probabilidad_implicita"] = round(prob_impl, 1)
-                rec["confianza"] = "ALTA" if best_edge >= 5 else "MEDIA" if best_edge >= 2 else "BAJA"
+                rec["confianza"] = conf_label
+                rec["confianza_score"] = conf_score
+                rec["confianza_color"] = conf_color
                 rec["tipo_senal"] = "VALUE BET" if best_edge >= 5 else "VALUE MENOR"
-                rec["accion"] = f"Apostar ${100} → ganas ${round(100 * (best_value['mejor_cuota']-1), 2)}"
+                rec["kelly"] = kelly
+                rec["accion"] = f"Apostar ${kelly['monto_sugerido']} → ganas ${round(kelly['monto_sugerido'] * (best_value['mejor_cuota']-1), 2)}"
             elif steam_detected:
                 rec["recomendacion"] = "STEAM DETECTADO - monitorear"
                 rec["tipo_senal"] = "STEAM"
