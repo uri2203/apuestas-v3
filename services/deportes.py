@@ -16,6 +16,7 @@ ODDS_API_BASE = "https://api.the-odds-api.com/v4/sports"
 
 # Deportes con mayor ROI potencial (ordenados por rentabilidad documentada)
 SPORTS_BY_ROI = [
+    "soccer_fifa_world_cup",
     "americanfootball_nfl",
     "americanfootball_ncaaf",
     "basketball_nba",

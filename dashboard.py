@@ -159,7 +159,7 @@ LANDING_HTML = r"""<!DOCTYPE html>
     <a href="/" class="active">Home</a>
     <a href="/panel/value-bets">Value</a>
     <a href="/panel/sharp">Sharp</a>
-    <a href="/panel/arbitraje">Arb</a>
+    <a href="/panel/copa">Copa</a>
     <a href="/panel/bankroll">Bankroll</a>
     <a href="/panel/rendimiento">Stats</a>
   </div>
@@ -206,7 +206,7 @@ LANDING_HTML = r"""<!DOCTYPE html>
   <div class="section">
     <div class="section-header">
       <h2>VALUE &amp; EDGE</h2>
-      <span class="count">6 modulos</span>
+      <span class="count">7 modulos</span>
       <div class="line"></div>
     </div>
     <div class="mod-grid">
@@ -216,6 +216,7 @@ LANDING_HTML = r"""<!DOCTYPE html>
       <div class="mod" onclick="location='/panel/cross-market'"><span class="tag">X</span><div class="icon" style="color:var(--blue)">&#8644;</div><div class="name">Cross Market</div><div class="desc">H2H vs AH comparativa</div></div>
       <div class="mod" onclick="location='/panel/kelly'"><span class="tag">CALC</span><div class="icon" style="color:var(--teal)">K</div><div class="name">Kelly Calculator</div><div class="desc">Fraccion optimal de bankroll</div></div>
       <div class="mod" onclick="location='/panel/value-engine'"><span class="tag">PRO</span><div class="icon" style="color:var(--purple)">V</div><div class="name">Value Engine</div><div class="desc">Analisis profesional CLV + EV</div></div>
+      <div class="mod" onclick="location='/panel/copa'"><span class="tag">WC</span><div class="icon" style="color:var(--green)">&#9917;</div><div class="name">Copa del Mundo</div><div class="desc">2026: value bets, standings, sharp</div></div>
     </div>
   </div>
 
@@ -396,7 +397,7 @@ MOD_VALUE_BETS = module_page("Value Bets", """
   <div class="kpi"><div class="label">Partidos</div><div class="value" id="vbMatches">0</div></div>
 </div>
 <div class="top-bar">
-  <select id="vbSport"><option value="upcoming">Todos los deportes</option><option value="soccer_mexico_ligamx">Liga MX</option><option value="basketball_nba">NBA</option><option value="soccer_epl">Premier League</option><option value="soccer_spain_la_liga">La Liga</option><option value="soccer_germany_bundesliga">Bundesliga</option><option value="soccer_italy_serie_a">Serie A</option><option value="icehockey_nhl">NHL</option><option value="baseball_mlb">MLB</option><option value="americanfootball_nfl">NFL</option></select>
+  <select id="vbSport"><option value="upcoming">Todos los deportes</option><option value="soccer_fifa_world_cup">Copa del Mundo 2026</option><option value="soccer_mexico_ligamx">Liga MX</option><option value="basketball_nba">NBA</option><option value="soccer_epl">Premier League</option><option value="soccer_spain_la_liga">La Liga</option><option value="soccer_germany_bundesliga">Bundesliga</option><option value="soccer_italy_serie_a">Serie A</option><option value="icehockey_nhl">NHL</option><option value="baseball_mlb">MLB</option><option value="americanfootball_nfl">NFL</option></select>
   <input id="vbMinEdge" type="number" value="2" step="0.5" style="width:70px" placeholder="Edge min"/>
   <button class="btn btn-primary" onclick="loadVB()">Buscar Value Bets</button>
   <button class="btn" onclick="loadVB()">Actualizar</button>
@@ -440,7 +441,7 @@ MOD_SHARP = module_page("Sharp Money", """
   <div class="kpi"><div class="label">Mejor Edge</div><div class="value amber" id="sharpBestEdge">0%</div></div>
 </div>
 <div class="top-bar">
-  <select id="sharpSport"><option value="upcoming">Todos</option><option value="soccer_mexico_ligamx">Liga MX</option><option value="basketball_nba">NBA</option><option value="soccer_epl">Premier</option><option value="icehockey_nhl">NHL</option><option value="baseball_mlb">MLB</option><option value="americanfootball_nfl">NFL</option></select>
+  <select id="sharpSport"><option value="upcoming">Todos</option><option value="soccer_fifa_world_cup">Copa del Mundo</option><option value="soccer_mexico_ligamx">Liga MX</option><option value="basketball_nba">NBA</option><option value="soccer_epl">Premier</option><option value="icehockey_nhl">NHL</option><option value="baseball_mlb">MLB</option><option value="americanfootball_nfl">NFL</option></select>
   <button class="btn btn-primary" onclick="loadSharp()">Escanear Partidos</button>
   <button class="btn" onclick="loadSharp()">Actualizar</button>
   <span id="sharpStatus" style="font-size:11px;color:var(--text3)"></span>
@@ -652,6 +653,97 @@ async function analyzeValue(){try{
   html+='<div class="card"><h3>Monte Carlo</h3><p>Local: '+(ev.probabilidades?.local_pct||0).toFixed(1)+'% | Empate: '+(ev.probabilidades?.empate_pct||0).toFixed(1)+'% | Visitante: '+(ev.probabilidades?.visitante_pct||0).toFixed(1)+'%</p><p>Over 2.5: '+(ev.mercados_adicionales?.prob_over_2_5_pct||0).toFixed(1)+'% | Simulaciones: '+(ev.simulaciones||0)+'</p></div>'
   document.getElementById('veResult').innerHTML=html
 }catch(e){toast('Error: '+e.message,'err')}}
+""")
+
+# ════════════════════════════════════════════════════════════════════════════
+# MODULE: COPA DEL MUNDO
+# ════════════════════════════════════════════════════════════════════════════
+MOD_COPA = module_page("Copa del Mundo 2026", """
+<div class="kpi-grid">
+  <div class="kpi"><div class="label">Partidos</div><div class="value" id="copaCount">0</div></div>
+  <div class="kpi"><div class="label">Con Value</div><div class="value green" id="copaValue">0</div></div>
+  <div class="kpi"><div class="label">Mejor Edge</div><div class="value amber" id="copaEdge">0%</div></div>
+  <div class="kpi"><div class="label">Fase</div><div class="value blue" id="copaFase">Grupos</div></div>
+</div>
+<div class="top-bar">
+  <button class="btn btn-primary" onclick="loadCopa()">Escanear Copa del Mundo</button>
+  <button class="btn" onclick="loadCopaStandings()">Ver Posiciones</button>
+  <button class="btn" onclick="loadCopaSharp()">Sharp Money WC</button>
+  <span id="copaStatus" style="font-size:11px;color:var(--text3)"></span>
+</div>
+<div id="copaContent"></div>
+""", """
+async function loadCopa(){try{
+  document.getElementById('copaStatus').textContent='Escaneando partidos del Mundial...'
+  const d=await api('/api/odds/value-bets?deporte=soccer_fifa_world_cup&edge_minimo=1&multi=0')
+  const vb=d.value_bets||[]
+  document.getElementById('copaCount').textContent=d.total_partidos_analizados||0
+  document.getElementById('copaValue').textContent=vb.length
+  let maxE=0
+  vb.forEach(v=>{const e=parseFloat(v.edge_porcentaje)||0;if(e>maxE)maxE=e})
+  document.getElementById('copaEdge').textContent=maxE.toFixed(1)+'%'
+  let h=''
+  if(vb.length){
+    h+='<div class="table-wrap"><table><thead><tr><th>Edge</th><th>Partido</th><th>Resultado</th><th>Casa</th><th>Cuota</th><th>Prob</th></tr></thead><tbody>'
+    vb.forEach(v=>{
+      const edge=parseFloat(v.edge_porcentaje)||0
+      h+='<tr><td>'+edgeBadge(edge)+'</td><td><strong>'+v.partido+'</strong></td><td>'+v.resultado+'</td><td><span class="badge badge-blue">'+v.casa+'</span></td><td class="num">'+v.cuota+'</td><td class="num">'+(v.prob_modelo_pct?(v.prob_modelo_pct*100).toFixed(1)+'%':'-')+'</td></tr>'
+    })
+    h+='</tbody></table></div>'
+  }else{
+    h='<div class="card"><h3>Sin value bets en Copa del Mundo</h3><p>Puede que no haya partidos disponibles o que el edge sea menor al umbral.</p></div>'
+  }
+  document.getElementById('copaContent').innerHTML=h
+  document.getElementById('copaStatus').textContent=vb.length+' value bets encontrados'
+  if(d.api_error)toast(d.api_error,'err')
+}catch(e){toast('Error Copa: '+e.message,'err')}}
+async function loadCopaStandings(){try{
+  const d=await api('/api/ligas/standings?liga=soccer_fifa_world_cup')
+  let h='<div class="card"><h3>Posiciones Copa del Mundo</h3>'
+  if(d.tabla&&d.tabla.length){
+    h+='<div class="table-wrap"><table><thead><tr><th>#</th><th>Equipo</th><th>PJ</th><th>PG</th><th>PE</th><th>PP</th><th>Dif</th><th>Pts</th></tr></thead><tbody>'
+    d.tabla.forEach((v,i)=>{
+      h+='<tr><td>'+(i+1)+'</td><td><strong>'+v.equipo+'</strong></td><td class="num">'+v.pj+'</td><td class="num green">'+v.pg+'</td><td class="num amber">'+v.pe+'</td><td class="num red">'+v.pp+'</td><td class="num">'+v.dif+'</td><td class="num" style="font-weight:700">'+v.pts+'</td></tr>'
+    })
+    h+='</tbody></table></div>'
+  }else{
+    h+='<p>Sin posiciones disponibles</p>'
+  }
+  h+='</div>'
+  document.getElementById('copaContent').innerHTML=h
+}catch(e){toast('Error standings: '+e.message,'err')}}
+async function loadCopaSharp(){try{
+  document.getElementById('copaStatus').textContent='Escaneando sharp money en Mundial...'
+  const d=await api('/api/sharp/scan?deporte=soccer_fifa_world_cup')
+  const recs=d.recomendaciones||[]
+  document.getElementById('copaCount').textContent=d.total_partidos||0
+  document.getElementById('copaValue').textContent(d.con_señal||0)
+  let bestE=0,html=''
+  recs.forEach(v=>{
+    const edge=parseFloat(v.edge)||0
+    if(edge>bestE)bestE=edge
+    const sig=v.tipo_senal||'SIN SEÑAL'
+    const sel=v.seleccion||''
+    const casa=v.casa_recomendada||''
+    const cuota=v.cuota||0
+    const accion=v.accion||''
+    const conf=v.confianza||'-'
+    const color=edge>=5?'border-left:4px solid var(--green)':edge>=2?'border-left:4px solid var(--amber)':'border-left:4px solid var(--border)'
+    html+='<div class="card" style="'+color+'margin-bottom:8px;padding:12px">'
+    html+='<div style="font-size:14px;font-weight:700;margin-bottom:4px">'+v.partido+'</div>'
+    if(sig==='VALUE BET'||sig==='VALUE MENOR'){
+      html+='<div style="padding:8px;background:var(--green-bg);border-radius:var(--radius-sm);font-size:12px">'
+      html+='<strong style="color:var(--green)">&#9650; APOSTAR: '+sel+'</strong> en '+casa+' | Cuota: '+cuota+' | Edge: '+edge.toFixed(1)+'% | '+accion
+      html+='</div>'
+    }else{
+      html+='<div style="font-size:11px;color:var(--text3)">Sin señal clara</div>'
+    }
+    html+='</div>'
+  })
+  document.getElementById('copaEdge').textContent=bestE.toFixed(1)+'%'
+  document.getElementById('copaContent').innerHTML=html||'<div class="card"><p>Sin partidos disponibles</p></div>'
+}catch(e){toast('Error: '+e.message,'err')}}
+loadCopa()
 """)
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -1175,6 +1267,7 @@ MODULES = {
     "cross-market":  ("Cross Market",        MOD_CROSS),
     "kelly":         ("Kelly Calculator",    MOD_KELLY),
     "value-engine":  ("Value Engine",        MOD_VALUE_ENGINE),
+    "copa":          ("Copa del Mundo 2026", MOD_COPA),
     "ml":            ("ML Predictivo",       MOD_ML),
     "backtesting":   ("Backtesting",         MOD_BACKTESTING),
     "nlp":           ("Noticias & Lesiones", MOD_NLP),

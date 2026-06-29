@@ -158,7 +158,7 @@ def main():
     print("\n  --- Modulos ---")
     modulos = [
         "value-bets", "sharp", "arbitraje", "cross-market", "kelly", "value-engine",
-        "ml", "backtesting", "nlp", "montecarlo",
+        "copa", "ml", "backtesting", "nlp", "montecarlo",
         "bankroll", "simulacion", "contabilidad", "journal", "mercados",
         "bookmakers", "progol", "cuentas", "portfolio", "rendimiento"
     ]
