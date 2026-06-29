@@ -4,7 +4,7 @@ Endpoints: odds, value bets, comparador, arbitrajes.
 """
 from flask import Blueprint, jsonify, request
 from auth import login_required
-from services.deportes import get_odds_for_sport
+from services.deportes import get_odds_for_sport, get_any_odds_key
 from services.estadisticas import detectar_value_bet, comparar_odds_casas
 import os
 
@@ -19,7 +19,7 @@ def obtener_odds(deporte="soccer_mexico_ligamx"):
     deportes disponibles: soccer_mexico_ligamx, basketball_nba, soccer_uefa_champs_league
     """
     casas = int(request.args.get("casas", 5))
-    api_key = os.getenv("ODDS_API_KEY", "")
+    api_key = get_any_odds_key()
     raw = get_odds_for_sport(deporte, api_key)
     data = []
     for m in raw if isinstance(raw, list) else []:
@@ -53,7 +53,7 @@ def value_bets():
     """
     deporte = request.args.get("deporte", "soccer_mexico_ligamx")
     edge_minimo = float(request.args.get("edge_minimo", 2.0))
-    api_key = os.getenv("ODDS_API_KEY", "")
+    api_key = get_any_odds_key()
     raw = get_odds_for_sport(deporte, api_key)
     partidos = []
     for m in raw if isinstance(raw, list) else []:
@@ -119,7 +119,7 @@ def comparar_partido(partido_id, deporte="soccer_mexico_ligamx"):
     Compara odds de un partido específico entre todas las casas disponibles.
     Detecta arbitrajes automáticamente.
     """
-    api_key = os.getenv("ODDS_API_KEY", "")
+    api_key = get_any_odds_key()
     raw = get_odds_for_sport(deporte, api_key)
     partidos = []
     for m in raw if isinstance(raw, list) else []:

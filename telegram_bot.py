@@ -220,9 +220,10 @@ def _cmd_alertas() -> None:
 
 
 def _cmd_arbitraje() -> None:
-    api_key = os.getenv("ODDS_API_KEY", "")
+    from services.deportes import get_any_odds_key
+    api_key = get_any_odds_key()
     if not api_key:
-        telegram_send("ODDS_API_KEY no configurada")
+        telegram_send("No hay API keys configuradas. Agrega ODDS_API_KEYS=key1,key2")
         return
     try:
         from services.deportes import get_odds_upcoming
@@ -261,9 +262,10 @@ def _cmd_arbitraje() -> None:
 
 
 def _cmd_sharp() -> None:
-    api_key = os.getenv("ODDS_API_KEY", "")
+    from services.deportes import get_any_odds_key
+    api_key = get_any_odds_key()
     if not api_key:
-        telegram_send("ODDS_API_KEY no configurada")
+        telegram_send("No hay API keys configuradas. Agrega ODDS_API_KEYS=key1,key2")
         return
     try:
         from services.sharp_money import analizar_partido_sharp
@@ -365,13 +367,14 @@ def _cmd_status() -> None:
 
 def _cmd_vb() -> None:
     from services.progol import generar_jornada_progol, predecir_partido
-    api_key = os.getenv("ODDS_API_KEY", "")
+    from services.deportes import get_any_odds_key
+    api_key = get_any_odds_key()
     if not api_key:
         telegram_send(
             "<b>Value Bets — Liga MX (demo)</b>\n\n"
             "Chivas vs América → +8.4% edge (Bet365)\n"
             "Toluca vs Santos → +10.0% edge (Codere)\n\n"
-            "Configura ODDS_API_KEY para datos reales."
+            "Configura ODDS_API_KEYS=key1,key2 para datos reales."
         )
         return
     try:
@@ -419,7 +422,8 @@ def _cmd_help() -> None:
 # ── Alertas automáticas (llamadas por el scheduler) ───────────────────────────
 def alerta_value_bets() -> None:
     """Detecta value bets y los envía a Telegram (llamar desde scheduler)."""
-    api_key = os.getenv("ODDS_API_KEY", "")
+    from services.deportes import get_any_odds_key
+    api_key = get_any_odds_key()
     if not api_key or not TELEGRAM_TOKEN:
         return
     try:

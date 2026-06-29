@@ -158,8 +158,8 @@ def predecir_partido(home, away, xg_home=None, xg_away=None, historial=None,
 
 def _upcoming_desde_odds():
     """Obtiene próximos partidos de Liga MX desde The Odds API (tiene acceso real)."""
-    import os
-    odds_key = os.getenv("ODDS_API_KEY", "")
+    from services.deportes import get_any_odds_key
+    odds_key = get_any_odds_key()
     if not odds_key:
         return []
     try:

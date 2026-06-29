@@ -11,7 +11,7 @@ from dashboard import HTML
 from auth import auth_bp, login_required
 from telegram_bot import telegram_bp, register_webhook, alerta_value_bets, alerta_nlp, telegram_send
 from database import init_db
-from services.deportes import get_active_league_keys, get_odds_for_sport, get_odds_upcoming
+from services.deportes import get_active_league_keys, get_odds_for_sport, get_odds_upcoming, get_any_odds_key
 from routers.bankroll_router import bankroll_bp
 from routers.mercados_router import mercados_bp
 from routers.ml_router import ml_bp, ligas_bp, predicciones_bp
@@ -154,7 +154,7 @@ def health():
     # Estado de las API keys (solo booleanos, sin exponer las keys)
     estado["api_keys"] = {
         "api_football": bool(os.getenv("API_FOOTBALL_KEY")),
-        "odds_api":     bool(os.getenv("ODDS_API_KEY")),
+        "odds_api":     bool(get_any_odds_key()),
         "openweather":  bool(os.getenv("OPENWEATHER_KEY")),
         "telegram":     bool(os.getenv("TELEGRAM_TOKEN")),
         "app_password": bool(os.getenv("APP_PASSWORD")),
@@ -180,10 +180,11 @@ def health():
         except Exception as e:
             estado["api_tests"]["api_football"] = {"ok": False, "error": str(e)[:150]}
 
-    if os.getenv("ODDS_API_KEY"):
+    _k = get_any_odds_key()
+    if _k:
         try:
             r = httpx.get("https://api.the-odds-api.com/v4/sports/",
-                          params={"apiKey": os.getenv("ODDS_API_KEY")}, timeout=8)
+                          params={"apiKey": _k}, timeout=8)
             remaining = r.headers.get("x-requests-remaining", "?")
             used = r.headers.get("x-requests-used", "?")
             estado["api_tests"]["odds_api"] = {
@@ -297,7 +298,7 @@ def value_bets():
     try:
         edge_min = float(request.args.get("edge_minimo", 2))
         multi    = request.args.get("multi", "0") == "1"
-        api_key  = os.getenv("ODDS_API_KEY", "")
+        api_key  = get_any_odds_key()
         deporte  = request.args.get("deporte", "soccer_mexico_ligamx")
 
         now = time.time()
@@ -441,7 +442,7 @@ def odds_arbitraje():
     try:
         min_profit = float(request.args.get("min_profit", 0.5))
         multi = request.args.get("multi", "1") == "1"
-        api_key = os.getenv("ODDS_API_KEY", "")
+        api_key = get_any_odds_key()
         deporte = request.args.get("deporte", "upcoming")
 
         if not api_key:
@@ -562,7 +563,7 @@ def odds_mercados():
     """Obtiene odds con mercados adicionales (h2h, asian_handicap, spreads, totals).
     Params: deporte, mercados (separados por coma), regions."""
     try:
-        api_key = os.getenv("ODDS_API_KEY", "")
+        api_key = get_any_odds_key()
         deporte = request.args.get("deporte", "upcoming")
         mercados = request.args.get("mercados", "h2h,asian_handicap")
         regions = request.args.get("regions", "us,uk,eu")
@@ -638,7 +639,7 @@ def odds_mercados():
 def odds_live():
     """Lista partidos que están en vivo (commence_time < now)."""
     try:
-        api_key = os.getenv("ODDS_API_KEY", "")
+        api_key = get_any_odds_key()
         if not api_key:
             return jsonify({"error": "ODDS_API_KEY no configurada"})
 
@@ -685,7 +686,7 @@ def odds_live():
 def odds_bookmakers():
     """Devuelve cuotas de todas las casas para la línea del equipo LOCAL."""
     try:
-        api_key = os.getenv("ODDS_API_KEY", "")
+        api_key = get_any_odds_key()
         deporte = request.args.get("deporte", "soccer_mexico_ligamx")
         home    = request.args.get("home", "").strip()
         away    = request.args.get("away", "").strip()
@@ -906,7 +907,7 @@ def alertas_recientes():
     # Estado de las APIs
     api_status = {
         "api_football": bool(os.getenv("API_FOOTBALL_KEY","")),
-        "odds_api":     bool(os.getenv("ODDS_API_KEY","")),
+        "odds_api":     bool(get_any_odds_key()),
         "openweather":  bool(os.getenv("OPENWEATHER_KEY","")),
         "telegram":     bool(os.getenv("TELEGRAM_TOKEN","")),
         "db":           bool(os.getenv("DATABASE_URL","")),
@@ -1134,11 +1135,12 @@ def kpi_summary():
     roi = round((net / max(br, 1)) * 100, 2) if br > 0 else 0
 
     api_info = {}
-    if os.getenv("ODDS_API_KEY"):
+    _k = get_any_odds_key()
+    if _k:
         try:
             import httpx
             r = httpx.get("https://api.the-odds-api.com/v4/sports/",
-                          params={"apiKey": os.getenv("ODDS_API_KEY")}, timeout=8)
+                          params={"apiKey": _k}, timeout=8)
             api_info = {"ok": r.status_code == 200, "requests_restantes": r.headers.get("x-requests-remaining", "?")}
         except Exception:
             api_info = {"ok": False, "requests_restantes": "?"}
@@ -1731,7 +1733,7 @@ def _heartbeat():
 
 def _alerta_sharp_auto():
     """Escanea todos los deportes activos y envía alerta Telegram si detecta sharp money fuerte."""
-    api_key = os.getenv("ODDS_API_KEY", "")
+    api_key = get_any_odds_key()
     if not api_key:
         return
     from services.sharp_money import analizar_partido_sharp, score_sharp_total

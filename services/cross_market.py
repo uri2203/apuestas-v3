@@ -33,11 +33,11 @@ def detectar_inconsistencias(api_key: str = None) -> dict:
     Escanea partidos activos con múltiples mercados y detecta
     diferencias significativas entre probabilidades implícitas.
     """
-    from services.deportes import get_odds_upcoming
+    from services.deportes import get_odds_upcoming, get_any_odds_key
 
-    api_key = api_key or os.getenv("ODDS_API_KEY", "")
+    api_key = api_key or get_any_odds_key()
     if not api_key:
-        return {"error": "ODDS_API_KEY no configurada"}
+        return {"error": "No hay API keys configuradas. Agrega ODDS_API_KEYS=key1,key2"}
 
     # Pedir h2h + asian_handicap + spreads en un solo call
     raw = get_odds_upcoming(api_key, regions="us,uk,eu", markets="h2h,asian_handicap,spreads,totals")

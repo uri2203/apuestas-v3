@@ -40,6 +40,17 @@ _cached_sports_ts = 0
 
 # ── API Key Cascade ──────────────────────────────────────────────────────────
 
+def get_any_odds_key() -> str:
+    """Retorna cualquier API key válida (de ODDS_API_KEYS o ODDS_API_KEY).
+    Para usar donde solo se necesita un string para pasar a funciones externas."""
+    for key in _get_api_keys():
+        if not _is_key_exhausted(key):
+            return key
+    # Retornar la primera aunque esté agotada (para checks de "está configurada?")
+    keys = _get_api_keys()
+    return keys[0] if keys else ""
+
+
 def _get_api_keys() -> list[str]:
     """Retorna lista de API keys configuradas, en orden de preferencia.
     Soporta: ODDS_API_KEYS=key1,key2,key3 o ODDS_API_KEY=key1"""

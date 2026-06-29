@@ -23,11 +23,12 @@ def actualizar_ratings() -> dict:
     """
     from database import db, _execute, _fetchall
 
-    api_key = os.getenv("ODDS_API_KEY", "")
-    if not api_key:
-        return {"error": "ODDS_API_KEY no configurada"}
+    from services.deportes import get_odds_upcoming, get_any_odds_key
 
-    from services.deportes import get_odds_upcoming
+    api_key = get_any_odds_key()
+    if not api_key:
+        return {"error": "No hay API keys configuradas. Agrega ODDS_API_KEYS=key1,key2"}
+
     raw = get_odds_upcoming(api_key, regions="us,uk,eu")
 
     if not raw:

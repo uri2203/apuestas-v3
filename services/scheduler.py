@@ -42,7 +42,8 @@ def actualizar_odds() -> None:
     """Actualiza odds de Liga MX via The Odds API."""
     try:
         import httpx
-        api_key = os.getenv("ODDS_API_KEY", "")
+        from services.deportes import get_any_odds_key
+        api_key = get_any_odds_key()
         if not api_key:
             return
         for deporte in ["soccer_mexico_ligamx"]:
@@ -61,9 +62,10 @@ def detectar_value_bets_automatico() -> None:
     """Detecta value bets usando el modelo ensemble y los registra."""
     try:
         import httpx
+        from services.deportes import get_any_odds_key
         from services.progol import predecir_partido
 
-        api_key = os.getenv("ODDS_API_KEY", "")
+        api_key = get_any_odds_key()
         if not api_key:
             return
 
