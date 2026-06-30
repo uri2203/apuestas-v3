@@ -755,7 +755,48 @@ def learn_from_results() -> dict:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# 7. SCAN PRINCIPAL — Orquesta todo el flujo
+# 7. TELEGRAM — Envía las mejores señales filtradas
+# ══════════════════════════════════════════════════════════════════════════
+
+def _send_to_telegram(trades: list[dict], scan_result: dict):
+    """Envía las señales filtradas a Telegram con formato profesional."""
+    try:
+        from telegram_bot import telegram_send
+    except ImportError:
+        return
+
+    if not trades:
+        return
+
+    # Header
+    raw = scan_result.get("raw_signals_count", 0)
+    filtered = scan_result.get("filtered_signals", 0)
+    msg = f"<b>🧠 AGENTE BRAIN — Scan #{int(time.time())}</b>\n"
+    msg += f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    msg += f"📡 Raw: {raw} → Filtradas: {filtered} → Trades: {len(trades)}\n\n"
+
+    for i, t in enumerate(trades[:5], 1):  # Máximo 5 señales
+        score = t.get("confidence_score", 0)
+        emoji = "🟢" if score >= 90 else "🟡" if score >= 85 else "🔵"
+
+        msg += f"<b>{emoji} #{i} — {t['match']}</b>\n"
+        msg += f"   ✅ <b>Selección:</b> {t['selection']}\n"
+        msg += f"   📊 <b>Score:</b> {score}/100 | <b>Edge:</b> {t['edge_pct']}%\n"
+        msg += f"   💰 <b>Cuota:</b> {t['odds']} en {t['bookmaker']}\n"
+        msg += f"   🎯 <b>Kelly:</b> {t['kelly_pct']}% → <b>${t['stake']}</b>\n"
+        msg += f"   📈 <b>Prob modelo:</b> {t['prob_modelo']}%\n"
+        sources = ", ".join(t.get("sources", []))
+        msg += f"   🔗 <b>Fuentes:</b> {sources}\n\n"
+
+    msg += f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    msg += f"⚙️ Kelly: 25% | Cap: 5% bankroll | Umbral: 85%\n"
+    msg += f"🔗 Ver en dashboard: /panel/brain"
+
+    telegram_send(msg)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 8. SCAN PRINCIPAL — Orquesta todo el flujo
 # ══════════════════════════════════════════════════════════════════════════
 
 def scan(threshold: float = CONFIDENCE_THRESHOLD) -> dict:
@@ -778,6 +819,10 @@ def scan(threshold: float = CONFIDENCE_THRESHOLD) -> dict:
 
     # 4. Simulación
     trades = simulate_trades(filtered)
+
+    # 5. Enviar a Telegram las mejores señales
+    if trades:
+        _send_to_telegram(trades, result)
 
     elapsed = round(time.time() - start, 2)
 
