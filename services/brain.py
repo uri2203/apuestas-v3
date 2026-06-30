@@ -1451,6 +1451,463 @@ def auto_scan_and_simulate() -> dict:
     }
 
 
+# ══════════════════════════════════════════════════════════════════════════
+# 10. LINE SHOPPING — Compara odds entre casas y elige la mejor
+# ══════════════════════════════════════════════════════════════════════════
+
+def line_shop(match_data: dict) -> dict:
+    """
+    Compara odds de todos los bookmakers para un partido y retorna la mejor.
+    Ahorra 2-5% de edge adicional al elegir el mejor precio.
+
+    match_data: {
+        "home": "Chivas",
+        "away": "América",
+        "bookmakers": [
+            {"name": "Bet365", "outcomes": {"Chivas": 2.40, "Draw": 3.20, "América": 2.90}},
+            {"name": "Pinnacle", "outcomes": {"Chivas": 2.50, "Draw": 3.30, "América": 2.85}},
+        ]
+    }
+    """
+    bookmakers = match_data.get("bookmakers", [])
+    if len(bookmakers) < 2:
+        return {"error": "Se necesitan al menos 2 bookmakers para comparar"}
+
+    # Recopilar mejores odds por selección
+    best_odds = {}
+    best_books = {}
+    all_odds = {}  # selection -> {book: odds}
+
+    for book in bookmakers:
+        book_name = book.get("name", "")
+        outcomes = book.get("outcomes", {})
+        for sel, odds in outcomes.items():
+            if sel not in all_odds:
+                all_odds[sel] = {}
+            all_odds[sel][book_name] = odds
+
+            if sel not in best_odds or odds > best_odds[sel]:
+                best_odds[sel] = odds
+                best_books[sel] = book_name
+
+    # Calcular overround de cada casa
+    overrounds = {}
+    for book in bookmakers:
+        book_name = book.get("name", "")
+        outcomes = book.get("outcomes", {})
+        inv_sum = sum(1/o for o in outcomes.values() if o > 1)
+        overrounds[book_name] = round((inv_sum - 1) * 100, 2) if inv_sum > 0 else 99
+
+    # Calcular savings (cuánto gana por line shopping)
+    worst_odds = {}
+    for sel in best_odds:
+        all_prices = list(all_odds.get(sel, {}).values())
+        if all_prices:
+            worst_odds[sel] = min(all_prices)
+
+    savings = {}
+    for sel in best_odds:
+        if sel in worst_odds and worst_odds[sel] > 1:
+            savings[sel] = round((best_odds[sel] / worst_odds[sel] - 1) * 100, 2)
+
+    # Mejor casa por overround (menor = mejor)
+    best_overround_book = min(overrounds, key=overrounds.get) if overrounds else ""
+
+    return {
+        "home": match_data.get("home", ""),
+        "away": match_data.get("away", ""),
+        "best_odds": best_odds,
+        "best_bookmakers": best_books,
+        "all_odds": all_odds,
+        "overrounds": overrounds,
+        "best_overround_book": best_overround_book,
+        "best_overround_pct": overrounds.get(best_overround_book, 0),
+        "savings_pct": savings,
+        "total_savings": round(sum(savings.values()) / len(savings), 2) if savings else 0,
+    }
+
+
+def line_shop_for_signal(signal: dict) -> dict:
+    """
+    Para una señal del Brain, busca la mejor odds entre todas las casas.
+    Actualiza la señal con la mejor cuota disponible.
+    """
+    try:
+        from services.deportes import get_odds_upcoming, get_any_odds_key
+
+        key = get_any_odds_key()
+        if not key:
+            return signal
+
+        odds = get_odds_upcoming(api_key=key)
+        if not odds:
+            return signal
+
+        home = signal.get("home", "")
+        away = signal.get("away", "")
+        selection = signal.get("best_selection", "")
+
+        for match in odds:
+            match_home = match.get("home_team", "")
+            match_away = match.get("away_team", "")
+
+            if match_home == home and match_away == away:
+                # Encontramos el partido, comparar odds
+                best_price = 0
+                best_book = ""
+                for book in match.get("bookmakers", []):
+                    for market in book.get("markets", []):
+                        if market.get("key") != "h2h":
+                            continue
+                        for o in market.get("outcomes", []):
+                            if o["name"] == selection and o["price"] > best_price:
+                                best_price = o["price"]
+                                best_book = book.get("title", "")
+
+                if best_price > signal.get("best_odds", 0):
+                    # Guardar odds original para CLV tracking
+                    signal["original_odds"] = signal.get("best_odds", 0)
+                    signal["original_bookmaker"] = signal.get("best_bookmaker", "")
+                    signal["best_odds"] = best_price
+                    signal["best_bookmaker"] = best_book
+                    signal["line_shopped"] = True
+                    signal["line_savings_pct"] = round(
+                        (best_price / signal.get("original_odds", best_price) - 1) * 100, 2
+                    ) if signal.get("original_odds") else 0
+
+                break
+    except Exception as e:
+        logger.warning("Error en line shopping: %s", e)
+
+    return signal
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 11. CALIBRACIÓN DE PROBABILIDADES
+# ══════════════════════════════════════════════════════════════════════════
+
+# Historial de calibración: prob_predicha -> resultado_real
+_calibration_data = {
+    "predictions": [],  # [(prob_predicha, resultado_real), ...]
+    "bins": {},         # {rango: {predicted: N, actual: M}}
+}
+
+# Tabla de calibración (probabilidad predicha → probabilidad calibrada)
+# Basada en Platt Scaling simplificado
+_CALIBRATION_TABLE = {
+    0.50: 0.48, 0.52: 0.50, 0.54: 0.52, 0.56: 0.54,
+    0.58: 0.56, 0.60: 0.58, 0.62: 0.60, 0.64: 0.62,
+    0.66: 0.64, 0.68: 0.66, 0.70: 0.68, 0.72: 0.70,
+    0.74: 0.72, 0.76: 0.74, 0.78: 0.76, 0.80: 0.78,
+    0.82: 0.80, 0.84: 0.82, 0.86: 0.84, 0.88: 0.86,
+    0.90: 0.88, 0.92: 0.90, 0.94: 0.92, 0.96: 0.94,
+    0.98: 0.96, 1.00: 0.98,
+}
+
+
+def calibrate_probability(predicted_prob: float) -> float:
+    """
+    Calibra una probabilidad predicha usando datos históricos.
+    Si el modelo dice 70%, pero históricamente gana 65%, retorna 65%.
+    """
+    # Buscar en tabla de calibración
+    prob = max(0.50, min(0.99, predicted_prob))
+
+    # Encontrar el bin más cercano
+    closest_bin = min(_CALIBRATION_TABLE.keys(), key=lambda x: abs(x - prob))
+    calibrated = _CALIBRATION_TABLE[closest_bin]
+
+    # Interpolación lineal con el bin vecino
+    bins = sorted(_CALIBRATION_TABLE.keys())
+    for i, b in enumerate(bins):
+        if b >= prob:
+            if i == 0:
+                return calibrated
+            prev_b = bins[i-1]
+            prev_c = _CALIBRATION_TABLE[prev_b]
+            ratio = (prob - prev_b) / (b - prev_b) if b != prev_b else 0
+            return round(prev_c + ratio * (calibrated - prev_c), 4)
+
+    return calibrated
+
+
+def update_calibration(predicted_prob: float, actual_outcome: bool):
+    """
+    Actualiza la calibración con un nuevo resultado.
+    predicted_prob: probabilidad que el modelo predijo (0-1)
+    actual_outcome: True = ganó, False = perdió
+    """
+    _calibration_data["predictions"].append((predicted_prob, actual_outcome))
+
+    # Actualizar bins cada 10 predicciones
+    if len(_calibration_data["predictions"]) % 10 == 0:
+        _recalculate_calibration_bins()
+
+
+def _recalculate_calibration_bins():
+    """Recalcula la tabla de calibración basada en datos reales."""
+    predictions = _calibration_data["predictions"]
+    if len(predictions) < 20:
+        return  # Necesitamos al menos 20 muestras
+
+    # Agrupar en bins de 5%
+    bins = {}
+    for prob, outcome in predictions:
+        bin_key = round(prob * 20) / 20  # Redondear a 0.05
+        if bin_key not in bins:
+            bins[bin_key] = {"predicted": 0, "actual": 0}
+        bins[bin_key]["predicted"] += 1
+        if outcome:
+            bins[bin_key]["actual"] += 1
+
+    # Calcular probabilidad real por bin
+    for bin_key, data in bins.items():
+        if data["predicted"] >= 5:  # Mínimo 5 muestras por bin
+            actual_rate = data["actual"] / data["predicted"]
+            _CALIBRATION_TABLE[bin_key] = round(actual_rate, 4)
+
+    logger.info("Calibración actualizada con %d predicciones", len(predictions))
+
+
+def get_calibration_status() -> dict:
+    """Retorna el estado actual de la calibración."""
+    predictions = _calibration_data["predictions"]
+    total = len(predictions)
+    correct = sum(1 for _, o in predictions if o)
+
+    # Brier Score (menor = mejor calibración)
+    brier = 0
+    for prob, outcome in predictions:
+        brier += (prob - (1 if outcome else 0)) ** 2
+    brier = brier / total if total > 0 else 0
+
+    return {
+        "total_predictions": total,
+        "correct_predictions": correct,
+        "accuracy": round(correct / total * 100, 1) if total > 0 else 0,
+        "brier_score": round(brier, 4),
+        "calibration_quality": (
+            "excelente" if brier < 0.15
+            else "buena" if brier < 0.20
+            else "aceptable" if brier < 0.25
+            else "pobre — necesita más datos"
+        ),
+        "table": dict(_CALIBRATION_TABLE),
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 12. REPORTES AUTOMÁTICOS
+# ══════════════════════════════════════════════════════════════════════════
+
+def generate_report(period: str = "weekly") -> dict:
+    """
+    Genera reporte de performance para el Brain.
+    period: "daily", "weekly", "monthly"
+    """
+    _load_state()
+
+    # Calcular rango de fechas
+    now = datetime.utcnow()
+    if period == "daily":
+        start = now - timedelta(days=1)
+    elif period == "weekly":
+        start = now - timedelta(weeks=1)
+    else:  # monthly
+        start = now - timedelta(days=30)
+
+    # Obtener trades del período
+    trades = []
+    try:
+        from database import db, _row_to_dict
+        _init_simulation_db()
+        with db() as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT * FROM brain_tracks
+                WHERE created_at >= ? AND resultado != 'pendiente'
+                ORDER BY created_at DESC
+            """, (start.isoformat(),))
+            trades = [_row_to_dict(r) for r in cur.fetchall()]
+    except Exception:
+        pass
+
+    if not trades:
+        return {
+            "period": period,
+            "start": start.isoformat(),
+            "end": now.isoformat(),
+            "total_trades": 0,
+            "message": "Sin trades en este período",
+        }
+
+    # Calcular estadísticas
+    won = [t for t in trades if t.get("resultado") == "ganada"]
+    lost = [t for t in trades if t.get("resultado") == "perdida"]
+    total_pnl = sum(t.get("pnl", 0) for t in trades)
+    total_staked = sum(t.get("stake_simulado", 0) for t in trades)
+
+    win_rate = len(won) / len(trades) * 100 if trades else 0
+    roi = total_pnl / total_staked * 100 if total_staked > 0 else 0
+
+    # ROI por fuente
+    source_stats = {}
+    for t in trades:
+        sources = t.get("sources", "[]")
+        if isinstance(sources, str):
+            try:
+                sources = json.loads(sources)
+            except:
+                sources = []
+        for src in sources:
+            if src not in source_stats:
+                source_stats[src] = {"trades": 0, "won": 0, "pnl": 0}
+            source_stats[src]["trades"] += 1
+            if t.get("resultado") == "ganada":
+                source_stats[src]["won"] += 1
+            source_stats[src]["pnl"] += t.get("pnl", 0)
+
+    for src in source_stats:
+        s = source_stats[src]
+        s["win_rate"] = round(s["won"] / max(1, s["trades"]) * 100, 1)
+        s["roi"] = round(s["pnl"] / max(1, s["trades"]) * 100, 1)
+
+    # Mejores y peores trades
+    best_trade = max(trades, key=lambda t: t.get("pnl", 0)) if trades else {}
+    worst_trade = min(trades, key=lambda t: t.get("pnl", 0)) if trades else {}
+
+    # Días con más actividad
+    daily_pnl = {}
+    for t in trades:
+        day = t.get("created_at", "")[:10]
+        if day not in daily_pnl:
+            daily_pnl[day] = {"trades": 0, "pnl": 0, "won": 0}
+        daily_pnl[day]["trades"] += 1
+        daily_pnl[day]["pnl"] += t.get("pnl", 0)
+        if t.get("resultado") == "ganada":
+            daily_pnl[day]["won"] += 1
+
+    best_day = max(daily_pnl.items(), key=lambda x: x[1]["pnl"]) if daily_pnl else ("", {})
+    worst_day = min(daily_pnl.items(), key=lambda x: x[1]["pnl"]) if daily_pnl else ("", {})
+
+    # ROI por deporte
+    sport_stats = {}
+    for t in trades:
+        match = t.get("partido", "")
+        # Detectar deporte del match (simplificado)
+        sport = "other"
+        for s in PRIORITY_SPORTS:
+            if s.replace("_", " ") in match.lower():
+                sport = s
+                break
+        if sport not in sport_stats:
+            sport_stats[sport] = {"trades": 0, "won": 0, "pnl": 0}
+        sport_stats[sport]["trades"] += 1
+        if t.get("resultado") == "ganada":
+            sport_stats[sport]["won"] += 1
+        sport_stats[sport]["pnl"] += t.get("pnl", 0)
+
+    for s in sport_stats:
+        stat = sport_stats[s]
+        stat["win_rate"] = round(stat["won"] / max(1, stat["trades"]) * 100, 1)
+
+    return {
+        "period": period,
+        "start": start.isoformat(),
+        "end": now.isoformat(),
+        "summary": {
+            "total_trades": len(trades),
+            "trades_won": len(won),
+            "trades_lost": len(lost),
+            "win_rate": round(win_rate, 1),
+            "total_pnl": round(total_pnl, 2),
+            "total_staked": round(total_staked, 2),
+            "roi": round(roi, 2),
+            "avg_odds": round(sum(t.get("cuota", 0) for t in trades) / len(trades), 2),
+            "avg_edge": round(sum(t.get("edge_pct", 0) for t in trades) / len(trades), 2),
+        },
+        "best_trade": {
+            "match": best_trade.get("partido", ""),
+            "pnl": best_trade.get("pnl", 0),
+            "selection": best_trade.get("seleccion", ""),
+        } if best_trade else None,
+        "worst_trade": {
+            "match": worst_trade.get("partido", ""),
+            "pnl": worst_trade.get("pnl", 0),
+            "selection": worst_trade.get("seleccion", ""),
+        } if worst_trade else None,
+        "best_day": {"date": best_day[0], **best_day[1]} if best_day[0] else None,
+        "worst_day": {"date": worst_day[0], **worst_day[1]} if worst_day[0] else None,
+        "by_source": source_stats,
+        "by_sport": sport_stats,
+        "daily_pnl": daily_pnl,
+    }
+
+
+def format_telegram_report(report: dict) -> str:
+    """Formatea un reporte para Telegram."""
+    period_names = {"daily": "Diario", "weekly": "Semanal", "monthly": "Mensual"}
+    period_name = period_names.get(report.get("period", ""), report.get("period", ""))
+
+    s = report.get("summary", {})
+    if not s:
+        return f"📊 Reporte {period_name}: Sin trades en este período"
+
+    pnl_emoji = "🟢" if s.get("total_pnl", 0) >= 0 else "🔴"
+    roi_emoji = "📈" if s.get("roi", 0) >= 0 else "📉"
+
+    lines = [
+        f"<b>📊 REPORTE {period_name.upper()} DEL BRAIN</b>",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━",
+        "",
+        f"📅 {report.get('start', '')[:10]} → {report.get('end', '')[:10]}",
+        "",
+        f"💰 <b>P&L Total:</b> {pnl_emoji} ${s.get('total_pnl', 0):+,.2f}",
+        f"{roi_emoji} <b>ROI:</b> {s.get('roi', 0):+.1f}%",
+        f"🎯 <b>Win Rate:</b> {s.get('win_rate', 0)}%",
+        f"📊 <b>Trades:</b> {s.get('trades_won', 0)}W / {s.get('trades_lost', 0)}L ({s.get('total_trades', 0)} total)",
+        f"🎲 <b>Cuota promedio:</b> {s.get('avg_odds', 0)}",
+        f"📈 <b>Edge promedio:</b> {s.get('avg_edge', 0)}%",
+    ]
+
+    # Mejor/peor trade
+    best = report.get("best_trade")
+    worst = report.get("worst_trade")
+    if best:
+        lines.append("")
+        lines.append(f"🏆 <b>Mejor trade:</b> {best.get('match', '')} → ${best.get('pnl', 0):+,.2f}")
+    if worst:
+        lines.append(f"💔 <b>Peor trade:</b> {worst.get('match', '')} → ${worst.get('pnl', 0):+,.2f}")
+
+    # Por fuente
+    by_source = report.get("by_source", {})
+    if by_source:
+        lines.append("")
+        lines.append("<b>📡 Por Fuente:</b>")
+        for src, stats in sorted(by_source.items(), key=lambda x: x[1].get("roi", 0), reverse=True):
+            emoji = "🟢" if stats.get("roi", 0) > 0 else "🔴"
+            lines.append(f"  {emoji} {src}: {stats.get('win_rate', 0)}% WR | {stats.get('trades', 0)} trades | ROI {stats.get('roi', 0):+.1f}%")
+
+    lines.append("")
+    lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━")
+    lines.append("🔗 Ver en dashboard: /panel/brain")
+
+    return "\n".join(lines)
+
+
+def send_periodic_report(period: str = "weekly"):
+    """Envía reporte automático a Telegram."""
+    try:
+        from telegram_bot import telegram_send
+        report = generate_report(period)
+        msg = format_telegram_report(report)
+        telegram_send(msg)
+        return report
+    except Exception as e:
+        logger.warning("Error enviando reporte: %s", e)
+        return {"error": str(e)}
+
+
 # Cargar estado al iniciar
 _load_state()
 _init_simulation_db()

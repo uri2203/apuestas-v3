@@ -2722,6 +2722,63 @@ def brain_auto_simulate():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/brain/line-shop", methods=["POST"])
+def brain_line_shop():
+    """Compara odds entre casas y retorna la mejor."""
+    try:
+        from services.brain import line_shop
+        data = request.get_json(silent=True) or {}
+        return jsonify(line_shop(data))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/brain/calibration")
+def brain_calibration():
+    """Estado de la calibración de probabilidades."""
+    try:
+        from services.brain import get_calibration_status
+        return jsonify(get_calibration_status())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/brain/calibrate", methods=["POST"])
+def brain_calibrate():
+    """Actualiza calibración con nuevo resultado."""
+    try:
+        from services.brain import update_calibration
+        data = request.get_json(silent=True) or {}
+        prob = data.get("predicted_prob", 0.5)
+        outcome = data.get("actual_outcome", True)
+        update_calibration(prob, outcome)
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/brain/report")
+def brain_report():
+    """Genera reporte de performance (daily/weekly/monthly)."""
+    try:
+        from services.brain import generate_report
+        period = request.args.get("period", "weekly")
+        return jsonify(generate_report(period))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/brain/report/send")
+def brain_report_send():
+    """Envía reporte automático a Telegram."""
+    try:
+        from services.brain import send_periodic_report
+        period = request.args.get("period", "weekly")
+        return jsonify(send_periodic_report(period))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 # ══════════════════════════════════════════════════════════════════════════
 # BRAIN SCHEDULER — Jobs automáticos
 # ══════════════════════════════════════════════════════════════════════════
@@ -2784,6 +2841,7 @@ scheduler.add_job(_journal_auto_log,          "interval", hours=4,  id="journal_
 scheduler.add_job(_brain_auto_scan,          "interval", hours=2,  id="brain_scan")
 scheduler.add_job(_brain_auto_verify,        "interval", hours=4,  id="brain_verify")
 scheduler.add_job(_brain_auto_learn,         "interval", hours=12, id="brain_learn")
+scheduler.add_job(lambda: send_periodic_report("weekly"), "cron", day_of_week="mon", hour=9, id="brain_weekly_report")
 scheduler.start()
 
 register_webhook(os.getenv("RENDER_EXTERNAL_URL",""))

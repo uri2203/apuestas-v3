@@ -623,6 +623,98 @@ def main():
     # Reset a 10000 para siguientes tests
     reset_simulation(10000)
 
+    # -- 30. Line Shopping tests --
+    print("\n  --- Line Shopping ---")
+    from services.brain import line_shop, line_shop_for_signal
+
+    test_match = {
+        "home": "Chivas",
+        "away": "América",
+        "bookmakers": [
+            {"name": "Bet365", "outcomes": {"Chivas": 2.40, "Draw": 3.20, "América": 2.90}},
+            {"name": "Pinnacle", "outcomes": {"Chivas": 2.50, "Draw": 3.30, "América": 2.85}},
+            {"name": "Codere", "outcomes": {"Chivas": 2.35, "Draw": 3.10, "América": 2.95}},
+        ]
+    }
+
+    ls = line_shop(test_match)
+    check("best_odds" in ls, "line_shop tiene best_odds")
+    check("best_bookmakers" in ls, "line_shop tiene best_bookmakers")
+    check("overrounds" in ls, "line_shop tiene overrounds")
+    check("savings_pct" in ls, "line_shop tiene savings_pct")
+    check_eq(ls["best_odds"]["Chivas"], 2.50, "mejor odds Chivas = 2.50 (Pinnacle)")
+    check_eq(ls["best_bookmakers"]["Chivas"], "Pinnacle", "mejor casa Chivas = Pinnacle")
+    check_eq(ls["best_odds"]["América"], 2.95, "mejor odds América = 2.95 (Codere)")
+    check(ls["total_savings"] > 0, f"line_shop ahorra {ls['total_savings']}%")
+
+    # Test: Line shopping con 1 bookmaker (error)
+    ls_one = line_shop({"home": "A", "away": "B", "bookmakers": [{"name": "B1", "outcomes": {}}]})
+    check("error" in ls_one, "line_shop con 1 bookmaker retorna error")
+
+    # -- 31. Calibration tests --
+    print("\n  --- Calibration ---")
+    from services.brain import (
+        calibrate_probability, update_calibration,
+        get_calibration_status, _calibration_data,
+    )
+
+    # Test: Calibrate probability
+    cal = calibrate_probability(0.70)
+    check(0.50 <= cal <= 0.99, f"calibrate_probability(0.70) = {cal}")
+    check(cal != 0.70, f"calibrate ajusta prob: 0.70 → {cal}")
+
+    # Test: Update calibration
+    _calibration_data["predictions"] = []  # Limpiar
+    for i in range(25):
+        update_calibration(0.70, i % 3 == 0)  # ~33% win rate
+    check(len(_calibration_data["predictions"]) == 25, "update_calibration agrega 25 predicciones")
+
+    # Test: Calibration status
+    status = get_calibration_status()
+    check_eq(status["total_predictions"], 25, "calibration status tiene 25 predicciones")
+    check("accuracy" in status, "calibration status tiene accuracy")
+    check("brier_score" in status, "calibration status tiene brier_score")
+    check("calibration_quality" in status, "calibration status tiene calibration_quality")
+
+    # Test: API endpoints
+    r = get("/api/brain/calibration")
+    check_eq(r.status_code, 200, "GET /api/brain/calibration = 200")
+
+    r = post("/api/brain/calibrate", json_data={"predicted_prob": 0.65, "actual_outcome": True})
+    check_eq(r.status_code, 200, "POST /api/brain/calibrate = 200")
+
+    r = post("/api/brain/line-shop", json_data=test_match)
+    check_eq(r.status_code, 200, "POST /api/brain/line-shop = 200")
+    d = r.get_json()
+    check("best_odds" in d, "line-shop retorna best_odds")
+
+    # -- 32. Reports tests --
+    print("\n  --- Reports ---")
+    from services.brain import generate_report, format_telegram_report
+
+    # Test: Generate report
+    report = generate_report("weekly")
+    check("period" in report, "report tiene period")
+    check("summary" in report or "message" in report, "report tiene summary o message")
+    if report.get("summary"):
+        s = report["summary"]
+        check("total_trades" in s, "report summary tiene total_trades")
+        check("win_rate" in s, "report summary tiene win_rate")
+        check("roi" in s, "report summary tiene roi")
+        check("total_pnl" in s, "report summary tiene total_pnl")
+
+    # Test: Format Telegram report
+    msg = format_telegram_report(report)
+    check(len(msg) > 50, f"format_telegram_report retorna mensaje largo ({len(msg)} chars)")
+    check("REPORTE" in msg, "telegram report contiene 'REPORTE'")
+
+    # Test: API endpoints
+    r = get("/api/brain/report?period=weekly")
+    check_eq(r.status_code, 200, "GET /api/brain/report = 200")
+
+    r = get("/api/brain/report?period=monthly")
+    check_eq(r.status_code, 200, "GET /api/brain/report?period=monthly = 200")
+
     # -- Summary --
     total = PASS + FAIL
     print("")
