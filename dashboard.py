@@ -230,6 +230,7 @@ LANDING_HTML = r"""<!DOCTYPE html>
     </div>
     <div class="mod-grid">
       <div class="mod" onclick="location='/panel/brain'"><span class="tag">BRAIN</span><div class="icon" style="color:var(--amber)">&#9878;</div><div class="name">Agente Brain</div><div class="desc">Cerebro autónomo: escanea, filtra, simula, aprende</div></div>
+      <div class="mod" onclick="location='/panel/hulk'"><span class="tag">HULK</span><div class="icon" style="color:var(--red)">&#9876;</div><div class="name">Agente HULK</div><div class="desc">El depredador: steam, live, arbitraje, contrarian, parlay</div></div>
       <div class="mod" onclick="location='/panel/modelos-avanzados'"><span class="tag">ADV</span><div class="icon" style="color:var(--green)">&#9878;</div><div class="name">Modelos Avanzados</div><div class="desc">Dixon-Coles, ELO, Fatiga, Clima, CLV</div></div>
       <div class="mod" onclick="location='/panel/ml'"><span class="tag">ML</span><div class="icon" style="color:var(--purple)">&#9734;</div><div class="name">ML Predictivo</div><div class="desc">MLP + GBM ensemble + feature importance</div></div>
       <div class="mod" onclick="location='/panel/backtesting'"><span class="tag">BT</span><div class="icon" style="color:var(--blue)">&#8634;</div><div class="name">Backtesting</div><div class="desc">Historico y validacion de modelos</div></div>
@@ -1633,6 +1634,184 @@ brainWeights();
 </script>
 """, "brain")
 
+MOD_HULK = module_page("Agente HULK", """
+<div class="kpi-grid">
+  <div class="kpi"><div class="label">Bankroll</div><div class="value amber" id="hkBankroll">—</div></div>
+  <div class="kpi"><div class="label">P&L</div><div class="value green" id="hkPnl">—</div></div>
+  <div class="kpi"><div class="label">Win Rate</div><div class="value purple" id="hkWinRate">—</div></div>
+  <div class="kpi"><div class="label">Racha</div><div class="value teal" id="hkStreak">—</div></div>
+</div>
+
+<div id="hkKillSwitch" style="display:none;margin:8px 0;padding:10px;background:rgba(239,68,68,.15);border:1px solid var(--red);border-radius:8px;color:var(--red);font-weight:600"></div>
+
+<h3 style="margin:14px 0 6px;color:var(--text1)">Modos de Operación</h3>
+<div id="hkModes" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"></div>
+
+<h3 style="margin:14px 0 6px;color:var(--text1)">Acciones</h3>
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+  <button class="btn primary" onclick="hulkScan()">Ejecutar Scan Hulk</button>
+  <button class="btn" onclick="hulkScanSteam()">Steam Moves</button>
+  <button class="btn" onclick="hulkScanLive()">Live Betting</button>
+  <button class="btn" onclick="hulkScanArb()">Arbitraje</button>
+  <button class="btn" onclick="hulkReset()">Reset ($10,000)</button>
+</div>
+<div id="hkScanResult" style="margin-bottom:12px"></div>
+
+<h3 style="margin:14px 0 6px;color:var(--text1)">Trades Recientes</h3>
+<div id="hkTrades" style="margin-bottom:12px;color:var(--text2)">Cargando...</div>
+
+<h3 style="margin:14px 0 6px;color:var(--text1)">Performance por Modo</h3>
+<div id="hkModeStats" style="margin-bottom:12px;color:var(--text2)">Cargando...</div>
+
+<script>
+const HK_MODES_COLORS = {HAWK:'var(--red)',HUNTER:'var(--amber)',KILLER:'var(--green)',HULK:'var(--purple)',SHARK:'var(--teal)'};
+
+async function hulkScan() {
+  const el = document.getElementById('hkScanResult');
+  el.innerHTML = '<span style="color:var(--amber)">HULK escaneando...</span>';
+  try {
+    const r = await fetch('/api/hulk/scan');
+    const d = await r.json();
+    let html = '<div style="margin-top:8px">';
+    html += '<b>Steam:</b> '+d.steam_moves+' | <b>Live:</b> '+d.live_opportunities+' | <b>Arb:</b> '+d.arbitrage+' | <b>Contrarian:</b> '+d.contrarian+'<br>';
+    html += '<b>Ejecutados:</b> '+d.trades_executed+' | <b>Modos:</b> '+(d.modes_used||[]).join(', ');
+    if (d.executed && d.executed.length > 0) {
+      html += '<table style="width:100%;margin-top:8px;font-size:12px"><tr><th>Modo</th><th>Partido</th><th>Selección</th><th>Cuota</th><th>Edge</th><th>Stake</th></tr>';
+      d.executed.forEach(t => {
+        html += '<tr><td style="color:'+(HK_MODES_COLORS[t.mode]||'var(--text2)')+'">'+(t.mode_emoji||'')+' '+t.mode+'</td><td>'+t.match+'</td><td>'+t.selection+'</td><td>'+t.odds+'</td><td>'+t.edge_pct+'%</td><td>$'+t.stake+'</td></tr>';
+      });
+      html += '</table>';
+    }
+    html += '</div>';
+    el.innerHTML = html;
+    hulkLoadPerf();
+    hulkLoadTrades();
+  } catch(e) { el.innerHTML = '<span style="color:var(--red)">Error: '+e.message+'</span>'; }
+}
+
+async function hulkScanSteam() {
+  const el = document.getElementById('hkScanResult');
+  el.innerHTML = '<span style="color:var(--amber)">Buscando steam moves...</span>';
+  try {
+    const r = await fetch('/api/hulk/steam');
+    const d = await r.json();
+    const moves = d.steam_moves || [];
+    if (moves.length === 0) { el.innerHTML = 'Sin steam moves detectados'; return; }
+    let html = '<b>Steam Moves Detectados:</b><br>';
+    moves.forEach(m => {
+      html += '<div style="margin:4px 0;padding:6px;background:var(--card);border-radius:6px">';
+      html += '<b>'+m.match+'</b> → '+m.selection+'<br>';
+      html += 'Sharp: '+m.sharp_avg+' vs Square: '+m.square_avg+' | Edge: '+m.edge_pct+'%<br>';
+      html += '<span style="color:var(--text2)">Casas sharp: '+m.sharp_books.join(', ')+'</span>';
+      html += '</div>';
+    });
+    el.innerHTML = html;
+  } catch(e) { el.innerHTML = '<span style="color:var(--red)">Error: '+e.message+'</span>'; }
+}
+
+async function hulkScanLive() {
+  const el = document.getElementById('hkScanResult');
+  el.innerHTML = '<span style="color:var(--amber)">Escaneando live betting...</span>';
+  try {
+    const r = await fetch('/api/hulk/live');
+    const d = await r.json();
+    const live = d.live_opportunities || [];
+    if (live.length === 0) { el.innerHTML = 'Sin oportunidades live'; return; }
+    let html = '<b>Oportunidades Live:</b><br>';
+    live.forEach(l => {
+      html += '<div style="margin:4px 0;padding:6px;background:var(--card);border-radius:6px">';
+      html += '<b>'+l.match+'</b> → '+l.selection+' @ '+l.odds+'<br>';
+      html += 'Edge: '+l.edge_pct+'% | '+l.reason;
+      html += '</div>';
+    });
+    el.innerHTML = html;
+  } catch(e) { el.innerHTML = '<span style="color:var(--red)">Error: '+e.message+'</span>'; }
+}
+
+async function hulkScanArb() {
+  const el = document.getElementById('hkScanResult');
+  el.innerHTML = '<span style="color:var(--amber)">Cazando arbitrajes...</span>';
+  try {
+    const r = await fetch('/api/hulk/arbitrage');
+    const d = await r.json();
+    const arbs = d.arbitrage || [];
+    if (arbs.length === 0) { el.innerHTML = 'Sin arbitrajes detectados'; return; }
+    let html = '<b>Arbitrajes Encontrados:</b><br>';
+    arbs.forEach(a => {
+      html += '<div style="margin:4px 0;padding:6px;background:rgba(34,197,94,.1);border:1px solid var(--green);border-radius:6px">';
+      html += '<b>'+a.match+'</b> → PROFIT: '+a.profit_pct+'%<br>';
+      for (const [sel, book] of Object.entries(a.best_books)) {
+        html += sel+': '+a.best_odds[sel]+' @ '+book+'<br>';
+      }
+      html += '</div>';
+    });
+    el.innerHTML = html;
+  } catch(e) { el.innerHTML = '<span style="color:var(--red)">Error: '+e.message+'</span>'; }
+}
+
+async function hulkReset() {
+  if (!confirm('¿Resetear Hulk a $10,000?')) return;
+  await fetch('/api/hulk/reset', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({bankroll:10000})});
+  hulkLoadPerf();
+  hulkLoadTrades();
+}
+
+async function hulkLoadPerf() {
+  try {
+    const r = await fetch('/api/hulk/status');
+    const d = await r.json();
+    document.getElementById('hkBankroll').textContent = '$'+d.bankroll_actual.toLocaleString();
+    document.getElementById('hkPnl').textContent = '$'+d.total_pnl.toFixed(2);
+    document.getElementById('hkPnl').style.color = d.total_pnl >= 0 ? 'var(--green)' : 'var(--red)';
+    document.getElementById('hkWinRate').textContent = d.win_rate+'%';
+    document.getElementById('hkStreak').textContent = (d.racha_actual>0?'+':'')+d.racha_actual;
+    const ks = document.getElementById('hkKillSwitch');
+    if (d.kill_switch) { ks.style.display='block'; ks.innerHTML='⚠️ KILL SWITCH: '+d.kill_reason; }
+    else { ks.style.display='none'; }
+    // Modes
+    let modesHtml = '';
+    for (const [mode, cfg] of Object.entries(d.modes_config || {})) {
+      const stats = (d.by_mode||{})[mode] || {};
+      const trades = stats.trades || 0;
+      const pnl = stats.pnl || 0;
+      modesHtml += '<div style="padding:8px 12px;background:var(--card);border-radius:8px;border-left:3px solid '+(HK_MODES_COLORS[mode]||'var(--text2)')+'">';
+      modesHtml += '<b>'+cfg.emoji+' '+mode+'</b> ('+cfg.desc+')<br>';
+      modesHtml += '<span style="font-size:11px">Edge: '+cfg.edge_min+'-'+cfg.edge_max+'% | Kelly: '+(cfg.kelly*100)+'% | Cap: '+cfg.cap_pct+'%</span><br>';
+      modesHtml += '<span style="font-size:11px">Trades: '+trades+' | P&L: $'+pnl.toFixed(2)+'</span>';
+      modesHtml += '</div>';
+    }
+    document.getElementById('hkModes').innerHTML = modesHtml;
+    // Mode stats
+    let statsHtml = '<table style="width:100%;font-size:12px"><tr><th>Modo</th><th>Trades</th><th>Wins</th><th>Win Rate</th><th>P&L</th></tr>';
+    for (const [mode, stats] of Object.entries(d.by_mode || {})) {
+      statsHtml += '<tr><td style="color:'+(HK_MODES_COLORS[mode]||'var(--text2)')+'">'+mode+'</td><td>'+stats.trades+'</td><td>'+stats.won+'</td><td>'+stats.win_rate+'%</td><td>$'+stats.pnl.toFixed(2)+'</td></tr>';
+    }
+    statsHtml += '</table>';
+    document.getElementById('hkModeStats').innerHTML = statsHtml;
+  } catch(e) { console.error(e); }
+}
+
+async function hulkLoadTrades() {
+  try {
+    const r = await fetch('/api/hulk/history?limit=20');
+    const d = await r.json();
+    const trades = d.trades || [];
+    if (trades.length === 0) { document.getElementById('hkTrades').innerHTML = 'Sin trades aún'; return; }
+    let html = '<table style="width:100%;font-size:12px"><tr><th>#</th><th>Modo</th><th>Partido</th><th>Selección</th><th>Cuota</th><th>Edge</th><th>Stake</th><th>P&L</th><th>Estado</th></tr>';
+    trades.forEach(t => {
+      const color = t.resultado === 'ganada' ? 'var(--green)' : t.resultado === 'perdida' ? 'var(--red)' : 'var(--amber)';
+      html += '<tr><td>'+t.id+'</td><td style="color:'+(HK_MODES_COLORS[t.mode]||'var(--text2)')+'">'+t.mode+'</td><td>'+t.match+'</td><td>'+t.selection+'</td><td>'+t.odds+'</td><td>'+t.edge_pct+'%</td><td>$'+t.stake+'</td><td style="color:'+(t.pnl>0?'var(--green)':t.pnl<0?'var(--red)':'var(--text2)')+'">$'+(t.pnl||0).toFixed(2)+'</td><td style="color:'+color+'">'+t.resultado+'</td></tr>';
+    });
+    html += '</table>';
+    document.getElementById('hkTrades').innerHTML = html;
+  } catch(e) { document.getElementById('hkTrades').innerHTML = 'Error'; }
+}
+
+hulkLoadPerf();
+hulkLoadTrades();
+</script>
+""", "hulk")
+
 MOD_MODELOS_AVANZADOS = module_page("Modelos Avanzados", """
 <div class="kpi-grid">
   <div class="kpi"><div class="label">Dixon-Coles</div><div class="value green" id="maDC">—</div></div>
@@ -1783,6 +1962,7 @@ MODULES = {
     "rendimiento":   ("Rendimiento",         MOD_RENDIMIENTO),
     "modelos-avanzados": ("Modelos Avanzados", MOD_MODELOS_AVANZADOS),
     "brain":         ("Agente Brain",        MOD_BRAIN),
+    "hulk":          ("Agente HULK",         MOD_HULK),
 }
 
 # ── Main export ──────────────────────────────────────────────────────────

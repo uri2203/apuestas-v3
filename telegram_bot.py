@@ -126,6 +126,12 @@ def _dispatch(text: str) -> None:
         _cmd_brain_status()
     elif cmd in ("/brain-scan", "/bscan"):
         _cmd_brain_scan()
+    elif cmd in ("/hulk", "/h"):
+        _cmd_hulk(args)
+    elif cmd in ("/hulk-status", "/hs"):
+        _cmd_hulk_status()
+    elif cmd in ("/hulk-scan", "/hscan"):
+        _cmd_hulk_scan()
     elif cmd in ("/help", "/ayuda"):
         _cmd_help()
 
@@ -423,6 +429,141 @@ def _cmd_brain_scan() -> None:
         telegram_send("\n".join(lines))
     except Exception as e:
         telegram_send(f"Error Brain scan: {e}")
+
+
+def _cmd_hulk(args: list) -> None:
+    """Comandos del Hulk: /hulk scan, /hulk status"""
+    sub = args[0].lower() if args else "status"
+    if sub == "scan":
+        _cmd_hulk_scan()
+    elif sub == "status":
+        _cmd_hulk_status()
+    elif sub == "steam":
+        _cmd_hulk_steam()
+    elif sub == "live":
+        _cmd_hulk_live()
+    elif sub == "arb":
+        _cmd_hulk_arb()
+    else:
+        telegram_send("Uso: /hulk scan | /hulk status | /hulk steam | /hulk live | /hulk arb")
+
+
+def _cmd_hulk_status() -> None:
+    """Muestra performance del Hulk."""
+    try:
+        from services.hulk import get_performance
+        p = get_performance()
+        pnl_emoji = "🟢" if p["total_pnl"] >= 0 else "🔴"
+        streak = f"+{p['racha_actual']}" if p["racha_actual"] > 0 else str(p["racha_actual"])
+        lines = [
+            "<b>🦖 HULK AGENT — Performance</b>",
+            "━━━━━━━━━━━━━━━━━━━━━━━━━",
+            "",
+            f"💰 Bankroll: <b>${p['bankroll_actual']:,.2f}</b>",
+            f"{pnl_emoji} P&L: <b>${p['total_pnl']:+,.2f}</b> ({p['roi']:+.1f}%)",
+            f"🎯 Win Rate: <b>{p['win_rate']}%</b>",
+            f"📊 Trades: {p['total_won']}W / {p['total_lost']}L ({p['total_trades']} total)",
+            f"📈 Racha: <b>{streak}</b>",
+        ]
+        if p["kill_switch"]:
+            lines.append("")
+            lines.append(f"⚠️ <b>KILL SWITCH:</b> {p['kill_reason']}")
+        lines.append("")
+        lines.append("<b>Modos:</b>")
+        for mode, stats in p.get("by_mode", {}).items():
+            if stats["trades"] > 0:
+                emoji = {"HAWK":"🔴","HUNTER":"🟡","KILLER":"🟢","HULK":"⚡","SHARK":"🦈"}.get(mode, "")
+                lines.append(f"  {emoji} {mode}: {stats['trades']} trades | {stats['win_rate']}% WR | ${stats['pnl']:+.2f}")
+        lines.append("")
+        lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━")
+        telegram_send("\n".join(lines))
+    except Exception as e:
+        telegram_send(f"Error Hulk: {e}")
+
+
+def _cmd_hulk_scan() -> None:
+    """Ejecuta scan completo del Hulk."""
+    try:
+        from services.hulk import scan
+        result = scan()
+        lines = [
+            "<b>🦖 HULK SCAN</b>",
+            "━━━━━━━━━━━━━━━━━━━━━━━━━",
+            f"⚡ Steam: {result.get('steam_moves', 0)}",
+            f"🔴 Live: {result.get('live_opportunities', 0)}",
+            f"💰 Arbitraje: {result.get('arbitrage', 0)}",
+            f"🔄 Contrarian: {result.get('contrarian', 0)}",
+            "",
+            f"<b>Trades ejecutados:</b> {result.get('trades_executed', 0)}",
+            f"<b>Modos usados:</b> {', '.join(result.get('modes_used', []))}",
+            f"<b>Bankroll:</b> ${result.get('bankroll', 0):,.2f}",
+            "",
+        ]
+        for t in result.get("executed", [])[:5]:
+            lines.append(f"{t.get('mode_emoji','')} <b>{t['mode']}</b> — {t['match']}")
+            lines.append(f"   ✅ {t['selection']} @ {t['odds']} | Edge: {t['edge_pct']}% | Stake: ${t['stake']}")
+        if not result.get("executed"):
+            lines.append("Sin trades ejecutados en este scan.")
+        lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━")
+        telegram_send("\n".join(lines))
+    except Exception as e:
+        telegram_send(f"Error Hulk scan: {e}")
+
+
+def _cmd_hulk_steam() -> None:
+    """Detecta steam moves."""
+    try:
+        from services.hulk import detect_steam_moves
+        moves = detect_steam_moves()
+        lines = ["<b>⚡ STEAM MOVES</b>", "━━━━━━━━━━━━━━━━━━━━━━━━━"]
+        if not moves:
+            lines.append("Sin steam moves detectados.")
+        else:
+            for m in moves[:5]:
+                lines.append(f"<b>{m['match']}</b> → {m['selection']}")
+                lines.append(f"   Sharp: {m['sharp_avg']} vs Square: {m['square_avg']}")
+                lines.append(f"   Edge: {m['edge_pct']}% | Casas: {', '.join(m['sharp_books'])}")
+        lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━")
+        telegram_send("\n".join(lines))
+    except Exception as e:
+        telegram_send(f"Error: {e}")
+
+
+def _cmd_hulk_live() -> None:
+    """Escanea live betting."""
+    try:
+        from services.hulk import scan_live_opportunities
+        live = scan_live_opportunities()
+        lines = ["<b>🔴 LIVE BETTING</b>", "━━━━━━━━━━━━━━━━━━━━━━━━━"]
+        if not live:
+            lines.append("Sin oportunidades live.")
+        else:
+            for l in live[:5]:
+                lines.append(f"<b>{l['match']}</b> → {l['selection']} @ {l['odds']}")
+                lines.append(f"   Edge: {l['edge_pct']}% | {l['reason']}")
+        lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━")
+        telegram_send("\n".join(lines))
+    except Exception as e:
+        telegram_send(f"Error: {e}")
+
+
+def _cmd_hulk_arb() -> None:
+    """Caza arbitrajes."""
+    try:
+        from services.hulk import hunt_arbitrage
+        arbs = hunt_arbitrage()
+        lines = ["<b>💰 ARBITRAJE</b>", "━━━━━━━━━━━━━━━━━━━━━━━━━"]
+        if not arbs:
+            lines.append("Sin arbitrajes detectados.")
+        else:
+            for a in arbs[:3]:
+                lines.append(f"<b>{a['match']}</b> → PROFIT: {a['profit_pct']}%")
+                for sel, book in a.get("best_books", {}).items():
+                    lines.append(f"   {sel}: {a['best_odds'][sel]} @ {book}")
+        lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━")
+        telegram_send("\n".join(lines))
+    except Exception as e:
+        telegram_send(f"Error: {e}")
 
 
 def _cmd_status() -> None:

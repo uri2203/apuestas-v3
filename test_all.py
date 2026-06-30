@@ -715,6 +715,92 @@ def main():
     r = get("/api/brain/report?period=monthly")
     check_eq(r.status_code, 200, "GET /api/brain/report?period=monthly = 200")
 
+    # -- 33. Hulk tests --
+    print("\n  --- Hulk Agent ---")
+    from services.hulk import (HulkAgent, get_performance, _load_state, _save_state,
+                                _get_bankroll, _set_bankroll, MODES)
+
+    # Test: HulkAgent init
+    hulk = HulkAgent()
+    check(hulk.bankroll > 0, "HulkAgent bankroll > 0")
+    check(len(MODES) == 5, f"Hay 5 modos (found {len(MODES)})")
+    check("HAWK" in MODES, "Modo HAWK existe")
+    check("HUNTER" in MODES, "Modo HUNTER existe")
+    check("KILLER" in MODES, "Modo KILLER existe")
+    check("HULK" in MODES, "Modo HULK existe")
+    check("SHARK" in MODES, "Modo SHARK existe")
+
+    # Test: get_performance
+    perf = get_performance()
+    check("bankroll_actual" in perf, "get_performance tiene bankroll_actual")
+    check("total_pnl" in perf, "get_performance tiene total_pnl")
+    check("win_rate" in perf, "get_performance tiene win_rate")
+    check("by_mode" in perf, "get_performance tiene by_mode")
+
+    # Test: bankroll
+    _set_bankroll(10000)
+    br = _get_bankroll()
+    check_eq(br, 10000, "set/get bankroll = 10000")
+
+    # Test: kill switch
+    hulk.bankroll = 8000
+    hulk.initial_bankroll = 10000
+    check(hulk._check_kill_switch(), "Kill switch activa a -20%")
+    hulk.bankroll = 10000
+    check(not hulk._check_kill_switch(), "Kill switch no activa en paridad")
+
+    # Test: select_mode
+    mode = hulk.select_mode(10.0)
+    check(mode in MODES, f"select_mode(10%) returns valid mode: {mode}")
+    mode = hulk.select_mode(26.0)
+    check_eq(mode, "HULK", "select_mode(26%) = HULK")
+
+    # Test: choose_sport
+    sport = hulk.choose_sport()
+    check(sport is not None or sport == "", "choose_sport returns something")
+
+    # Test: API endpoints
+    r = get("/api/hulk/status")
+    check_eq(r.status_code, 200, "GET /api/hulk/status = 200")
+    d = r.get_json()
+    check("bankroll_actual" in d, "hulk/status tiene bankroll_actual")
+    check("modes_config" in d, "hulk/status tiene modes_config")
+    check("by_mode" in d, "hulk/status tiene by_mode")
+
+    r = get("/api/hulk/modes")
+    check_eq(r.status_code, 200, "GET /api/hulk/modes = 200")
+    d = r.get_json()
+    check("modes" in d, "hulk/modes tiene modes")
+
+    r = get("/api/hulk/history?limit=10")
+    check_eq(r.status_code, 200, "GET /api/hulk/history = 200")
+    d = r.get_json()
+    check("trades" in d, "hulk/history tiene trades")
+
+    r = get("/api/hulk/steam")
+    check_eq(r.status_code, 200, "GET /api/hulk/steam = 200")
+
+    r = get("/api/hulk/live")
+    check_eq(r.status_code, 200, "GET /api/hulk/live = 200")
+
+    r = get("/api/hulk/arbitrage")
+    check_eq(r.status_code, 200, "GET /api/hulk/arbitrage = 200")
+
+    r = post("/api/hulk/reset", json_data={"bankroll": 15000})
+    check_eq(r.status_code, 200, "POST /api/hulk/reset = 200")
+    d = r.get_json()
+    check(d.get("bankroll") == 15000, "hulk/reset set bankroll to 15000")
+
+    r = get("/api/hulk/scan")
+    check_eq(r.status_code, 200, "GET /api/hulk/scan = 200")
+    d = r.get_json()
+    check("steam_moves" in d, "hulk/scan tiene steam_moves")
+    check("trades_executed" in d, "hulk/scan tiene trades_executed")
+
+    # Test: Dashboard hulk module
+    r = get("/panel/hulk")
+    check_eq(r.status_code, 200, "GET /panel/hulk = 200")
+
     # -- Summary --
     total = PASS + FAIL
     print("")

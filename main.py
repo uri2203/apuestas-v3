@@ -2797,6 +2797,136 @@ def brain_report_send():
 
 
 # ══════════════════════════════════════════════════════════════════════════
+# HULK AGENT — Rutas API
+# ══════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/hulk/scan")
+@login_required
+def hulk_scan():
+    """Escaneo completo Hulk: steam, live, arbitrage, contrarian."""
+    try:
+        from services.hulk import scan
+        return jsonify(scan())
+    except Exception as e:
+        logging.error("Hulk scan error: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/hulk/status")
+@login_required
+def hulk_status():
+    """Estado del Hulk: bankroll, racha, modos, kill switch."""
+    try:
+        from services.hulk import get_performance
+        return jsonify(get_performance())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/hulk/steam")
+@login_required
+def hulk_steam():
+    """Detecta steam moves en tiempo real."""
+    try:
+        from services.hulk import detect_steam_moves
+        return jsonify({"steam_moves": detect_steam_moves()})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/hulk/live")
+@login_required
+def hulk_live():
+    """Escanea oportunidades en partidos en vivo."""
+    try:
+        from services.hulk import scan_live_opportunities
+        return jsonify({"live_opportunities": scan_live_opportunities()})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/hulk/arbitrage")
+@login_required
+def hulk_arbitrage():
+    """Caza arbitrajes entre 3+ casas."""
+    try:
+        from services.hulk import hunt_arbitrage
+        return jsonify({"arbitrage": hunt_arbitrage()})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/hulk/contrarian")
+@login_required
+def hulk_contrarian():
+    """Detecta oportunidades contrarian (contra el público)."""
+    try:
+        from services.hulk import detect_contrarian_opportunities
+        return jsonify({"contrarian": detect_contrarian_opportunities()})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/hulk/resolve", methods=["POST"])
+@login_required
+def hulk_resolve():
+    """Resuelve un trade Hulk (ganada/perdida)."""
+    try:
+        from services.hulk import resolve_hulk_trade
+        data = request.get_json(silent=True) or {}
+        trade_id = data.get("trade_id")
+        won = data.get("won", True)
+        if not trade_id:
+            return jsonify({"error": "trade_id requerido"}), 400
+        return jsonify(resolve_hulk_trade(int(trade_id), won))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/hulk/reset", methods=["POST"])
+@login_required
+def hulk_reset():
+    """Resetea el Hulk con nuevo bankroll."""
+    try:
+        from services.hulk import reset_hulk
+        data = request.get_json(silent=True) or {}
+        bankroll = data.get("bankroll", 10000)
+        return jsonify(reset_hulk(bankroll))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/hulk/modes")
+@login_required
+def hulk_modes():
+    """Retorna configuración de los 5 modos."""
+    try:
+        from services.hulk import MODES
+        return jsonify({"modes": MODES})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/hulk/history")
+@login_required
+def hulk_history():
+    """Historial de trades Hulk."""
+    try:
+        from database import db, _row_to_dict, _USE_PG
+        from services.hulk import _init_hulk_db
+        _init_hulk_db()
+        limit = request.args.get("limit", 50, type=int)
+        with db() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT * FROM hulk_trades ORDER BY id DESC LIMIT %s" if _USE_PG else
+                       "SELECT * FROM hulk_trades ORDER BY id DESC LIMIT ?", (limit,))
+            trades = [_row_to_dict(r) for r in cur.fetchall()]
+        return jsonify({"trades": trades})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ══════════════════════════════════════════════════════════════════════════
 # BRAIN SCHEDULER — Jobs automáticos
 # ══════════════════════════════════════════════════════════════════════════
 
@@ -2841,6 +2971,20 @@ def _brain_auto_learn():
         logging.error("Brain auto-learn error: %s", e)
 
 
+def _hulk_auto_scan():
+    """Auto-scan del Hulk cada 15 minutos."""
+    try:
+        from services.hulk import scan
+        result = scan()
+        trades = result.get("trades_executed", 0)
+        if trades > 0:
+            logging.info("Hulk scan: %d trades ejecutados, bankroll: $%.2f",
+                         trades, result.get("bankroll", 0))
+            _broadcast({"tipo": "hulk_scan", "ts": time.time(), **result})
+    except Exception as e:
+        logging.error("Hulk auto-scan error: %s", e)
+
+
 scheduler=BackgroundScheduler()
 scheduler.add_job(_alerta_vb_con_broadcast,   "interval", hours=3,  id="vb_alert")
 scheduler.add_job(_alerta_nlp_con_broadcast,  "interval", hours=4,  id="nlp_alert")
@@ -2859,6 +3003,7 @@ scheduler.add_job(_brain_auto_scan,          "interval", hours=2,  id="brain_sca
 scheduler.add_job(_brain_auto_verify,        "interval", hours=4,  id="brain_verify")
 scheduler.add_job(_brain_auto_learn,         "interval", hours=12, id="brain_learn")
 scheduler.add_job(lambda: send_periodic_report("weekly"), "cron", day_of_week="mon", hour=9, id="brain_weekly_report")
+scheduler.add_job(_hulk_auto_scan, "interval", minutes=15, id="hulk_scan")
 scheduler.start()
 
 register_webhook(os.getenv("RENDER_EXTERNAL_URL",""))
