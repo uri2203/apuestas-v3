@@ -120,6 +120,12 @@ def _dispatch(text: str) -> None:
         _cmd_predicciones()
     elif cmd in ("/portfolio", "/port"):
         _cmd_portfolio()
+    elif cmd in ("/brain", "/cerebro"):
+        _cmd_brain(args)
+    elif cmd in ("/brain-status", "/bs"):
+        _cmd_brain_status()
+    elif cmd in ("/brain-scan", "/bscan"):
+        _cmd_brain_scan()
     elif cmd in ("/help", "/ayuda"):
         _cmd_help()
 
@@ -137,6 +143,8 @@ def _cmd_help() -> None:
         "/sharp — Señales de sharp money\n"
         "/predicciones — Predicciones ML del día\n"
         "/portfolio — Estado del portfolio activo\n"
+        "/brain scan — Escaneo completo del Brain\n"
+        "/brain-status — Performance del Brain (ROI, wins, P&L)\n"
         "/ayuda — Esta ayuda"
     )
 
@@ -345,6 +353,76 @@ def _cmd_portfolio() -> None:
         telegram_send("\n".join(lines))
     except Exception as e:
         telegram_send(f"Error: {e}")
+
+
+def _cmd_brain(args: list) -> None:
+    """Comandos del Brain: /brain scan, /brain status"""
+    sub = args[0].lower() if args else "status"
+    if sub == "scan":
+        _cmd_brain_scan()
+    elif sub == "status":
+        _cmd_brain_status()
+    else:
+        telegram_send("Uso: /brain scan | /brain status")
+
+
+def _cmd_brain_status() -> None:
+    """Muestra performance del Brain."""
+    try:
+        from services.brain import get_performance
+        p = get_performance()
+        pnl_emoji = "🟢" if p["pnl_total"] >= 0 else "🔴"
+        streak = f"+{p['racha_actual']}" if p["racha_actual"] > 0 else str(p["racha_actual"])
+        lines = [
+            "<b>🧠 AGENTE BRAIN — Performance</b>",
+            "━━━━━━━━━━━━━━━━━━━━━━━━━",
+            "",
+            f"💰 Bankroll: <b>${p['bankroll_actual']:,.2f}</b>",
+            f"{pnl_emoji} P&L: <b>${p['pnl_total']:+,.2f}</b> ({p['roi']:+.1f}%)",
+            f"📊 Win Rate: <b>{p['win_rate']}%</b>",
+            f"🎯 Trades: {p['trades_ganados']}W / {p['trades_perdidos']}L ({p['trades_total']} total)",
+            f"📈 Racha: <b>{streak}</b>",
+            f"📉 Max Drawdown: {p['max_drawdown_pct']:.1f}%",
+        ]
+        if p["kill_switch"]:
+            lines.append("")
+            lines.append(f"⚠️ <b>KILL SWITCH:</b> {p['kill_reason']}")
+        lines.append("")
+        lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━")
+        telegram_send("\n".join(lines))
+    except Exception as e:
+        telegram_send(f"Error Brain: {e}")
+
+
+def _cmd_brain_scan() -> None:
+    """Ejecuta scan completo del Brain y envía señales."""
+    try:
+        from services.brain import scan, simulate_trades
+        result = scan(threshold=80)
+        raw = result.get("raw_signals_count", 0)
+        filtered = result.get("filtered_signals", 0)
+        trades = result.get("trades", [])
+        lines = [
+            "<b>🧠 BRAIN SCAN</b>",
+            "━━━━━━━━━━━━━━━━━━━━━━━━━",
+            f"📡 Raw: {raw} → Filtradas: {filtered}",
+            "",
+        ]
+        if not trades:
+            lines.append("Sin señales que superen el umbral.")
+        else:
+            for i, t in enumerate(trades[:5], 1):
+                score = t.get("confidence_score", 0)
+                emoji = "🟢" if score >= 90 else "🟡" if score >= 85 else "🔵"
+                lines.append(f"{emoji} <b>#{i} — {t['match']}</b>")
+                lines.append(f"   ✅ {t['best_selection']} @ {t['best_odds']}")
+                lines.append(f"   📊 Score: {score} | Edge: {t['avg_edge_pct']}%")
+                lines.append("")
+        lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━")
+        lines.append("⚙️ Kelly: 25% | Umbral: 80%")
+        telegram_send("\n".join(lines))
+    except Exception as e:
+        telegram_send(f"Error Brain scan: {e}")
 
 
 def _cmd_status() -> None:

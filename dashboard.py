@@ -1454,83 +1454,182 @@ loadRP()
 # ════════════════════════════════════════════════════════════════════════════
 MOD_BRAIN = module_page("Agente Brain", """
 <div class="kpi-grid">
-  <div class="kpi"><div class="label">Señales</div><div class="value amber" id="brSignals">—</div></div>
-  <div class="kpi"><div class="label">Filtradas</div><div class="value green" id="brFiltered">—</div></div>
-  <div class="kpi"><div class="label">Trades</div><div class="value purple" id="brTrades">—</div></div>
-  <div class="kpi"><div class="label">P&L</div><div class="value teal" id="brPnl">—</div></div>
+  <div class="kpi"><div class="label">Bankroll</div><div class="value amber" id="brBankroll">—</div></div>
+  <div class="kpi"><div class="label">P&L Total</div><div class="value green" id="brPnl">—</div></div>
+  <div class="kpi"><div class="label">Win Rate</div><div class="value purple" id="brWinRate">—</div></div>
+  <div class="kpi"><div class="label">ROI</div><div class="value teal" id="brRoi">—</div></div>
 </div>
 
-<h3 style="margin:12px 0 6px;color:var(--text1)">Escaneo Autónomo</h3>
-<p style="color:var(--text2);font-size:13px;margin-bottom:8px">El Brain escanea 6 fuentes de señal, las agrega en un score compuesto, filtra por 85%+ confianza y auto-simula trades con Kelly sizing.</p>
-<button class="btn primary" onclick="brainScan()" style="margin-bottom:12px">Ejecutar Scan Ahora</button>
-<div id="brScanResult" style="margin-bottom:12px"></div>
+<div class="kpi-grid" style="margin-top:8px">
+  <div class="kpi"><div class="label">Trades</div><div class="value" id="brTotal">—</div></div>
+  <div class="kpi"><div class="label">Ganados</div><div class="value green" id="brWon">—</div></div>
+  <div class="kpi"><div class="label">Perdidos</div><div class="value red" id="brLost">—</div></div>
+  <div class="kpi"><div class="label">Racha</div><div class="value amber" id="brStreak">—</div></div>
+</div>
 
-<h3 style="margin:12px 0 6px;color:var(--text1)">Pesos por Fuente</h3>
+<div id="brKillSwitch" style="display:none;margin:8px 0;padding:10px;background:rgba(239,68,68,.15);border:1px solid var(--red);border-radius:8px;color:var(--red);font-weight:600"></div>
+
+<h3 style="margin:14px 0 6px;color:var(--text1)">Acciones</h3>
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+  <button class="btn primary" onclick="brainAutoSim()">Ejecutar Scan + Simular</button>
+  <button class="btn" onclick="brainVerifyAll()">Verificar Pendientes</button>
+  <button class="btn" onclick="brainReset()">Reset ($10,000)</button>
+</div>
+
+<h3 style="margin:14px 0 6px;color:var(--text1)">Gráfica de Bankroll</h3>
+<canvas id="brChart" width="700" height="200" style="width:100%;margin-bottom:12px;background:var(--card);border-radius:8px"></canvas>
+
+<h3 style="margin:14px 0 6px;color:var(--text1)">Trades Recientes</h3>
+<div id="brTrades" style="margin-bottom:12px;color:var(--text2)">Cargando...</div>
+
+<h3 style="margin:14px 0 6px;color:var(--text1)">Performance por Fuente</h3>
+<div id="brSources" style="margin-bottom:12px;color:var(--text2)">Cargando...</div>
+
+<h3 style="margin:14px 0 6px;color:var(--text1)">Pesos del Brain</h3>
 <div id="brWeights" style="margin-bottom:12px;color:var(--text2)">Cargando...</div>
 
-<h3 style="margin:12px 0 6px;color:var(--text1)">Trades Simulados Recientes</h3>
-<div id="brHistory" style="margin-bottom:12px;color:var(--text2)">Cargando...</div>
-
 <script>
-async function brainScan() {
-  const el = document.getElementById('brScanResult');
-  el.innerHTML = '<span style="color:var(--amber)">Escaneando...</span>';
+async function brainAutoSim() {
+  const el = document.getElementById('brTrades');
+  el.innerHTML = '<span style="color:var(--amber)">Escaneando y simulando...</span>';
   try {
-    const r = await fetch('/api/brain/scan');
+    const r = await fetch('/api/brain/auto-simulate');
     const d = await r.json();
-    document.getElementById('brSignals').textContent = d.raw_signals_count || 0;
-    document.getElementById('brFiltered').textContent = d.filtered_signals || 0;
-    document.getElementById('brTrades').textContent = d.trades_simulated || 0;
-    let html = '<div style="margin-top:8px">';
-    html += '<b>Raw:</b> ' + (d.raw_signals_count||0) + ' señales | ';
-    html += '<b>Filtradas:</b> ' + (d.filtered_signals||0) + ' | ';
-    html += '<b>Trades:</b> ' + (d.trades_simulated||0) + '<br>';
-    if (d.signals && d.signals.length > 0) {
-      html += '<table style="width:100%;margin-top:8px;font-size:12px"><tr><th>Partido</th><th>Score</th><th>Edge</th><th>Cuota</th><th>Casa</th><th>Kelly</th></tr>';
-      d.trades.forEach(t => {
-        html += '<tr><td>' + t.match + '</td><td>' + t.confidence_score + '</td><td>' + t.edge_pct + '%</td><td>' + t.odds + '</td><td>' + t.bookmaker + '</td><td>$' + t.stake + '</td></tr>';
-      });
-      html += '</table>';
-    } else {
-      html += '<div style="color:var(--text2);margin-top:8px">No hay señales que superen el umbral de 85%.</div>';
-    }
-    html += '</div>';
-    el.innerHTML = html;
+    el.innerHTML = '<b>Scan:</b> '+d.scan_signals+' raw → '+d.scan_filtered+' filtradas | <b>Simulados:</b> '+d.trades_simulados+' | <b>Verificados:</b> '+d.trades_verificados+' (W:'+d.trades_won+' L:'+d.trades_lost+') | <b>P&L:</b> $'+d.pnl.toFixed(2);
+    brainLoadPerf();
+    brainLoadTrades();
   } catch(e) { el.innerHTML = '<span style="color:var(--red)">Error: '+e.message+'</span>'; }
+}
+
+async function brainVerifyAll() {
+  try {
+    const r = await fetch('/api/brain/verify-all');
+    const d = await r.json();
+    alert('Verificados: '+d.verified+' | Ganados: '+d.won+' | Perdidos: '+d.lost+' | P&L: $'+d.pnl.toFixed(2));
+    brainLoadPerf();
+    brainLoadTrades();
+  } catch(e) { alert('Error: '+e.message); }
+}
+
+async function brainReset() {
+  if (!confirm('¿Resetear simulación a $10,000? Se borrarán todos los trades.')) return;
+  try {
+    await fetch('/api/brain/reset', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({bankroll:10000})});
+    brainLoadPerf();
+    brainLoadTrades();
+  } catch(e) { alert('Error: '+e.message); }
+}
+
+async function brainLoadPerf() {
+  try {
+    const r = await fetch('/api/brain/performance');
+    const d = await r.json();
+    document.getElementById('brBankroll').textContent = '$'+d.bankroll_actual.toLocaleString();
+    const pnlColor = d.pnl_total >= 0 ? 'var(--green)' : 'var(--red)';
+    document.getElementById('brPnl').textContent = '$'+d.pnl_total.toFixed(2);
+    document.getElementById('brPnl').style.color = pnlColor;
+    document.getElementById('brWinRate').textContent = d.win_rate+'%';
+    const roiColor = d.roi >= 0 ? 'var(--green)' : 'var(--red)';
+    document.getElementById('brRoi').textContent = d.roi+'%';
+    document.getElementById('brRoi').style.color = roiColor;
+    document.getElementById('brTotal').textContent = d.trades_total;
+    document.getElementById('brWon').textContent = d.trades_ganados;
+    document.getElementById('brLost').textContent = d.trades_perdidos;
+    document.getElementById('brStreak').textContent = (d.racha_actual>0?'+':'')+d.racha_actual;
+
+    // Kill switch
+    const ks = document.getElementById('brKillSwitch');
+    if (d.kill_switch) {
+      ks.style.display = 'block';
+      ks.innerHTML = '⚠️ KILL SWITCH ACTIVO: '+d.kill_reason;
+    } else {
+      ks.style.display = 'none';
+    }
+
+    // Sources
+    let srcHtml = '<table style="width:100%;font-size:12px"><tr><th>Fuente</th><th>Accuracy</th><th>Trades</th><th>P&L</th></tr>';
+    for (const [src, perf] of Object.entries(d.source_stats || {})) {
+      srcHtml += '<tr><td>'+src+'</td><td>'+perf.accuracy+'%</td><td>'+perf.total+'</td><td>$'+perf.pnl.toFixed(2)+'</td></tr>';
+    }
+    srcHtml += '</table>';
+    document.getElementById('brSources').innerHTML = srcHtml;
+
+    // Chart
+    drawBrainChart(d.bankroll_history || []);
+  } catch(e) { console.error(e); }
+}
+
+async function brainLoadTrades() {
+  try {
+    const r = await fetch('/api/brain/history?limit=30');
+    const d = await r.json();
+    const trades = d.trades || [];
+    if (trades.length === 0) { document.getElementById('brTrades').innerHTML = 'Sin trades aún. Ejecuta un scan primero.'; return; }
+    let html = '<table style="width:100%;font-size:12px"><tr><th>#</th><th>Partido</th><th>Selección</th><th>Cuota</th><th>Edge</th><th>Score</th><th>Stake</th><th>P&L</th><th>Estado</th><th>Acción</th></tr>';
+    trades.forEach(t => {
+      const color = t.resultado === 'ganada' ? 'var(--green)' : t.resultado === 'perdida' ? 'var(--red)' : 'var(--amber)';
+      const btns = t.resultado === 'pendiente' ?
+        '<button class="btn" style="font-size:10px;padding:2px 6px" onclick="resolveTrade('+t.id+',true)">✅</button> <button class="btn" style="font-size:10px;padding:2px 6px" onclick="resolveTrade('+t.id+',false)">❌</button>' : '';
+      html += '<tr><td>'+t.id+'</td><td>'+t.partido+'</td><td>'+t.seleccion+'</td><td>'+t.cuota+'</td><td>'+t.edge_pct+'%</td><td>'+t.confidence_score+'</td><td>$'+t.stake_simulado+'</td><td style="color:'+(t.pnl>0?'var(--green)':t.pnl<0?'var(--red)':'var(--text2)')+'">$'+(t.pnl||0).toFixed(2)+'</td><td style="color:'+color+'">'+t.resultado+'</td><td>'+btns+'</td></tr>';
+    });
+    html += '</table>';
+    document.getElementById('brTrades').innerHTML = html;
+  } catch(e) { document.getElementById('brTrades').innerHTML = 'Error cargando trades'; }
+}
+
+async function resolveTrade(id, ganada) {
+  try {
+    await fetch('/api/brain/resolve', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({trade_id:id, ganada:ganada})});
+    brainLoadPerf();
+    brainLoadTrades();
+  } catch(e) { alert('Error: '+e.message); }
 }
 
 async function brainWeights() {
   try {
     const r = await fetch('/api/brain/weights');
     const d = await r.json();
-    let html = '<table style="width:100%;font-size:12px"><tr><th>Fuente</th><th>Peso</th><th>Accuracy</th><th>Muestras</th><th>P&L</th></tr>';
-    for (const [src, perf] of Object.entries(d.performance || {})) {
-      const w = d.current[src] || '—';
-      html += '<tr><td>' + src + '</td><td>' + w + '</td><td>' + perf.accuracy + '%</td><td>' + perf.total + '</td><td>$' + perf.profit.toFixed(2) + '</td></tr>';
+    let html = '<table style="width:100%;font-size:12px"><tr><th>Fuente</th><th>Peso</th></tr>';
+    for (const [src, w] of Object.entries(d.current || {})) {
+      html += '<tr><td>'+src+'</td><td>'+w+'</td></tr>';
     }
     html += '</table>';
     document.getElementById('brWeights').innerHTML = html;
-  } catch(e) { document.getElementById('brWeights').innerHTML = 'Error cargando pesos'; }
+  } catch(e) { document.getElementById('brWeights').innerHTML = 'Error'; }
 }
 
-async function brainHistory() {
-  try {
-    const r = await fetch('/api/brain/history?limit=20');
-    const d = await r.json();
-    const trades = d.trades || [];
-    if (trades.length === 0) { document.getElementById('brHistory').innerHTML = 'Sin trades aún'; return; }
-    let html = '<table style="width:100%;font-size:12px"><tr><th>Partido</th><th>Selección</th><th>Cuota</th><th>Edge</th><th>Stake</th><th>Estado</th></tr>';
-    trades.forEach(t => {
-      const color = t.resultado_simulado === 'ganada' ? 'var(--green)' : t.resultado_simulado === 'perdida' ? 'var(--red)' : 'var(--amber)';
-      html += '<tr><td>' + t.partido + '</td><td>' + t.seleccion + '</td><td>' + t.cuota + '</td><td>' + t.edge_pct + '%</td><td>$' + t.stake_simulado + '</td><td style="color:'+color+'">' + t.resultado_simulado + '</td></tr>';
-    });
-    html += '</table>';
-    document.getElementById('brHistory').innerHTML = html;
-  } catch(e) { document.getElementById('brHistory').innerHTML = 'Error cargando historial'; }
+function drawBrainChart(history) {
+  const canvas = document.getElementById('brChart');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+  if (!history || history.length < 2) { ctx.fillStyle='var(--text2)'; ctx.fillText('Sin datos aún', W/2-30, H/2); return; }
+  const vals = history.map(h => h.bankroll || 0);
+  const min = Math.min(...vals) * 0.98;
+  const max = Math.max(...vals) * 1.02;
+  const step = W / (vals.length - 1);
+  // Grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 5; i++) { const y = H*0.1 + (H*0.8)*(i/4); ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+  // Line
+  ctx.beginPath();
+  ctx.strokeStyle = vals[vals.length-1] >= vals[0] ? '#22c55e' : '#ef4444';
+  ctx.lineWidth = 2;
+  vals.forEach((v,i) => { const x = i*step; const y = H - ((v-min)/(max-min))*H*0.8 - H*0.1; i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y); });
+  ctx.stroke();
+  // Labels
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.font = '11px monospace';
+  ctx.fillText('$'+vals[0].toLocaleString(), 4, H-8);
+  ctx.fillText('$'+vals[vals.length-1].toLocaleString(), W-60, H-8);
+  ctx.fillText('Min: $'+Math.min(...vals).toLocaleString(), 4, 14);
+  ctx.fillText('Max: $'+Math.max(...vals).toLocaleString(), W-70, 14);
 }
 
+brainLoadPerf();
+brainLoadTrades();
 brainWeights();
-brainHistory();
 </script>
 """, "brain")
 

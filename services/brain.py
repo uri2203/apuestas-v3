@@ -880,3 +880,511 @@ def get_history(limit: int = 50) -> list[dict]:
             return [_row_to_dict(r) for r in cur.fetchall()]
     except Exception:
         return []
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 9. MOTOR DE SIMULACIÓN COMPLETO
+# ══════════════════════════════════════════════════════════════════════════
+
+# Estado de la simulación (en memoria + DB)
+_sim_state = {
+    "bankroll_inicial": 10000,
+    "bankroll_actual": 10000,
+    "trades_total": 0,
+    "trades_ganados": 0,
+    "trades_perdidos": 0,
+    "trades_pendientes": 0,
+    "pnl_total": 0.0,
+    "max_bankroll": 10000,
+    "min_bankroll": 10000,
+    "racha_actual": 0,      # positiva = ganando, negativa = perdiendo
+    "mejor_racha": 0,
+    "peor_racha": 0,
+    "kill_switch": False,
+    "kill_reason": "",
+    "started_at": datetime.utcnow().isoformat(),
+}
+
+# Historial de bankroll para gráficas
+_bankroll_history = []
+
+
+def _init_simulation_db():
+    """Crea la tabla brain_tracks si no existe."""
+    try:
+        from database import db
+        with db() as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS brain_tracks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    match TEXT,
+                    liga TEXT,
+                    selection TEXT,
+                    bookmaker TEXT,
+                    odds REAL,
+                    edge_pct REAL,
+                    confidence_score REAL,
+                    stake REAL,
+                    kelly_pct REAL,
+                    prob_modelo REAL,
+                    sources TEXT,
+                    resultado TEXT DEFAULT 'pendiente',
+                    pnl REAL DEFAULT 0,
+                    bankroll_antes REAL,
+                    bankroll_despues REAL,
+                    verified_at TEXT,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            # Tabla de estado del Brain
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS brain_state (
+                    key TEXT PRIMARY KEY,
+                    value TEXT
+                )
+            """)
+            conn.commit()
+    except Exception as e:
+        logger.warning("Error init brain DB: %s", e)
+
+
+def _save_state():
+    """Guarda estado del Brain en DB."""
+    try:
+        from database import db
+        with db() as conn:
+            cur = conn.cursor()
+            for k, v in _sim_state.items():
+                cur.execute("""
+                    INSERT OR REPLACE INTO brain_state (key, value) VALUES (?, ?)
+                """, (k, json.dumps(v)))
+            # Guardar historial de bankroll
+            if _bankroll_history:
+                cur.execute("""
+                    INSERT OR REPLACE INTO brain_state (key, value) VALUES (?, ?)
+                """, ("bankroll_history", json.dumps(_bankroll_history[-500:])))
+            conn.commit()
+    except Exception as e:
+        logger.warning("Error guardando estado Brain: %s", e)
+
+
+def _load_state():
+    """Carga estado del Brain desde DB."""
+    global _sim_state, _bankroll_history
+    try:
+        from database import db, _row_to_dict
+        _init_simulation_db()
+        with db() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT key, value FROM brain_state")
+            rows = cur.fetchall()
+            for row in rows:
+                r = _row_to_dict(row)
+                k, v = r["key"], r["value"]
+                if k == "bankroll_history":
+                    _bankroll_history = json.loads(v)
+                elif k in _sim_state:
+                    _sim_state[k] = json.loads(v)
+    except Exception as e:
+        logger.warning("Error cargando estado Brain: %s", e)
+
+
+def simular_trade(signal: dict, bankroll: float = 0) -> dict:
+    """
+    Simula UN trade basado en señal del Brain.
+    Registra en DB, actualiza estado, retorna el trade.
+    """
+    if bankroll <= 0:
+        bankroll = _sim_state["bankroll_actual"]
+
+    odds = signal.get("best_odds", 0)
+    if odds <= 1:
+        return {}
+
+    # Estimar probabilidad del modelo
+    edge = signal.get("avg_edge_pct", 0) / 100
+    prob_modelo = (1 / odds) + edge
+    prob_modelo = max(0.01, min(0.99, prob_modelo))
+
+    # Kelly fraccionado
+    from services.value_engine import kelly_fraccionado
+    kelly = kelly_fraccionado(prob_modelo, odds, KELLY_FRACTION, bankroll)
+    stake = kelly.get("stake_sugerido", 0)
+
+    # Cap máximo
+    max_bet = bankroll * (MAX_BET_PCT_BANKROLL / 100)
+    stake = min(stake, max_bet)
+
+    if stake < 1:
+        return {}
+
+    # Crear trade
+    trade = {
+        "match": signal.get("match", ""),
+        "liga": signal.get("liga", ""),
+        "selection": signal.get("best_selection", ""),
+        "bookmaker": signal.get("best_bookmaker", ""),
+        "odds": odds,
+        "edge_pct": signal.get("avg_edge_pct", 0),
+        "confidence_score": signal.get("composite_score", 0),
+        "stake": round(stake, 2),
+        "kelly_pct": kelly.get("kelly_aplicado_pct", 0),
+        "prob_modelo": round(prob_modelo * 100, 2),
+        "bankroll_antes": round(bankroll, 2),
+        "sources": signal.get("sources", []),
+        "source_count": signal.get("source_count", 0),
+    }
+
+    # Guardar en DB
+    try:
+        from database import db
+        _init_simulation_db()
+        with db() as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO brain_tracks
+                (match, liga, selection, bookmaker, odds, edge_pct,
+                 confidence_score, stake, kelly_pct, prob_modelo,
+                 sources, resultado, bankroll_antes, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente', ?, ?)
+            """, (
+                trade["match"], trade["liga"], trade["selection"],
+                trade["bookmaker"], trade["odds"], trade["edge_pct"],
+                trade["confidence_score"], trade["stake"], trade["kelly_pct"],
+                trade["prob_modelo"], json.dumps(trade["sources"]),
+                trade["bankroll_antes"], datetime.utcnow().isoformat(),
+            ))
+            trade["id"] = cur.lastrowid
+            conn.commit()
+    except Exception as e:
+        logger.warning("Error guardando trade Brain: %s", e)
+
+    # Actualizar estado
+    _sim_state["trades_total"] += 1
+    _sim_state["trades_pendientes"] += 1
+    _sim_state["bankroll_actual"] = round(bankroll - stake, 2)
+    _bankroll_history.append({
+        "ts": datetime.utcnow().isoformat(),
+        "bankroll": _sim_state["bankroll_actual"],
+        "event": "trade_open",
+        "match": trade["match"],
+        "stake": stake,
+    })
+    _save_state()
+
+    return trade
+
+
+def resolver_trade(trade_id: int, ganada: bool) -> dict:
+    """
+    Resuelve un trade: ganada o perdida.
+    Actualiza P&L, bankroll, rachas.
+    """
+    try:
+        from database import db, _row_to_dict
+        _init_simulation_db()
+        with db() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT * FROM brain_tracks WHERE id = ?", (trade_id,))
+            row = cur.fetchone()
+            if not row:
+                return {"error": "Trade no encontrado"}
+
+            trade = _row_to_dict(row)
+            stake = trade["stake"]
+            odds = trade["odds"]
+
+            if ganada:
+                pnl = stake * (odds - 1)
+                resultado = "ganada"
+                _sim_state["trades_ganados"] += 1
+                _sim_state["racha_actual"] = max(1, _sim_state["racha_actual"] + 1)
+            else:
+                pnl = -stake
+                resultado = "perdida"
+                _sim_state["trades_perdidos"] += 1
+                _sim_state["racha_actual"] = min(-1, _sim_state["racha_actual"] - 1)
+
+            _sim_state["trades_pendientes"] = max(0, _sim_state["trades_pendientes"] - 1)
+            _sim_state["pnl_total"] = round(_sim_state["pnl_total"] + pnl, 2)
+            _sim_state["bankroll_actual"] = round(_sim_state["bankroll_actual"] + stake + pnl, 2)
+            _sim_state["max_bankroll"] = max(_sim_state["max_bankroll"], _sim_state["bankroll_actual"])
+            _sim_state["min_bankroll"] = min(_sim_state["min_bankroll"], _sim_state["bankroll_actual"])
+            _sim_state["mejor_racha"] = max(_sim_state["mejor_racha"], _sim_state["racha_actual"])
+            _sim_state["peor_racha"] = min(_sim_state["peor_racha"], _sim_state["racha_actual"])
+
+            # Actualizar DB
+            cur.execute("""
+                UPDATE brain_tracks
+                SET resultado = ?, pnl = ?, bankroll_despues = ?, verified_at = ?
+                WHERE id = ?
+            """, (resultado, round(pnl, 2), _sim_state["bankroll_actual"],
+                  datetime.utcnow().isoformat(), trade_id))
+
+            _bankroll_history.append({
+                "ts": datetime.utcnow().isoformat(),
+                "bankroll": _sim_state["bankroll_actual"],
+                "event": "trade_close",
+                "match": trade["match"],
+                "pnl": round(pnl, 2),
+                "resultado": resultado,
+            })
+
+            # Kill switch: si perdió 10% del bankroll inicial
+            if _sim_state["bankroll_inicial"] > 0:
+                loss_pct = (_sim_state["bankroll_inicial"] - _sim_state["bankroll_actual"]) / _sim_state["bankroll_inicial"] * 100
+                if loss_pct >= 10:
+                    _sim_state["kill_switch"] = True
+                    _sim_state["kill_reason"] = f"Pérdida de {loss_pct:.1f}% del bankroll inicial"
+
+            conn.commit()
+            _save_state()
+
+            return {
+                "trade_id": trade_id,
+                "resultado": resultado,
+                "pnl": round(pnl, 2),
+                "bankroll_actual": _sim_state["bankroll_actual"],
+                "racha": _sim_state["racha_actual"],
+                "kill_switch": _sim_state["kill_switch"],
+            }
+    except Exception as e:
+        logger.warning("Error resolviendo trade: %s", e)
+        return {"error": str(e)}
+
+
+def verificar_trades_pendientes() -> dict:
+    """
+    Verifica trades pendientes contra resultados reales.
+    Usa ESPN y API-Football para obtener resultados.
+    """
+    stats = {"verified": 0, "won": 0, "lost": 0, "pending": 0, "pnl": 0.0}
+
+    try:
+        from database import db, _row_to_dict
+        _init_simulation_db()
+        with db() as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT * FROM brain_tracks
+                WHERE resultado = 'pendiente'
+                ORDER BY id DESC LIMIT 30
+            """)
+            pending = [_row_to_dict(r) for r in cur.fetchall()]
+
+            for trade in pending:
+                # Intentar verificar contra predictions
+                result = _check_result(trade["match"], trade["selection"])
+
+                if result is not None:
+                    r = resolver_trade(trade["id"], result)
+                    if "error" not in r:
+                        stats["verified"] += 1
+                        if result:
+                            stats["won"] += 1
+                        else:
+                            stats["lost"] += 1
+                        stats["pnl"] += r.get("pnl", 0)
+                else:
+                    stats["pending"] += 1
+    except Exception as e:
+        logger.warning("Error verificando trades Brain: %s", e)
+
+    return stats
+
+
+def _check_result(match_str: str, selection: str) -> Optional[bool]:
+    """Verifica si un partido ya tiene resultado en la DB."""
+    try:
+        from database import db, _row_to_dict
+        with db() as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT resultado_real, correcto
+                FROM predictions
+                WHERE (home || ' vs ' || away = ? OR home = ? OR away = ?)
+                AND resultado_real IS NOT NULL
+                ORDER BY id DESC LIMIT 1
+            """, (match_str, selection, selection))
+            row = cur.fetchone()
+            if row:
+                r = _row_to_dict(row)
+                return r.get("correcto") == 1
+    except Exception:
+        pass
+    return None
+
+
+def get_performance() -> dict:
+    """
+    Performance completa del Brain para el dashboard.
+    Incluye: ROI, win rate, streaks, gráfica de bankroll, por deporte.
+    """
+    _load_state()
+
+    total = _sim_state["trades_ganados"] + _sim_state["trades_perdidos"]
+    win_rate = (_sim_state["trades_ganados"] / total * 100) if total > 0 else 0
+    roi = (_sim_state["pnl_total"] / _sim_state["bankroll_inicial"] * 100) if _sim_state["bankroll_inicial"] > 0 else 0
+
+    # Calcular drawdown
+    max_dd = 0
+    peak = _sim_state["bankroll_inicial"]
+    for h in _bankroll_history:
+        br = h.get("bankroll", 0)
+        if br > peak:
+            peak = br
+        dd = (peak - br) / peak * 100 if peak > 0 else 0
+        max_dd = max(max_dd, dd)
+
+    # Performance por fuente de señal
+    source_stats = {}
+    try:
+        from database import db, _row_to_dict
+        _init_simulation_db()
+        with db() as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT sources, resultado, pnl, odds, stake
+                FROM brain_tracks
+                WHERE resultado != 'pendiente'
+            """)
+            rows = [_row_to_dict(r) for r in cur.fetchall()]
+            for row in rows:
+                sources = json.loads(row.get("sources", "[]"))
+                for src in sources:
+                    if src not in source_stats:
+                        source_stats[src] = {"correct": 0, "total": 0, "pnl": 0.0}
+                    source_stats[src]["total"] += 1
+                    source_stats[src]["pnl"] += row.get("pnl", 0)
+                    if row.get("resultado") == "ganada":
+                        source_stats[src]["correct"] += 1
+    except Exception:
+        pass
+
+    # Últimos 20 trades para el gráfico
+    recent_trades = []
+    try:
+        from database import db, _row_to_dict
+        with db() as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT * FROM brain_tracks
+                WHERE resultado != 'pendiente'
+                ORDER BY id DESC LIMIT 20
+            """)
+            recent_trades = [_row_to_dict(r) for r in cur.fetchall()]
+    except Exception:
+        pass
+
+    return {
+        "bankroll_inicial": _sim_state["bankroll_inicial"],
+        "bankroll_actual": _sim_state["bankroll_actual"],
+        "trades_total": _sim_state["trades_total"],
+        "trades_ganados": _sim_state["trades_ganados"],
+        "trades_perdidos": _sim_state["trades_perdidos"],
+        "trades_pendientes": _sim_state["trades_pendientes"],
+        "win_rate": round(win_rate, 1),
+        "roi": round(roi, 2),
+        "pnl_total": round(_sim_state["pnl_total"], 2),
+        "max_bankroll": _sim_state["max_bankroll"],
+        "min_bankroll": _sim_state["min_bankroll"],
+        "max_drawdown_pct": round(max_dd, 2),
+        "racha_actual": _sim_state["racha_actual"],
+        "mejor_racha": _sim_state["mejor_racha"],
+        "peor_racha": _sim_state["peor_racha"],
+        "kill_switch": _sim_state["kill_switch"],
+        "kill_reason": _sim_state["kill_reason"],
+        "started_at": _sim_state["started_at"],
+        "source_stats": {
+            src: {
+                "accuracy": round(s["correct"] / max(1, s["total"]) * 100, 1),
+                "total": s["total"],
+                "pnl": round(s["pnl"], 2),
+            }
+            for src, s in source_stats.items()
+        },
+        "bankroll_history": _bankroll_history[-100:],
+        "recent_trades": recent_trades,
+    }
+
+
+def reset_simulation(new_bankroll: float = 10000) -> dict:
+    """Resetea la simulación con nuevo bankroll."""
+    global _sim_state, _bankroll_history
+    _sim_state = {
+        "bankroll_inicial": new_bankroll,
+        "bankroll_actual": new_bankroll,
+        "trades_total": 0,
+        "trades_ganados": 0,
+        "trades_perdidos": 0,
+        "trades_pendientes": 0,
+        "pnl_total": 0.0,
+        "max_bankroll": new_bankroll,
+        "min_bankroll": new_bankroll,
+        "racha_actual": 0,
+        "mejor_racha": 0,
+        "peor_racha": 0,
+        "kill_switch": False,
+        "kill_reason": "",
+        "started_at": datetime.utcnow().isoformat(),
+    }
+    _bankroll_history = [{"ts": datetime.utcnow().isoformat(), "bankroll": new_bankroll, "event": "reset"}]
+
+    # Limpiar DB
+    try:
+        from database import db
+        _init_simulation_db()
+        with db() as conn:
+            cur = conn.cursor()
+            cur.execute("DELETE FROM brain_tracks")
+            cur.execute("DELETE FROM brain_state")
+            conn.commit()
+    except Exception:
+        pass
+
+    _save_state()
+    return {"status": "ok", "bankroll": new_bankroll}
+
+
+def auto_scan_and_simulate() -> dict:
+    """
+    Escaneo completo + simulación automática.
+    Llamado por el scheduler cada 2 horas.
+    """
+    _load_state()
+
+    # Verificar kill switch
+    if _sim_state["kill_switch"]:
+        return {"status": "paused", "reason": _sim_state["kill_reason"]}
+
+    # Scan
+    result = scan(threshold=CONFIDENCE_THRESHOLD)
+
+    # Simular trades filtrados
+    trades_simulados = 0
+    for signal in result.get("signals", []):
+        trade = simular_trade(signal)
+        if trade:
+            trades_simulados += 1
+
+    # Verificar trades antiguos
+    verificacion = verificar_trades_pendientes()
+
+    return {
+        "status": "ok",
+        "scan_signals": result.get("raw_signals_count", 0),
+        "scan_filtered": result.get("filtered_signals", 0),
+        "trades_simulados": trades_simulados,
+        "trades_verificados": verificacion.get("verified", 0),
+        "trades_won": verificacion.get("won", 0),
+        "trades_lost": verificacion.get("lost", 0),
+        "pnl": verificacion.get("pnl", 0),
+        "bankroll_actual": _sim_state["bankroll_actual"],
+        "kill_switch": _sim_state["kill_switch"],
+    }
+
+
+# Cargar estado al iniciar
+_load_state()
+_init_simulation_db()

@@ -523,6 +523,105 @@ def main():
     r = post("/api/brain/config", json_data={"threshold": 80})
     check_eq(r.status_code, 200, "POST /api/brain/config = 200")
 
+    # -- 29. Brain Simulation Engine tests --
+    print("\n  --- Brain Simulation ---")
+    from services.brain import (
+        simular_trade, resolver_trade, get_performance,
+        reset_simulation, auto_scan_and_simulate,
+        _sim_state, _bankroll_history,
+    )
+
+    # Test: Reset simulation
+    reset = reset_simulation(10000)
+    check_eq(reset["status"], "ok", "reset_simulation retorna ok")
+    check_eq(reset["bankroll"], 10000, "reset bankroll = 10000")
+    check_eq(_sim_state["bankroll_actual"], 10000, "sim_state bankroll = 10000")
+    check_eq(_sim_state["trades_total"], 0, "reset trades_total = 0")
+
+    # Test: Simular trade con señal ficticia
+    test_signal = {
+        "match": "TestTeam A vs TestTeam B",
+        "liga": "test_liga",
+        "best_selection": "TestTeam A",
+        "best_bookmaker": "TestBook",
+        "best_odds": 2.50,
+        "avg_edge_pct": 12.0,
+        "composite_score": 88.0,
+        "sources": ["value_bet", "sharp_money", "ml_prediction"],
+        "source_count": 3,
+    }
+    trade = simular_trade(test_signal, bankroll=10000)
+    check("id" in trade, "simular_trade retorna trade con id")
+    check(trade["stake"] > 0, f"trade stake > 0: {trade.get('stake')}")
+    check(trade["stake"] <= 500, f"trade stake <= 5% bankroll: {trade.get('stake')}")
+    check_eq(_sim_state["trades_total"], 1, "trades_total = 1 después de simular")
+    check(_sim_state["trades_pendientes"] >= 1, "trades_pendientes >= 1")
+
+    # Test: Resolver trade ganada
+    trade_id = trade["id"]
+    result = resolver_trade(trade_id, ganada=True)
+    check_eq(result["resultado"], "ganada", "resolver_trade ganada retorna 'ganada'")
+    check(result["pnl"] > 0, f"pnl ganada > 0: {result.get('pnl')}")
+    check_eq(_sim_state["trades_ganados"], 1, "trades_ganados = 1")
+    check(_sim_state["racha_actual"] > 0, "racha_actual positiva tras ganada")
+
+    # Test: Resolver trade perdida
+    trade2 = simular_trade(test_signal, bankroll=_sim_state["bankroll_actual"])
+    result2 = resolver_trade(trade2["id"], ganada=False)
+    check_eq(result2["resultado"], "perdida", "resolver_trade perdida retorna 'perdida'")
+    check(result2["pnl"] < 0, f"pnl perdida < 0: {result2.get('pnl')}")
+    check_eq(_sim_state["trades_perdidos"], 1, "trades_perdidos = 1")
+
+    # Test: Performance endpoint
+    perf = get_performance()
+    check("bankroll_inicial" in perf, "performance tiene bankroll_inicial")
+    check("bankroll_actual" in perf, "performance tiene bankroll_actual")
+    check("win_rate" in perf, "performance tiene win_rate")
+    check("roi" in perf, "performance tiene roi")
+    check("pnl_total" in perf, "performance tiene pnl_total")
+    check("trades_ganados" in perf, "performance tiene trades_ganados")
+    check("trades_perdidos" in perf, "performance tiene trades_perdidos")
+    check("kill_switch" in perf, "performance tiene kill_switch")
+    check("bankroll_history" in perf, "performance tiene bankroll_history")
+    check("recent_trades" in perf, "performance tiene recent_trades")
+    check(perf["trades_ganados"] == 1, "performance ganados = 1")
+    check(perf["trades_perdidos"] == 1, "performance perdidos = 1")
+
+    # Test: Kill switch trigger
+    reset_simulation(1000)
+    for i in range(5):
+        t = simular_trade(test_signal, bankroll=_sim_state["bankroll_actual"])
+        if t:
+            resolver_trade(t["id"], ganada=False)
+    check(_sim_state["kill_switch"], "kill_switch activa tras 5 trades perdidos con $1000")
+    check(len(_sim_state["kill_reason"]) > 0, "kill_reason tiene texto")
+
+    # Test: API endpoints
+    reset_simulation(10000)
+
+    r = get("/api/brain/performance")
+    check_eq(r.status_code, 200, "GET /api/brain/performance = 200")
+    d = r.get_json()
+    check("bankroll_actual" in d, "brain/performance tiene bankroll_actual")
+    check("win_rate" in d, "brain/performance tiene win_rate")
+
+    r = get("/api/brain/verify-all")
+    check_eq(r.status_code, 200, "GET /api/brain/verify-all = 200")
+
+    r = get("/api/brain/auto-simulate")
+    check_eq(r.status_code, 200, "GET /api/brain/auto-simulate = 200")
+    d = r.get_json()
+    check("scan_signals" in d, "brain/auto-simulate tiene scan_signals")
+    check("trades_simulados" in d, "brain/auto-simulate tiene trades_simulados")
+
+    r = post("/api/brain/reset", json_data={"bankroll": 5000})
+    check_eq(r.status_code, 200, "POST /api/brain/reset = 200")
+    d = r.get_json()
+    check_eq(d.get("bankroll"), 5000, "brain/reset bankroll = 5000")
+
+    # Reset a 10000 para siguientes tests
+    reset_simulation(10000)
+
     # -- Summary --
     total = PASS + FAIL
     print("")

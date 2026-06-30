@@ -2660,9 +2660,64 @@ def brain_config():
             "kelly_fraction": data.get("kelly_fraction", KELLY_FRACTION),
             "max_bet_pct": data.get("max_bet_pct", MAX_BET_PCT_BANKROLL),
         }
-        # Note: runtime config change requires module-level globals
-        # For now return current config
         return jsonify({"config": result, "note": "Config actual (reset al reiniciar)"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/brain/performance")
+def brain_performance():
+    """Performance completa del Brain (ROI, win rate, streaks, gráficas)."""
+    try:
+        from services.brain import get_performance
+        return jsonify(get_performance())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/brain/reset", methods=["POST"])
+def brain_reset():
+    """Resetea la simulación con nuevo bankroll."""
+    try:
+        from services.brain import reset_simulation
+        data = request.get_json(silent=True) or {}
+        bankroll = data.get("bankroll", 10000)
+        return jsonify(reset_simulation(bankroll))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/brain/resolve", methods=["POST"])
+def brain_resolve():
+    """Resuelve un trade manualmente (ganada/perdida)."""
+    try:
+        from services.brain import resolver_trade
+        data = request.get_json(silent=True) or {}
+        trade_id = data.get("trade_id")
+        ganada = data.get("ganada", True)
+        if not trade_id:
+            return jsonify({"error": "trade_id requerido"}), 400
+        return jsonify(resolver_trade(int(trade_id), ganada))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/brain/verify-all")
+def brain_verify_all():
+    """Verifica todos los trades pendientes."""
+    try:
+        from services.brain import verificar_trades_pendientes
+        return jsonify(verificar_trades_pendientes())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/brain/auto-simulate")
+def brain_auto_simulate():
+    """Escaneo completo + simulación automática."""
+    try:
+        from services.brain import auto_scan_and_simulate
+        return jsonify(auto_scan_and_simulate())
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -2674,12 +2729,14 @@ def brain_config():
 def _brain_auto_scan():
     """Auto-scan del Brain cada 2 horas."""
     try:
-        from services.brain import scan
-        result = scan()
-        n_signals = result.get("filtered_signals", 0)
-        n_trades = result.get("trades_simulated", 0)
+        from services.brain import auto_scan_and_simulate
+        result = auto_scan_and_simulate()
+        n_signals = result.get("scan_filtered", 0)
+        n_trades = result.get("trades_simulados", 0)
+        pnl = result.get("pnl", 0)
         if n_signals > 0:
-            logging.info("Brain scan: %d señales, %d trades simulados", n_signals, n_trades)
+            logging.info("Brain auto-scan: %d señales filtradas, %d trades, P&L: $%.2f",
+                         n_signals, n_trades, pnl)
             _broadcast({"tipo": "brain_scan", "ts": time.time(), **result})
     except Exception as e:
         logging.error("Brain auto-scan error: %s", e)
