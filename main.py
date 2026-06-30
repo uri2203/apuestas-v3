@@ -2568,6 +2568,7 @@ def _journal_auto_log():
 # ══════════════════════════════════════════════════════════════════════════
 
 @app.route("/api/brain/scan")
+@login_required
 def brain_scan():
     """Escaneo completo: recolecta → agrega → filtra → simula."""
     try:
@@ -2581,6 +2582,7 @@ def brain_scan():
 
 
 @app.route("/api/brain/status")
+@login_required
 def brain_status():
     """Estado del agente Brain."""
     try:
@@ -2591,6 +2593,7 @@ def brain_status():
 
 
 @app.route("/api/brain/history")
+@login_required
 def brain_history():
     """Historial de trades simulados por el Brain."""
     try:
@@ -2602,6 +2605,7 @@ def brain_history():
 
 
 @app.route("/api/brain/verify")
+@login_required
 def brain_verify():
     """Verifica trades pendientes contra resultados reales."""
     try:
@@ -2613,6 +2617,7 @@ def brain_verify():
 
 
 @app.route("/api/brain/learn")
+@login_required
 def brain_learn():
     """Ajusta pesos dinámicamente según performance."""
     try:
@@ -2624,6 +2629,7 @@ def brain_learn():
 
 
 @app.route("/api/brain/weights")
+@login_required
 def brain_weights():
     """Pesos actuales de cada fuente de señal."""
     try:
@@ -2646,6 +2652,7 @@ def brain_weights():
 
 
 @app.route("/api/brain/config", methods=["POST"])
+@login_required
 def brain_config():
     """Actualiza configuración del Brain (threshold, kelly, etc.)."""
     try:
@@ -2666,6 +2673,7 @@ def brain_config():
 
 
 @app.route("/api/brain/performance")
+@login_required
 def brain_performance():
     """Performance completa del Brain (ROI, win rate, streaks, gráficas)."""
     try:
@@ -2676,6 +2684,7 @@ def brain_performance():
 
 
 @app.route("/api/brain/reset", methods=["POST"])
+@login_required
 def brain_reset():
     """Resetea la simulación con nuevo bankroll."""
     try:
@@ -2688,6 +2697,7 @@ def brain_reset():
 
 
 @app.route("/api/brain/resolve", methods=["POST"])
+@login_required
 def brain_resolve():
     """Resuelve un trade manualmente (ganada/perdida)."""
     try:
@@ -2703,6 +2713,7 @@ def brain_resolve():
 
 
 @app.route("/api/brain/verify-all")
+@login_required
 def brain_verify_all():
     """Verifica todos los trades pendientes."""
     try:
@@ -2713,6 +2724,7 @@ def brain_verify_all():
 
 
 @app.route("/api/brain/auto-simulate")
+@login_required
 def brain_auto_simulate():
     """Escaneo completo + simulación automática."""
     try:
@@ -2723,6 +2735,7 @@ def brain_auto_simulate():
 
 
 @app.route("/api/brain/line-shop", methods=["POST"])
+@login_required
 def brain_line_shop():
     """Compara odds entre casas y retorna la mejor."""
     try:
@@ -2734,6 +2747,7 @@ def brain_line_shop():
 
 
 @app.route("/api/brain/calibration")
+@login_required
 def brain_calibration():
     """Estado de la calibración de probabilidades."""
     try:
@@ -2744,6 +2758,7 @@ def brain_calibration():
 
 
 @app.route("/api/brain/calibrate", methods=["POST"])
+@login_required
 def brain_calibrate():
     """Actualiza calibración con nuevo resultado."""
     try:
@@ -2758,6 +2773,7 @@ def brain_calibrate():
 
 
 @app.route("/api/brain/report")
+@login_required
 def brain_report():
     """Genera reporte de performance (daily/weekly/monthly)."""
     try:
@@ -2769,6 +2785,7 @@ def brain_report():
 
 
 @app.route("/api/brain/report/send")
+@login_required
 def brain_report_send():
     """Envía reporte automático a Telegram."""
     try:

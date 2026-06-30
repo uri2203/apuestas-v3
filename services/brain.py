@@ -627,26 +627,43 @@ def simulate_trades(filtered_signals: list[dict],
 
 
 def _save_simulated_trade(trade: dict):
-    """Guarda trade simulado en la DB."""
+    """Guarda trade simulado en la DB. Compatible con PostgreSQL y SQLite."""
     try:
-        from database import db
+        from database import db, _USE_PG
         with db() as conn:
             cur = conn.cursor()
-            cur.execute("""
-                INSERT INTO simulated_trades
-                (partido, liga, seleccion, casa, cuota, edge_pct,
-                 stake_simulado, bankroll_al_momento, resultado_simulado, pnl_real)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pendiente', 0)
-            """, (
-                trade["match"],
-                trade.get("liga", ""),
-                trade["selection"],
-                trade["bookmaker"],
-                trade["odds"],
-                trade["edge_pct"],
-                trade["stake"],
-                trade["bankroll"],
-            ))
+            if _USE_PG:
+                cur.execute("""
+                    INSERT INTO simulated_trades
+                    (partido, liga, seleccion, casa, cuota, edge_pct,
+                     stake_simulado, bankroll_al_momento, resultado_simulado, pnl_real)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'pendiente', 0)
+                """, (
+                    trade["match"],
+                    trade.get("liga", ""),
+                    trade["selection"],
+                    trade["bookmaker"],
+                    trade["odds"],
+                    trade["edge_pct"],
+                    trade["stake"],
+                    trade["bankroll"],
+                ))
+            else:
+                cur.execute("""
+                    INSERT INTO simulated_trades
+                    (partido, liga, seleccion, casa, cuota, edge_pct,
+                     stake_simulado, bankroll_al_momento, resultado_simulado, pnl_real)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pendiente', 0)
+                """, (
+                    trade["match"],
+                    trade.get("liga", ""),
+                    trade["selection"],
+                    trade["bookmaker"],
+                    trade["odds"],
+                    trade["edge_pct"],
+                    trade["stake"],
+                    trade["bankroll"],
+                ))
     except Exception as e:
         logger.warning("Error guardando trade simulado: %s", e)
 
@@ -663,14 +680,16 @@ def verify_pending_trades() -> dict:
     stats = {"verified": 0, "won": 0, "lost": 0, "pending": 0, "pnl": 0.0}
 
     try:
-        from database import db, _row_to_dict, PH
+        from database import db, _row_to_dict, _USE_PG
+        _init_simulation_db()
         with db() as conn:
             cur = conn.cursor()
+            ph = "%s" if _USE_PG else "?"
             cur.execute(f"""
-                SELECT id, partido, seleccion, cuota, edge_pct, stake_simulado,
-                       confidence_score
-                FROM simulated_trades
-                WHERE resultado_simulado = 'pendiente'
+                SELECT id, match, selection, odds, edge_pct, stake,
+                       confidence_score, sources
+                FROM brain_tracks
+                WHERE resultado = 'pendiente'
                 ORDER BY id DESC
                 LIMIT 50
             """)
@@ -678,15 +697,15 @@ def verify_pending_trades() -> dict:
 
             for trade in pending:
                 # Intentar verificar contra predictions o resultados reales
-                result = _check_match_result(trade["partido"], trade["seleccion"])
+                result = _check_match_result(trade["match"], trade["selection"])
 
                 if result is not None:
                     # Calcular P&L
                     if result:
-                        pnl = trade["stake_simulado"] * (trade["cuota"] - 1)
+                        pnl = trade["stake"] * (trade["odds"] - 1)
                         stats["won"] += 1
                     else:
-                        pnl = -trade["stake_simulado"]
+                        pnl = -trade["stake"]
                         stats["lost"] += 1
 
                     stats["pnl"] += pnl
@@ -694,10 +713,11 @@ def verify_pending_trades() -> dict:
 
                     # Actualizar en DB
                     cur.execute(f"""
-                        UPDATE simulated_trades
-                        SET resultado_simulado = ?, pnl_real = ?
-                        WHERE id = ?
-                    """, ("ganada" if result else "perdida", round(pnl, 2), trade["id"]))
+                        UPDATE brain_tracks
+                        SET resultado = {ph}, pnl = {ph}, verified_at = {ph}
+                        WHERE id = {ph}
+                    """, ("ganada" if result else "perdida", round(pnl, 2),
+                          datetime.utcnow().isoformat(), trade["id"]))
 
                     # Actualizar performance por fuente
                     _update_source_performance(trade, result)
@@ -711,15 +731,16 @@ def verify_pending_trades() -> dict:
 
 
 def _check_match_result(match_str: str, selection: str) -> Optional[bool]:
-    """Verifica si un partido ya tiene resultado."""
+    """Verifica si un partido ya tiene resultado. Compatible con PostgreSQL y SQLite."""
     try:
-        from database import db, _row_to_dict
+        from database import db, _row_to_dict, _USE_PG
         with db() as conn:
             cur = conn.cursor()
-            cur.execute("""
+            ph = "%s" if _USE_PG else "?"
+            cur.execute(f"""
                 SELECT pronostico, resultado_real, correcto
                 FROM predictions
-                WHERE home || ' vs ' || away = ?
+                WHERE home || ' vs ' || away = {ph}
                 AND resultado_real IS NOT NULL
                 ORDER BY id DESC LIMIT 1
             """, (match_str,))
@@ -886,10 +907,6 @@ def scan(threshold: float = CONFIDENCE_THRESHOLD) -> dict:
     # 4. Simulación
     trades = simulate_trades(filtered)
 
-    # 5. Enviar a Telegram las mejores señales
-    if trades:
-        _send_to_telegram(trades, result)
-
     elapsed = round(time.time() - start, 2)
 
     result = {
@@ -904,6 +921,10 @@ def scan(threshold: float = CONFIDENCE_THRESHOLD) -> dict:
         "signals": filtered,
         "trades": trades,
     }
+
+    # 5. Enviar a Telegram las mejores señales
+    if trades:
+        _send_to_telegram(trades, result)
 
     _last_scan = result
     _last_signals = filtered
@@ -976,60 +997,102 @@ _bankroll_history = []
 
 
 def _init_simulation_db():
-    """Crea la tabla brain_tracks si no existe."""
+    """Crea las tablas brain_tracks y brain_state si no existen.
+    Compatible con PostgreSQL y SQLite."""
     try:
-        from database import db
+        from database import db, _USE_PG
         with db() as conn:
             cur = conn.cursor()
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS brain_tracks (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    match TEXT,
-                    liga TEXT,
-                    selection TEXT,
-                    bookmaker TEXT,
-                    odds REAL,
-                    edge_pct REAL,
-                    confidence_score REAL,
-                    stake REAL,
-                    kelly_pct REAL,
-                    prob_modelo REAL,
-                    sources TEXT,
-                    resultado TEXT DEFAULT 'pendiente',
-                    pnl REAL DEFAULT 0,
-                    bankroll_antes REAL,
-                    bankroll_despues REAL,
-                    verified_at TEXT,
-                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-            # Tabla de estado del Brain
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS brain_state (
-                    key TEXT PRIMARY KEY,
-                    value TEXT
-                )
-            """)
+            if _USE_PG:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS brain_tracks (
+                        id SERIAL PRIMARY KEY,
+                        match TEXT,
+                        liga TEXT,
+                        selection TEXT,
+                        bookmaker TEXT,
+                        odds REAL,
+                        edge_pct REAL,
+                        confidence_score REAL,
+                        stake REAL,
+                        kelly_pct REAL,
+                        prob_modelo REAL,
+                        sources TEXT,
+                        resultado TEXT DEFAULT 'pendiente',
+                        pnl REAL DEFAULT 0,
+                        bankroll_antes REAL,
+                        bankroll_despues REAL,
+                        verified_at TEXT,
+                        created_at TIMESTAMP DEFAULT NOW()
+                    )
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS brain_state (
+                        key TEXT PRIMARY KEY,
+                        value TEXT
+                    )
+                """)
+            else:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS brain_tracks (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        match TEXT,
+                        liga TEXT,
+                        selection TEXT,
+                        bookmaker TEXT,
+                        odds REAL,
+                        edge_pct REAL,
+                        confidence_score REAL,
+                        stake REAL,
+                        kelly_pct REAL,
+                        prob_modelo REAL,
+                        sources TEXT,
+                        resultado TEXT DEFAULT 'pendiente',
+                        pnl REAL DEFAULT 0,
+                        bankroll_antes REAL,
+                        bankroll_despues REAL,
+                        verified_at TEXT,
+                        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS brain_state (
+                        key TEXT PRIMARY KEY,
+                        value TEXT
+                    )
+                """)
             conn.commit()
     except Exception as e:
         logger.warning("Error init brain DB: %s", e)
 
 
 def _save_state():
-    """Guarda estado del Brain en DB."""
+    """Guarda estado del Brain en DB. Compatible con PostgreSQL y SQLite."""
     try:
-        from database import db
+        from database import db, _USE_PG
         with db() as conn:
             cur = conn.cursor()
             for k, v in _sim_state.items():
-                cur.execute("""
-                    INSERT OR REPLACE INTO brain_state (key, value) VALUES (?, ?)
-                """, (k, json.dumps(v)))
+                if _USE_PG:
+                    cur.execute("""
+                        INSERT INTO brain_state (key, value) VALUES (%s, %s)
+                        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+                    """, (k, json.dumps(v)))
+                else:
+                    cur.execute("""
+                        INSERT OR REPLACE INTO brain_state (key, value) VALUES (?, ?)
+                    """, (k, json.dumps(v)))
             # Guardar historial de bankroll
             if _bankroll_history:
-                cur.execute("""
-                    INSERT OR REPLACE INTO brain_state (key, value) VALUES (?, ?)
-                """, ("bankroll_history", json.dumps(_bankroll_history[-500:])))
+                if _USE_PG:
+                    cur.execute("""
+                        INSERT INTO brain_state (key, value) VALUES (%s, %s)
+                        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+                    """, ("bankroll_history", json.dumps(_bankroll_history[-500:])))
+                else:
+                    cur.execute("""
+                        INSERT OR REPLACE INTO brain_state (key, value) VALUES (?, ?)
+                    """, ("bankroll_history", json.dumps(_bankroll_history[-500:])))
             conn.commit()
     except Exception as e:
         logger.warning("Error guardando estado Brain: %s", e)
@@ -1104,24 +1167,41 @@ def simular_trade(signal: dict, bankroll: float = 0) -> dict:
 
     # Guardar en DB
     try:
-        from database import db
+        from database import db, _USE_PG
         _init_simulation_db()
         with db() as conn:
             cur = conn.cursor()
-            cur.execute("""
-                INSERT INTO brain_tracks
-                (match, liga, selection, bookmaker, odds, edge_pct,
-                 confidence_score, stake, kelly_pct, prob_modelo,
-                 sources, resultado, bankroll_antes, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente', ?, ?)
-            """, (
-                trade["match"], trade["liga"], trade["selection"],
-                trade["bookmaker"], trade["odds"], trade["edge_pct"],
-                trade["confidence_score"], trade["stake"], trade["kelly_pct"],
-                trade["prob_modelo"], json.dumps(trade["sources"]),
-                trade["bankroll_antes"], datetime.utcnow().isoformat(),
-            ))
-            trade["id"] = cur.lastrowid
+            if _USE_PG:
+                cur.execute("""
+                    INSERT INTO brain_tracks
+                    (match, liga, selection, bookmaker, odds, edge_pct,
+                     confidence_score, stake, kelly_pct, prob_modelo,
+                     sources, resultado, bankroll_antes, created_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'pendiente', %s, %s)
+                    RETURNING id
+                """, (
+                    trade["match"], trade["liga"], trade["selection"],
+                    trade["bookmaker"], trade["odds"], trade["edge_pct"],
+                    trade["confidence_score"], trade["stake"], trade["kelly_pct"],
+                    trade["prob_modelo"], json.dumps(trade["sources"]),
+                    trade["bankroll_antes"], datetime.utcnow().isoformat(),
+                ))
+                trade["id"] = cur.fetchone()[0]
+            else:
+                cur.execute("""
+                    INSERT INTO brain_tracks
+                    (match, liga, selection, bookmaker, odds, edge_pct,
+                     confidence_score, stake, kelly_pct, prob_modelo,
+                     sources, resultado, bankroll_antes, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente', ?, ?)
+                """, (
+                    trade["match"], trade["liga"], trade["selection"],
+                    trade["bookmaker"], trade["odds"], trade["edge_pct"],
+                    trade["confidence_score"], trade["stake"], trade["kelly_pct"],
+                    trade["prob_modelo"], json.dumps(trade["sources"]),
+                    trade["bankroll_antes"], datetime.utcnow().isoformat(),
+                ))
+                trade["id"] = cur.lastrowid
             conn.commit()
     except Exception as e:
         logger.warning("Error guardando trade Brain: %s", e)
@@ -1145,14 +1225,15 @@ def simular_trade(signal: dict, bankroll: float = 0) -> dict:
 def resolver_trade(trade_id: int, ganada: bool) -> dict:
     """
     Resuelve un trade: ganada o perdida.
-    Actualiza P&L, bankroll, rachas.
+    Actualiza P&L, bankroll, rachas. Compatible con PostgreSQL y SQLite.
     """
     try:
-        from database import db, _row_to_dict
+        from database import db, _row_to_dict, _USE_PG
         _init_simulation_db()
         with db() as conn:
             cur = conn.cursor()
-            cur.execute("SELECT * FROM brain_tracks WHERE id = ?", (trade_id,))
+            ph = "%s" if _USE_PG else "?"
+            cur.execute(f"SELECT * FROM brain_tracks WHERE id = {ph}", (trade_id,))
             row = cur.fetchone()
             if not row:
                 return {"error": "Trade no encontrado"}
@@ -1181,10 +1262,10 @@ def resolver_trade(trade_id: int, ganada: bool) -> dict:
             _sim_state["peor_racha"] = min(_sim_state["peor_racha"], _sim_state["racha_actual"])
 
             # Actualizar DB
-            cur.execute("""
+            cur.execute(f"""
                 UPDATE brain_tracks
-                SET resultado = ?, pnl = ?, bankroll_despues = ?, verified_at = ?
-                WHERE id = ?
+                SET resultado = {ph}, pnl = {ph}, bankroll_despues = {ph}, verified_at = {ph}
+                WHERE id = {ph}
             """, (resultado, round(pnl, 2), _sim_state["bankroll_actual"],
                   datetime.utcnow().isoformat(), trade_id))
 
@@ -1703,7 +1784,7 @@ def get_calibration_status() -> dict:
 def generate_report(period: str = "weekly") -> dict:
     """
     Genera reporte de performance para el Brain.
-    period: "daily", "weekly", "monthly"
+    period: "daily", "weekly", "monthly". Compatible con PostgreSQL y SQLite.
     """
     _load_state()
 
@@ -1719,13 +1800,14 @@ def generate_report(period: str = "weekly") -> dict:
     # Obtener trades del período
     trades = []
     try:
-        from database import db, _row_to_dict
+        from database import db, _row_to_dict, _USE_PG
         _init_simulation_db()
         with db() as conn:
             cur = conn.cursor()
-            cur.execute("""
+            ph = "%s" if _USE_PG else "?"
+            cur.execute(f"""
                 SELECT * FROM brain_tracks
-                WHERE created_at >= ? AND resultado != 'pendiente'
+                WHERE created_at >= {ph} AND resultado != 'pendiente'
                 ORDER BY created_at DESC
             """, (start.isoformat(),))
             trades = [_row_to_dict(r) for r in cur.fetchall()]
@@ -1745,7 +1827,7 @@ def generate_report(period: str = "weekly") -> dict:
     won = [t for t in trades if t.get("resultado") == "ganada"]
     lost = [t for t in trades if t.get("resultado") == "perdida"]
     total_pnl = sum(t.get("pnl", 0) for t in trades)
-    total_staked = sum(t.get("stake_simulado", 0) for t in trades)
+    total_staked = sum(t.get("stake", 0) for t in trades)
 
     win_rate = len(won) / len(trades) * 100 if trades else 0
     roi = total_pnl / total_staked * 100 if total_staked > 0 else 0
