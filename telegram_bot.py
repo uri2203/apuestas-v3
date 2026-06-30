@@ -419,7 +419,7 @@ def _cmd_brain_scan() -> None:
                 lines.append(f"   📊 Score: {score} | Edge: {t['avg_edge_pct']}%")
                 lines.append("")
         lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━")
-        lines.append("⚙️ Kelly: 25% | Umbral: 80%")
+        lines.append("⚙️ Kelly: 20% | Umbral: 88% | Cuota: 1.80-3.00")
         telegram_send("\n".join(lines))
     except Exception as e:
         telegram_send(f"Error Brain scan: {e}")

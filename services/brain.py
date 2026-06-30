@@ -26,11 +26,40 @@ logger = logging.getLogger(__name__)
 # CONFIGURACIÓN
 # ══════════════════════════════════════════════════════════════════════════
 
-CONFIDENCE_THRESHOLD = 85.0  # Umbral mínimo para activar señal
-MIN_SIGNAL_SOURCES = 3       # Mínimo de fuentes que deben confirmar
-MAX_BET_PCT_BANKROLL = 5.0   # Máximo 5% del bankroll por apuesta
-KELLY_FRACTION = 0.25        # Quarter Kelly (conservador)
+CONFIDENCE_THRESHOLD = 88.0  # Umbral mínimo para activar señal (subido de 85)
+MIN_SIGNAL_SOURCES = 4       # Mínimo de fuentes que deben confirmar (subido de 3)
+MAX_BET_PCT_BANKROLL = 3.0   # Máximo 3% del bankroll por apuesta (bajado de 5)
+KELLY_FRACTION = 0.20        # 1/5 Kelly (más conservador)
 SCAN_INTERVAL_HOURS = 2      # Cada cuántas horas escanea
+MIN_EDGE_PCT = 8.0           # Mínimo 8% de edge para considerar señal
+MIN_ODDS = 1.80              # Cuota mínima (evitar favoritos muy claros)
+MAX_ODDS = 3.00              # Cuota máxima (evitar underdogs largos)
+
+# Deportes priorizados por predecibilidad (2 resultados > 3 resultados)
+PRIORITY_SPORTS = [
+    "tennis_atp_world_tour",
+    "tennis_wta",
+    "mma_mixed_martial_arts",
+    "boxing_boxing",
+    "basketball_nba",
+    "basketball_wnba",
+    "americanfootball_nfl",
+    "baseball_mlb",
+    "icehockey_nhl",
+]
+
+# Deportes aceptables (3 resultados pero con buenos datos)
+ACCEPTABLE_SPORTS = [
+    "soccer_fifa_world_cup",
+    "soccer_usa_mls",
+    "soccer_mexico_ligamx",
+    "soccer_england_premierleague",
+    "soccer_spain_la_liga",
+    "soccer_germany_bundesliga",
+    "soccer_italy_serie_a",
+    "soccer_france_ligue_one",
+    "soccer_uefa_champions_league",
+]
 
 # Pesos por defecto de cada fuente de señal (suma = 100)
 DEFAULT_WEIGHTS = {
@@ -464,26 +493,63 @@ def filter_signals(aggregated: list[dict],
                    threshold: float = CONFIDENCE_THRESHOLD,
                    min_sources: int = MIN_SIGNAL_SOURCES) -> list[dict]:
     """
-    Filtra señales por:
-    1. Score compuesto >= umbral
-    2. Al menos N fuentes distintas confirmando
+    Filtra señales por múltiples criterios de calidad:
+    1. Score compuesto >= umbral (88%)
+    2. Al menos N fuentes distintas confirmando (4)
+    3. Cuota en rango óptimo (1.80 - 3.00)
+    4. Edge mínimo (8%)
+    5. Deporte priorizado (tenis, MMA, NBA primero)
     """
     filtered = []
     for signal in aggregated:
         score = signal.get("composite_score", 0)
         sources = signal.get("source_count", 0)
+        odds = signal.get("best_odds", 0)
+        edge = signal.get("max_edge_pct", 0)
+        match = signal.get("match", "")
 
-        if score >= threshold and sources >= min_sources:
+        reasons = []
+        passed = True
+
+        # 1. Score mínimo
+        if score < threshold:
+            reasons.append(f"score {score:.1f} < {threshold}")
+            passed = False
+
+        # 2. Fuentes mínimas
+        if sources < min_sources:
+            reasons.append(f"fuentes {sources} < {min_sources}")
+            passed = False
+
+        # 3. Rango de cuota óptimo
+        if odds > 0 and (odds < MIN_ODDS or odds > MAX_ODDS):
+            reasons.append(f"cuota {odds} fuera de rango [{MIN_ODDS}-{MAX_ODDS}]")
+            passed = False
+
+        # 4. Edge mínimo
+        if edge < MIN_EDGE_PCT:
+            reasons.append(f"edge {edge:.1f}% < {MIN_EDGE_PCT}%")
+            passed = False
+
+        # 5. Bonus por deporte priorizado (no bloquea, pero sube score)
+        is_priority = any(sport in match.lower() for sport in PRIORITY_SPORTS)
+        is_acceptable = any(sport in match.lower() for sport in ACCEPTABLE_SPORTS)
+
+        if is_priority:
+            signal["sport_bonus"] = 5  # +5% bonus
+            signal["composite_score"] = min(100, score + 5)
+        elif is_acceptable:
+            signal["sport_bonus"] = 2
+            signal["composite_score"] = min(100, score + 2)
+        else:
+            signal["sport_bonus"] = 0
+
+        if passed:
             signal["passed_filter"] = True
-            signal["filter_reason"] = f"Score {score:.1f} >= {threshold} con {sources} fuentes"
+            signal["filter_reason"] = f"✓ Score {signal['composite_score']:.1f} | {sources} fuentes | Cuota {odds} | Edge {edge:.1f}%"
             filtered.append(signal)
         else:
             signal["passed_filter"] = False
-            reasons = []
-            if score < threshold:
-                reasons.append(f"score {score:.1f} < {threshold}")
-            if sources < min_sources:
-                reasons.append(f"fuentes {sources} < {min_sources}")
             signal["filter_reason"] = " / ".join(reasons)
 
     return filtered
@@ -789,7 +855,7 @@ def _send_to_telegram(trades: list[dict], scan_result: dict):
         msg += f"   🔗 <b>Fuentes:</b> {sources}\n\n"
 
     msg += f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-    msg += f"⚙️ Kelly: 25% | Cap: 5% bankroll | Umbral: 85%\n"
+    msg += f"⚙️ Kelly: 20% | Cap: 3% bankroll | Umbral: 88%\n"
     msg += f"🔗 Ver en dashboard: /panel/brain"
 
     telegram_send(msg)

@@ -436,7 +436,7 @@ def main():
     # Test: Brain status returns config
     status = get_status()
     check("threshold" in status, "brain.get_status tiene threshold")
-    check_eq(status["threshold"], 85.0, "brain threshold = 85.0")
+    check_eq(status["threshold"], 88.0, "brain threshold = 88.0")
     check("current_weights" in status, "brain.get_status tiene current_weights")
     check("source_performance" in status, "brain.get_status tiene source_performance")
 
@@ -458,8 +458,8 @@ def main():
     check_eq(agg[1]["source_count"], 1, "C vs D tiene 1 fuente")
 
     # Test: filter_signals with threshold
-    filtered = filter_signals(agg, threshold=85, min_sources=2)
-    check_eq(len(filtered), 1, "filter(85%, 2 src) retorna 1 señal")
+    filtered = filter_signals(agg, threshold=88, min_sources=2)
+    check_eq(len(filtered), 1, "filter(88%, 2 src) retorna 1 señal")
     check(filtered[0]["passed_filter"] == True, "A vs B pasa filtro")
 
     # Test: filter_signals rejects low score
@@ -467,11 +467,12 @@ def main():
     check_eq(len(filtered_strict), 0, "filter(95%) no pasa nada")
 
     # Test: simulate_trades with Kelly sizing
-    # Preparar señales que pasan el filtro
+    # Preparar señales que pasan el filtro (cuota en rango 1.80-3.00)
     high_signal = [
-        {"match": "X vs Y", "source": "value_bet", "confidence": 90, "edge_pct": 15, "odds": 2.5, "bookmaker": "Bet365", "selection": "X", "home": "X", "away": "Y"},
-        {"match": "X vs Y", "source": "sharp_money", "confidence": 88, "edge_pct": 12, "odds": 2.4, "bookmaker": "Pinnacle", "selection": "X", "home": "X", "away": "Y"},
-        {"match": "X vs Y", "source": "ml_prediction", "confidence": 92, "edge_pct": 18, "odds": 0, "bookmaker": "", "selection": "X", "home": "X", "away": "Y"},
+        {"match": "X vs Y", "source": "value_bet", "confidence": 90, "edge_pct": 15, "odds": 2.30, "bookmaker": "Bet365", "selection": "X", "home": "X", "away": "Y"},
+        {"match": "X vs Y", "source": "sharp_money", "confidence": 88, "edge_pct": 12, "odds": 2.25, "bookmaker": "Pinnacle", "selection": "X", "home": "X", "away": "Y"},
+        {"match": "X vs Y", "source": "ml_prediction", "confidence": 92, "edge_pct": 18, "odds": 2.40, "bookmaker": "", "selection": "X", "home": "X", "away": "Y"},
+        {"match": "X vs Y", "source": "nlp_sentiment", "confidence": 85, "edge_pct": 10, "odds": 0, "bookmaker": "", "selection": "X", "home": "X", "away": "Y"},
     ]
     agg_high = aggregate_signals(high_signal)
     filtered_high = filter_signals(agg_high, threshold=70, min_sources=2)

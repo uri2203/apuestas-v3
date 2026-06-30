@@ -2572,7 +2572,7 @@ def brain_scan():
     """Escaneo completo: recolecta → agrega → filtra → simula."""
     try:
         from services.brain import scan
-        threshold = request.args.get("threshold", 85, type=float)
+        threshold = request.args.get("threshold", 88, type=float)
         result = scan(threshold=threshold)
         return jsonify(result)
     except Exception as e:
