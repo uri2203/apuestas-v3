@@ -129,12 +129,13 @@ def get_odds_upcoming(
 ) -> list[dict]:
     """Obtiene odds de TODOS los deportes activos en un solo call (upcoming).
     Costo: len(regions) × len(markets) — mucho más barato que llamar por deporte.
-    Soporta cascadeo de keys: si una falla, usa la siguiente."""
-    keys_to_try = []
+    Soporta cascadeo de keys: si una falla, usa la siguiente automáticamente."""
+    # Construir lista de keys a intentar: la pasada primero, luego las demás
+    all_keys = _get_api_keys()
     if api_key:
-        keys_to_try = [api_key]
+        keys_to_try = [api_key] + [k for k in all_keys if k != api_key and not _is_key_exhausted(k)]
     else:
-        keys_to_try = [k for k in _get_api_keys() if not _is_key_exhausted(k)]
+        keys_to_try = [k for k in all_keys if not _is_key_exhausted(k)]
 
     if not keys_to_try:
         logger.warning("Sin API keys disponibles para upcoming odds")
@@ -179,12 +180,13 @@ def get_odds_for_sport(
     regions: str = "us,uk,eu",
     markets: str = "h2h",
 ) -> list[dict]:
-    """Obtiene odds de un deporte específico. Soporta cascadeo de keys."""
-    keys_to_try = []
+    """Obtiene odds de un deporte específico. Soporta cascadeo automático de keys."""
+    # Construir lista de keys a intentar: la pasada primero, luego las demás
+    all_keys = _get_api_keys()
     if api_key:
-        keys_to_try = [api_key]
+        keys_to_try = [api_key] + [k for k in all_keys if k != api_key and not _is_key_exhausted(k)]
     else:
-        keys_to_try = [k for k in _get_api_keys() if not _is_key_exhausted(k)]
+        keys_to_try = [k for k in all_keys if not _is_key_exhausted(k)]
 
     if not keys_to_try:
         logger.warning("Sin API keys disponibles para %s", sport_key)
@@ -227,11 +229,11 @@ def get_sports_list(api_key: str = None, force_refresh: bool = False) -> list[di
     if not force_refresh and _cached_sports and now - _cached_sports_ts < 3600:
         return _cached_sports
 
-    keys_to_try = []
+    all_keys = _get_api_keys()
     if api_key:
-        keys_to_try = [api_key]
+        keys_to_try = [api_key] + [k for k in all_keys if k != api_key and not _is_key_exhausted(k)]
     else:
-        keys_to_try = [k for k in _get_api_keys() if not _is_key_exhausted(k)]
+        keys_to_try = [k for k in all_keys if not _is_key_exhausted(k)]
 
     if not keys_to_try:
         return []
