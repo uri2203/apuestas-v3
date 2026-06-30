@@ -160,7 +160,7 @@ def main():
         "value-bets", "sharp", "alta-prob", "arbitraje", "cross-market", "kelly", "value-engine",
         "copa", "ml", "backtesting", "nlp", "montecarlo",
         "bankroll", "simulacion", "contabilidad", "journal", "mercados",
-        "bookmakers", "progol", "cuentas", "portfolio", "rendimiento", "modelos-avanzados"
+        "bookmakers", "progol", "cuentas", "portfolio", "rendimiento", "modelos-avanzados", "brain"
     ]
     for m in modulos:
         r = get(f"/panel/{m}")
@@ -424,6 +424,104 @@ def main():
     # Limpiar
     del os.environ["ODDS_API_KEYS"]
     _exhausted_keys.clear()
+
+    # -- 28. Brain Agent tests --
+    print("\n  --- Brain Agent ---")
+    from services.brain import (
+        collect_all_signals, aggregate_signals, filter_signals,
+        simulate_trades, learn_from_results, get_status,
+        DEFAULT_WEIGHTS, CONFIDENCE_THRESHOLD,
+    )
+
+    # Test: Brain status returns config
+    status = get_status()
+    check("threshold" in status, "brain.get_status tiene threshold")
+    check_eq(status["threshold"], 85.0, "brain threshold = 85.0")
+    check("current_weights" in status, "brain.get_status tiene current_weights")
+    check("source_performance" in status, "brain.get_status tiene source_performance")
+
+    # Test: collect_all_signals returns list
+    signals = collect_all_signals()
+    check(isinstance(signals, list), "collect_all_signals retorna lista")
+
+    # Test: aggregate_signals groups by match
+    test_signals = [
+        {"match": "A vs B", "source": "value_bet", "confidence": 80, "edge_pct": 10, "odds": 2.1, "bookmaker": "Bet365", "selection": "A", "home": "A", "away": "B"},
+        {"match": "A vs B", "source": "sharp_money", "confidence": 75, "edge_pct": 8, "odds": 2.0, "bookmaker": "Pinnacle", "selection": "A", "home": "A", "away": "B"},
+        {"match": "A vs B", "source": "ml_prediction", "confidence": 85, "edge_pct": 12, "odds": 0, "bookmaker": "", "selection": "A", "home": "A", "away": "B"},
+        {"match": "C vs D", "source": "value_bet", "confidence": 60, "edge_pct": 5, "odds": 3.0, "bookmaker": "Bet365", "selection": "C", "home": "C", "away": "D"},
+    ]
+    agg = aggregate_signals(test_signals)
+    check_eq(len(agg), 2, "aggregate_signals agrupa 4 señales en 2 partidos")
+    check(agg[0]["composite_score"] > agg[1]["composite_score"], "aggregate ordena por score descendente")
+    check_eq(agg[0]["source_count"], 3, "A vs B tiene 3 fuentes")
+    check_eq(agg[1]["source_count"], 1, "C vs D tiene 1 fuente")
+
+    # Test: filter_signals with threshold
+    filtered = filter_signals(agg, threshold=85, min_sources=2)
+    check_eq(len(filtered), 1, "filter(85%, 2 src) retorna 1 señal")
+    check(filtered[0]["passed_filter"] == True, "A vs B pasa filtro")
+
+    # Test: filter_signals rejects low score
+    filtered_strict = filter_signals(agg, threshold=95, min_sources=1)
+    check_eq(len(filtered_strict), 0, "filter(95%) no pasa nada")
+
+    # Test: simulate_trades with Kelly sizing
+    # Preparar señales que pasan el filtro
+    high_signal = [
+        {"match": "X vs Y", "source": "value_bet", "confidence": 90, "edge_pct": 15, "odds": 2.5, "bookmaker": "Bet365", "selection": "X", "home": "X", "away": "Y"},
+        {"match": "X vs Y", "source": "sharp_money", "confidence": 88, "edge_pct": 12, "odds": 2.4, "bookmaker": "Pinnacle", "selection": "X", "home": "X", "away": "Y"},
+        {"match": "X vs Y", "source": "ml_prediction", "confidence": 92, "edge_pct": 18, "odds": 0, "bookmaker": "", "selection": "X", "home": "X", "away": "Y"},
+    ]
+    agg_high = aggregate_signals(high_signal)
+    filtered_high = filter_signals(agg_high, threshold=70, min_sources=2)
+    trades = simulate_trades(filtered_high, bankroll=10000)
+    check(len(trades) > 0, "simulate_trades genera trades con bankroll=10000")
+    if trades:
+        t = trades[0]
+        check("stake" in t, "trade tiene stake")
+        check(t["stake"] > 0, "trade stake > 0")
+        check(t["stake"] <= 500, "trade stake <= 5% bankroll")
+        check("kelly_pct" in t, "trade tiene kelly_pct")
+
+    # Test: learn_from_results (no-op if no data)
+    learn_result = learn_from_results()
+    check("changes" in learn_result, "learn_from_results tiene changes")
+    check("current_weights" in learn_result, "learn_from_results tiene current_weights")
+    check("source_performance" in learn_result, "learn_from_results tiene source_performance")
+
+    # Test: Brain API endpoints
+    r = get("/api/brain/status")
+    check_eq(r.status_code, 200, "GET /api/brain/status = 200")
+    d = r.get_json()
+    check(d and "threshold" in d, "brain/status retorna threshold")
+
+    r = get("/api/brain/weights")
+    check_eq(r.status_code, 200, "GET /api/brain/weights = 200")
+    d = r.get_json()
+    check("current" in d, "brain/weights tiene current")
+    check("default" in d, "brain/weights tiene default")
+
+    r = get("/api/brain/history")
+    check_eq(r.status_code, 200, "GET /api/brain/history = 200")
+    d = r.get_json()
+    check("trades" in d, "brain/history tiene trades")
+
+    r = get("/api/brain/verify")
+    check_eq(r.status_code, 200, "GET /api/brain/verify = 200")
+
+    r = get("/api/brain/learn")
+    check_eq(r.status_code, 200, "GET /api/brain/learn = 200")
+
+    r = get("/api/brain/scan")
+    check_eq(r.status_code, 200, "GET /api/brain/scan = 200")
+    d = r.get_json()
+    check("raw_signals_count" in d, "brain/scan tiene raw_signals_count")
+    check("filtered_signals" in d, "brain/scan tiene filtered_signals")
+    check("trades_simulated" in d, "brain/scan tiene trades_simulated")
+
+    r = post("/api/brain/config", json_data={"threshold": 80})
+    check_eq(r.status_code, 200, "POST /api/brain/config = 200")
 
     # -- Summary --
     total = PASS + FAIL

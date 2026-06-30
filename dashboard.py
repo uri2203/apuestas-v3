@@ -225,10 +225,11 @@ LANDING_HTML = r"""<!DOCTYPE html>
   <div class="section">
     <div class="section-header">
       <h2>ANALISIS &amp; MODELOS</h2>
-      <span class="count">5 modulos</span>
+      <span class="count">6 modulos</span>
       <div class="line"></div>
     </div>
     <div class="mod-grid">
+      <div class="mod" onclick="location='/panel/brain'"><span class="tag">BRAIN</span><div class="icon" style="color:var(--amber)">&#9878;</div><div class="name">Agente Brain</div><div class="desc">Cerebro autónomo: escanea, filtra, simula, aprende</div></div>
       <div class="mod" onclick="location='/panel/modelos-avanzados'"><span class="tag">ADV</span><div class="icon" style="color:var(--green)">&#9878;</div><div class="name">Modelos Avanzados</div><div class="desc">Dixon-Coles, ELO, Fatiga, Clima, CLV</div></div>
       <div class="mod" onclick="location='/panel/ml'"><span class="tag">ML</span><div class="icon" style="color:var(--purple)">&#9734;</div><div class="name">ML Predictivo</div><div class="desc">MLP + GBM ensemble + feature importance</div></div>
       <div class="mod" onclick="location='/panel/backtesting'"><span class="tag">BT</span><div class="icon" style="color:var(--blue)">&#8634;</div><div class="name">Backtesting</div><div class="desc">Historico y validacion de modelos</div></div>
@@ -1451,6 +1452,88 @@ loadRP()
 # ════════════════════════════════════════════════════════════════════════════
 # MODULE: MODELOS AVANZADOS
 # ════════════════════════════════════════════════════════════════════════════
+MOD_BRAIN = module_page("Agente Brain", """
+<div class="kpi-grid">
+  <div class="kpi"><div class="label">Señales</div><div class="value amber" id="brSignals">—</div></div>
+  <div class="kpi"><div class="label">Filtradas</div><div class="value green" id="brFiltered">—</div></div>
+  <div class="kpi"><div class="label">Trades</div><div class="value purple" id="brTrades">—</div></div>
+  <div class="kpi"><div class="label">P&L</div><div class="value teal" id="brPnl">—</div></div>
+</div>
+
+<h3 style="margin:12px 0 6px;color:var(--text1)">Escaneo Autónomo</h3>
+<p style="color:var(--text2);font-size:13px;margin-bottom:8px">El Brain escanea 6 fuentes de señal, las agrega en un score compuesto, filtra por 85%+ confianza y auto-simula trades con Kelly sizing.</p>
+<button class="btn primary" onclick="brainScan()" style="margin-bottom:12px">Ejecutar Scan Ahora</button>
+<div id="brScanResult" style="margin-bottom:12px"></div>
+
+<h3 style="margin:12px 0 6px;color:var(--text1)">Pesos por Fuente</h3>
+<div id="brWeights" style="margin-bottom:12px;color:var(--text2)">Cargando...</div>
+
+<h3 style="margin:12px 0 6px;color:var(--text1)">Trades Simulados Recientes</h3>
+<div id="brHistory" style="margin-bottom:12px;color:var(--text2)">Cargando...</div>
+
+<script>
+async function brainScan() {
+  const el = document.getElementById('brScanResult');
+  el.innerHTML = '<span style="color:var(--amber)">Escaneando...</span>';
+  try {
+    const r = await fetch('/api/brain/scan');
+    const d = await r.json();
+    document.getElementById('brSignals').textContent = d.raw_signals_count || 0;
+    document.getElementById('brFiltered').textContent = d.filtered_signals || 0;
+    document.getElementById('brTrades').textContent = d.trades_simulated || 0;
+    let html = '<div style="margin-top:8px">';
+    html += '<b>Raw:</b> ' + (d.raw_signals_count||0) + ' señales | ';
+    html += '<b>Filtradas:</b> ' + (d.filtered_signals||0) + ' | ';
+    html += '<b>Trades:</b> ' + (d.trades_simulated||0) + '<br>';
+    if (d.signals && d.signals.length > 0) {
+      html += '<table style="width:100%;margin-top:8px;font-size:12px"><tr><th>Partido</th><th>Score</th><th>Edge</th><th>Cuota</th><th>Casa</th><th>Kelly</th></tr>';
+      d.trades.forEach(t => {
+        html += '<tr><td>' + t.match + '</td><td>' + t.confidence_score + '</td><td>' + t.edge_pct + '%</td><td>' + t.odds + '</td><td>' + t.bookmaker + '</td><td>$' + t.stake + '</td></tr>';
+      });
+      html += '</table>';
+    } else {
+      html += '<div style="color:var(--text2);margin-top:8px">No hay señales que superen el umbral de 85%.</div>';
+    }
+    html += '</div>';
+    el.innerHTML = html;
+  } catch(e) { el.innerHTML = '<span style="color:var(--red)">Error: '+e.message+'</span>'; }
+}
+
+async function brainWeights() {
+  try {
+    const r = await fetch('/api/brain/weights');
+    const d = await r.json();
+    let html = '<table style="width:100%;font-size:12px"><tr><th>Fuente</th><th>Peso</th><th>Accuracy</th><th>Muestras</th><th>P&L</th></tr>';
+    for (const [src, perf] of Object.entries(d.performance || {})) {
+      const w = d.current[src] || '—';
+      html += '<tr><td>' + src + '</td><td>' + w + '</td><td>' + perf.accuracy + '%</td><td>' + perf.total + '</td><td>$' + perf.profit.toFixed(2) + '</td></tr>';
+    }
+    html += '</table>';
+    document.getElementById('brWeights').innerHTML = html;
+  } catch(e) { document.getElementById('brWeights').innerHTML = 'Error cargando pesos'; }
+}
+
+async function brainHistory() {
+  try {
+    const r = await fetch('/api/brain/history?limit=20');
+    const d = await r.json();
+    const trades = d.trades || [];
+    if (trades.length === 0) { document.getElementById('brHistory').innerHTML = 'Sin trades aún'; return; }
+    let html = '<table style="width:100%;font-size:12px"><tr><th>Partido</th><th>Selección</th><th>Cuota</th><th>Edge</th><th>Stake</th><th>Estado</th></tr>';
+    trades.forEach(t => {
+      const color = t.resultado_simulado === 'ganada' ? 'var(--green)' : t.resultado_simulado === 'perdida' ? 'var(--red)' : 'var(--amber)';
+      html += '<tr><td>' + t.partido + '</td><td>' + t.seleccion + '</td><td>' + t.cuota + '</td><td>' + t.edge_pct + '%</td><td>$' + t.stake_simulado + '</td><td style="color:'+color+'">' + t.resultado_simulado + '</td></tr>';
+    });
+    html += '</table>';
+    document.getElementById('brHistory').innerHTML = html;
+  } catch(e) { document.getElementById('brHistory').innerHTML = 'Error cargando historial'; }
+}
+
+brainWeights();
+brainHistory();
+</script>
+""", "brain")
+
 MOD_MODELOS_AVANZADOS = module_page("Modelos Avanzados", """
 <div class="kpi-grid">
   <div class="kpi"><div class="label">Dixon-Coles</div><div class="value green" id="maDC">—</div></div>
@@ -1600,6 +1683,7 @@ MODULES = {
     "portfolio":     ("Portfolio",           MOD_PORTFOLIO),
     "rendimiento":   ("Rendimiento",         MOD_RENDIMIENTO),
     "modelos-avanzados": ("Modelos Avanzados", MOD_MODELOS_AVANZADOS),
+    "brain":         ("Agente Brain",        MOD_BRAIN),
 }
 
 # ── Main export ──────────────────────────────────────────────────────────

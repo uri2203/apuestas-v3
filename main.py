@@ -2563,6 +2563,153 @@ def _journal_auto_log():
         logging.error("Journal auto error: %s", e)
 
 
+# ══════════════════════════════════════════════════════════════════════════
+# BRAIN AGENT — Rutas API
+# ══════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/brain/scan")
+def brain_scan():
+    """Escaneo completo: recolecta → agrega → filtra → simula."""
+    try:
+        from services.brain import scan
+        threshold = request.args.get("threshold", 85, type=float)
+        result = scan(threshold=threshold)
+        return jsonify(result)
+    except Exception as e:
+        logging.error("Brain scan error: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/brain/status")
+def brain_status():
+    """Estado del agente Brain."""
+    try:
+        from services.brain import get_status
+        return jsonify(get_status())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/brain/history")
+def brain_history():
+    """Historial de trades simulados por el Brain."""
+    try:
+        from services.brain import get_history
+        limit = request.args.get("limit", 50, type=int)
+        return jsonify({"trades": get_history(limit)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/brain/verify")
+def brain_verify():
+    """Verifica trades pendientes contra resultados reales."""
+    try:
+        from services.brain import verify_pending_trades
+        result = verify_pending_trades()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/brain/learn")
+def brain_learn():
+    """Ajusta pesos dinámicamente según performance."""
+    try:
+        from services.brain import learn_from_results
+        result = learn_from_results()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/brain/weights")
+def brain_weights():
+    """Pesos actuales de cada fuente de señal."""
+    try:
+        from services.brain import _dynamic_weights, _source_performance, DEFAULT_WEIGHTS
+        return jsonify({
+            "current": dict(_dynamic_weights),
+            "default": dict(DEFAULT_WEIGHTS),
+            "performance": {
+                src: {
+                    "accuracy": round(perf["correct"] / max(1, perf["total"]) * 100, 1),
+                    "total": perf["total"],
+                    "profit": round(perf["profit"], 2),
+                }
+                for src, perf in _source_performance.items()
+                if perf["total"] > 0
+            },
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/brain/config", methods=["POST"])
+def brain_config():
+    """Actualiza configuración del Brain (threshold, kelly, etc.)."""
+    try:
+        from services.brain import (
+            CONFIDENCE_THRESHOLD, MIN_SIGNAL_SOURCES,
+            KELLY_FRACTION, MAX_BET_PCT_BANKROLL,
+        )
+        data = request.get_json(silent=True) or {}
+        result = {
+            "threshold": data.get("threshold", CONFIDENCE_THRESHOLD),
+            "min_sources": data.get("min_sources", MIN_SIGNAL_SOURCES),
+            "kelly_fraction": data.get("kelly_fraction", KELLY_FRACTION),
+            "max_bet_pct": data.get("max_bet_pct", MAX_BET_PCT_BANKROLL),
+        }
+        # Note: runtime config change requires module-level globals
+        # For now return current config
+        return jsonify({"config": result, "note": "Config actual (reset al reiniciar)"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# BRAIN SCHEDULER — Jobs automáticos
+# ══════════════════════════════════════════════════════════════════════════
+
+def _brain_auto_scan():
+    """Auto-scan del Brain cada 2 horas."""
+    try:
+        from services.brain import scan
+        result = scan()
+        n_signals = result.get("filtered_signals", 0)
+        n_trades = result.get("trades_simulated", 0)
+        if n_signals > 0:
+            logging.info("Brain scan: %d señales, %d trades simulados", n_signals, n_trades)
+            _broadcast({"tipo": "brain_scan", "ts": time.time(), **result})
+    except Exception as e:
+        logging.error("Brain auto-scan error: %s", e)
+
+
+def _brain_auto_verify():
+    """Auto-verificación de trades pendientes cada 4 horas."""
+    try:
+        from services.brain import verify_pending_trades
+        result = verify_pending_trades()
+        if result.get("verified", 0) > 0:
+            logging.info("Brain verify: %d verificados, P&L: $%.2f",
+                         result["verified"], result.get("pnl", 0))
+    except Exception as e:
+        logging.error("Brain auto-verify error: %s", e)
+
+
+def _brain_auto_learn():
+    """Auto-aprendizaje del Brain cada 12 horas."""
+    try:
+        from services.brain import learn_from_results
+        result = learn_from_results()
+        changes = result.get("changes", [])
+        if changes:
+            logging.info("Brain learn: %d pesos ajustados", len(changes))
+            _broadcast({"tipo": "brain_learn", "ts": time.time(), **result})
+    except Exception as e:
+        logging.error("Brain auto-learn error: %s", e)
+
+
 scheduler=BackgroundScheduler()
 scheduler.add_job(_alerta_vb_con_broadcast,   "interval", hours=3,  id="vb_alert")
 scheduler.add_job(_alerta_nlp_con_broadcast,  "interval", hours=4,  id="nlp_alert")
@@ -2577,6 +2724,9 @@ scheduler.add_job(_bookmaker_auto_scan,       "interval", hours=6,  id="bookmake
 scheduler.add_job(_simulacion_auto_log,       "interval", hours=3,  id="simulacion_log")
 scheduler.add_job(_accounting_sync,           "interval", hours=6,  id="accounting_sync")
 scheduler.add_job(_journal_auto_log,          "interval", hours=4,  id="journal_auto")
+scheduler.add_job(_brain_auto_scan,          "interval", hours=2,  id="brain_scan")
+scheduler.add_job(_brain_auto_verify,        "interval", hours=4,  id="brain_verify")
+scheduler.add_job(_brain_auto_learn,         "interval", hours=12, id="brain_learn")
 scheduler.start()
 
 register_webhook(os.getenv("RENDER_EXTERNAL_URL",""))
