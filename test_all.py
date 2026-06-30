@@ -335,6 +335,96 @@ def main():
     d = r.get_json()
     check(d and "modelo_combinado" in d, "combined/predict retorna modelo_combinado")
 
+    # -- 27. API Key Cascade tests --
+    print("\n  --- API Key Cascade ---")
+    from services.deportes import (
+        _get_api_keys, _is_key_exhausted, _mark_key_exhausted,
+        get_any_odds_key, _exhausted_keys, EXHAUST_TTL,
+    )
+
+    # Test: _get_api_keys reads from ODDS_API_KEYS
+    os.environ["ODDS_API_KEYS"] = "testkey1,testkey2,testkey3"
+    keys = _get_api_keys()
+    check_eq(len(keys), 3, "_get_api_keys parsea 3 keys de ODDS_API_KEYS")
+    check_eq(keys[0], "testkey1", "_get_api_keys primera key es testkey1")
+    check_eq(keys[2], "testkey3", "_get_api_keys tercera key es testkey3")
+
+    # Test: _get_api_keys fallback to ODDS_API_KEY
+    del os.environ["ODDS_API_KEYS"]
+    os.environ["ODDS_API_KEY"] = "singlekey"
+    keys2 = _get_api_keys()
+    check_eq(len(keys2), 1, "_get_api_keys fallback a ODDS_API_KEY (1 key)")
+    check_eq(keys2[0], "singlekey", "_get_api_keys usa ODDS_API_KEY")
+    del os.environ["ODDS_API_KEY"]
+
+    # Test: _get_api_keys returns empty when no keys configured
+    keys_empty = _get_api_keys()
+    check_eq(len(keys_empty), 0, "_get_api_keys retorna [] sin keys configuradas")
+
+    # Test: exhaustion tracking
+    os.environ["ODDS_API_KEYS"] = "key_a,key_b,key_c"
+    _exhausted_keys.clear()  # Limpiar estado previo
+
+    check(not _is_key_exhausted("key_a"), "key_a NO agotada al inicio")
+    _mark_key_exhausted("key_a")
+    check(_is_key_exhausted("key_a"), "key_a SÍ agotada después de mark")
+    check(not _is_key_exhausted("key_b"), "key_b NO agotada (solo key_a)")
+
+    # Test: get_any_odds_key skips exhausted keys
+    _exhausted_keys.clear()
+    _mark_key_exhausted("key_a")
+    chosen = get_any_odds_key()
+    check(chosen != "key_a", f"get_any_odds_key salta key_a agotada: eligió {chosen}")
+    check(chosen in ("key_b", "key_c"), f"get_any_odds_key eligió key_b o key_c: {chosen}")
+
+    # Test: get_any_odds_key returns first non-exhausted
+    _exhausted_keys.clear()
+    _mark_key_exhausted("key_b")
+    chosen2 = get_any_odds_key()
+    check_eq(chosen2, "key_a", "get_any_odds_key retorna key_a (primera no agotada)")
+
+    # Test: get_any_odds_key returns first key when ALL exhausted
+    _exhausted_keys.clear()
+    _mark_key_exhausted("key_a")
+    _mark_key_exhausted("key_b")
+    _mark_key_exhausted("key_c")
+    chosen_all = get_any_odds_key()
+    check_eq(chosen_all, "key_a", "get_any_odds_key retorna primera aunque todas agotadas")
+
+    # Test: exhaustion TTL expires
+    _exhausted_keys.clear()
+    _mark_key_exhausted("key_a")
+    _exhausted_keys["key_a"] = time.time() - EXHAUST_TTL - 1  # Simular expiración
+    check(not _is_key_exhausted("key_a"), "key_a NO agotada tras TTL expirado")
+
+    # Test: cascade endpoint does not crash with empty keys
+    del os.environ["ODDS_API_KEYS"]
+    _exhausted_keys.clear()
+    r = get("/api/diag/odds-api")
+    check_eq(r.status_code, 200, "GET /api/diag/odds-api = 200 (sin keys)")
+    d = r.get_json()
+    check(d.get("configured") == False, "diag/odds-api: configured=False sin keys")
+
+    # Restaurar keys para siguientes tests
+    os.environ["ODDS_API_KEYS"] = "testkey1,testkey2,testkey3"
+    _exhausted_keys.clear()
+
+    # Test: /api/odds/value-bets no crasha con cascade
+    r = get("/api/odds/value-bets?deporte=upcoming&multi=1")
+    check_eq(r.status_code, 200, "GET /api/odds/value-bets (multi) = 200")
+    d = r.get_json()
+    check("total_encontrados" in d, "value-bets tiene total_encontrados")
+
+    # Test: /api/sharp/scan no crasha con cascade
+    r = get("/api/sharp/scan?deporte=upcoming")
+    check_eq(r.status_code, 200, "GET /api/sharp/scan = 200")
+    d = r.get_json()
+    check("recomendaciones" in d, "sharp/scan tiene recomendaciones")
+
+    # Limpiar
+    del os.environ["ODDS_API_KEYS"]
+    _exhausted_keys.clear()
+
     # -- Summary --
     total = PASS + FAIL
     print("")
