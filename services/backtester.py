@@ -63,21 +63,21 @@ def run_backtest(strategy: str = "sharp_money", days: int = 30, initial_bankroll
             if _USE_PG:
                 cur = conn.cursor()
                 cur.execute("""
-                    SELECT id, home_team, away_team, sport, league, odds, 
-                           confidence_score, edge_pct, sources, stake, 
+                    SELECT id, match, liga, liga, liga, odds,
+                           confidence_score, edge_pct, sources, stake,
                            resultado, pnl, created_at
-                    FROM brain_tracks 
-                    WHERE created_at >= NOW() - INTERVAL '%s days'
+                    FROM brain_tracks
+                    WHERE created_at >= NOW() - INTERVAL '1 day' * %s
                     ORDER BY created_at
-                """ % days)
+                """, (days,))
                 rows = cur.fetchall()
                 cur.close()
             else:
                 rows = conn.execute("""
-                    SELECT id, home_team, away_team, sport, league, odds, 
-                           confidence_score, edge_pct, sources, stake, 
+                    SELECT id, match, liga, liga, liga, odds,
+                           confidence_score, edge_pct, sources, stake,
                            resultado, pnl, created_at
-                    FROM brain_tracks 
+                    FROM brain_tracks
                     WHERE created_at >= datetime('now', ?)
                     ORDER BY created_at
                 """, (f'-{days} days',)).fetchall()
@@ -101,10 +101,8 @@ def run_backtest(strategy: str = "sharp_money", days: int = 30, initial_bankroll
 
         for row in rows:
             bet_id = row[0]
-            home = row[1]
-            away = row[2]
-            sport = row[3]
-            league = row[4]
+            match_name = row[1]
+            liga = row[2]
             odds = float(row[5]) if row[5] else 0
             confidence = float(row[6]) if row[6] else 0
             edge = float(row[7]) if row[7] else 0
@@ -154,9 +152,8 @@ def run_backtest(strategy: str = "sharp_money", days: int = 30, initial_bankroll
 
             trades.append({
                 "id": bet_id,
-                "match": f"{home} vs {away}",
-                "sport": sport,
-                "league": league,
+                "match": match_name,
+                "liga": liga,
                 "odds": odds,
                 "confidence": confidence,
                 "edge": edge,
