@@ -3161,7 +3161,7 @@ def risk_config():
 
 @app.route("/api/backtest/run", methods=["POST"])
 @login_required
-def backtest_run():
+def backtest_run_strategy():
     """Ejecuta backtest de una estrategia."""
     try:
         from services.backtester import run_backtest
@@ -3176,7 +3176,7 @@ def backtest_run():
 
 @app.route("/api/backtest/all")
 @login_required
-def backtest_all():
+def backtest_all_strategies():
     """Compara todas las estrategias."""
     try:
         from services.backtester import run_all_strategies_backtest
@@ -3188,7 +3188,7 @@ def backtest_all():
 
 @app.route("/api/backtest/strategies")
 @login_required
-def backtest_strategies():
+def backtest_strategies_list():
     """Lista de estrategias disponibles."""
     try:
         from services.backtester import get_strategies
@@ -3199,7 +3199,7 @@ def backtest_strategies():
 
 @app.route("/api/backtest/simulate", methods=["POST"])
 @login_required
-def backtest_simulate():
+def backtest_simulate_mc():
     """Simula el futuro con Monte Carlo."""
     try:
         from services.backtester import simulate_future
