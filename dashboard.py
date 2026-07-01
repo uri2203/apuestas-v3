@@ -160,9 +160,10 @@ LANDING_HTML = r"""<!DOCTYPE html>
     <a href="/panel/value-bets">Value</a>
     <a href="/panel/alta-prob">Alta Prob</a>
     <a href="/panel/sharp">Sharp</a>
-    <a href="/panel/copa">Copa</a>
+    <a href="/panel/brain">Brain</a>
+    <a href="/panel/performance">Performance</a>
+    <a href="/panel/risk">Risk</a>
     <a href="/panel/bankroll">Bankroll</a>
-    <a href="/panel/rendimiento">Stats</a>
   </div>
   <div class="right">
     <span class="dot off" id="sd"></span>
@@ -225,7 +226,7 @@ LANDING_HTML = r"""<!DOCTYPE html>
   <div class="section">
     <div class="section-header">
       <h2>ANALISIS &amp; MODELOS</h2>
-      <span class="count">6 modulos</span>
+      <span class="count">7 modulos</span>
       <div class="line"></div>
     </div>
     <div class="mod-grid">
@@ -233,6 +234,7 @@ LANDING_HTML = r"""<!DOCTYPE html>
       <div class="mod" onclick="location='/panel/hulk'"><span class="tag">HULK</span><div class="icon" style="color:var(--red)">&#9876;</div><div class="name">Agente HULK</div><div class="desc">El depredador: steam, live, arbitraje, contrarian, parlay</div></div>
       <div class="mod" onclick="location='/panel/modelos-avanzados'"><span class="tag">ADV</span><div class="icon" style="color:var(--green)">&#9878;</div><div class="name">Modelos Avanzados</div><div class="desc">Dixon-Coles, ELO, Fatiga, Clima, CLV</div></div>
       <div class="mod" onclick="location='/panel/ml'"><span class="tag">ML</span><div class="icon" style="color:var(--purple)">&#9734;</div><div class="name">ML Predictivo</div><div class="desc">MLP + GBM ensemble + feature importance</div></div>
+      <div class="mod" onclick="location='/panel/ml-enhanced'"><span class="tag">ML+</span><div class="icon" style="color:var(--purple)">&#9733;</div><div class="name">ML Enhanced</div><div class="desc">Ensemble 5 modelos + calibracion avanzada</div></div>
       <div class="mod" onclick="location='/panel/backtesting'"><span class="tag">BT</span><div class="icon" style="color:var(--blue)">&#8634;</div><div class="name">Backtesting</div><div class="desc">Historico y validacion de modelos</div></div>
       <div class="mod" onclick="location='/panel/nlp'"><span class="tag">NLP</span><div class="icon" style="color:var(--teal)">&#9998;</div><div class="name">Noticias &amp; Lesiones</div><div class="desc">Sentimiento y lesiones NLP</div></div>
       <div class="mod" onclick="location='/panel/montecarlo'"><span class="tag">SIM</span><div class="icon" style="color:var(--amber)">&#119891;</div><div class="name">Monte Carlo</div><div class="desc">Simulacion probabilistica de partidos</div></div>
@@ -242,11 +244,13 @@ LANDING_HTML = r"""<!DOCTYPE html>
   <div class="section">
     <div class="section-header">
       <h2>OPERACIONES</h2>
-      <span class="count">5 modulos</span>
+      <span class="count">7 modulos</span>
       <div class="line"></div>
     </div>
     <div class="mod-grid">
       <div class="mod" onclick="location='/panel/bankroll'"><span class="tag">KELLY</span><div class="icon" style="color:var(--green)">$</div><div class="name">Bankroll</div><div class="desc">Gestion, historial y riesgo de ruina</div></div>
+      <div class="mod" onclick="location='/panel/risk'"><span class="tag">RISK</span><div class="icon" style="color:var(--red)">&#9888;</div><div class="name">Risk Management</div><div class="desc">Stop loss, exposicion, limites diarios</div></div>
+      <div class="mod" onclick="location='/panel/performance'"><span class="tag">PERF</span><div class="icon" style="color:var(--green)">&#9632;</div><div class="name">Performance Tracker</div><div class="desc">ROI real, win rate, CLV, analisis de calidad</div></div>
       <div class="mod" onclick="location='/panel/simulacion'"><span class="tag">SIM</span><div class="icon" style="color:var(--amber)">&#8644;</div><div class="name">Simulacion</div><div class="desc">Trades simulados automaticos</div></div>
       <div class="mod" onclick="location='/panel/contabilidad'"><span class="tag">P&amp;L</span><div class="icon" style="color:var(--blue)">&#9776;</div><div class="name">Contabilidad</div><div class="desc">P&amp;L por estrategia y reportes</div></div>
       <div class="mod" onclick="location='/panel/journal'"><span class="tag">LOG</span><div class="icon" style="color:var(--text2)">&#9998;</div><div class="name">Trading Journal</div><div class="desc">Bitacora y export CSV</div></div>
