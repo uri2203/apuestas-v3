@@ -540,7 +540,6 @@ async function loadSharp(){
   document.getElementById('sharpCards').innerHTML='<div style="color:var(--amber)">Escaneando señales sharp...</div>'
   try{
     const d=await api('/api/sharp/scan?hours=24')
-    const recs=d.recomendaciones||[]
     const signals=d.sharp_signals||[]
     document.getElementById('sharpSteam').textContent=d.steam_moves||0
     document.getElementById('sharpRLM').textContent=d.rlm_signals||0
@@ -556,23 +555,10 @@ async function loadSharp(){
         html+='<div style="font-size:12px;color:var(--text3);margin-top:4px">'+s.accion+'</div>'
         html+='</div>'
       })
+    }else{
+      html+='<div class="empty"><div class="icon">&#9878;</div><h3>Sin señales sharp detectadas</h3><p>Necesitas al menos 2-3 snapshots históricos para detectar movimientos reales. Los snapshots se toman cada 15 min automáticamente.</p></div>'
     }
-    if(recs.length>0){
-      html+='<h3 style="margin:12px 0 8px;color:var(--text1)">📊 Partidos con Movimiento</h3>'
-      recs.slice(0,15).forEach(v=>{
-        const edge=parseFloat(v.edge)||0
-        const color=edge>=5?'var(--green)':edge>=2?'var(--amber)':'var(--border)'
-        html+='<div class="card" style="border-left:4px solid '+color+';margin-bottom:8px;padding:12px">'
-        html+='<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px">'
-        html+='<div><b>'+v.partido+'</b></div>'
-        html+='<span class="badge '+(v.tipo_senal==='VALUE BET'?'badge-green':'badge-blue')+'">'+v.tipo_senal+'</span>'
-        html+='</div>'
-        html+='<div style="font-size:11px;color:var(--text3)">'+v.liga+' | '+v.n_casas+' casas | '+v.movimientos+' movimientos</div>'
-        if(v.seleccion){html+='<div style="margin-top:4px;font-size:12px">→ <b>'+v.seleccion+'</b> @ '+v.cuota+' ('+v.casa_recomendada+') Edge: '+v.edge+'%</div>'}
-        html+='</div>'
-      })
-    }
-    document.getElementById('sharpCards').innerHTML=html||'<div class="empty"><div class="icon">$</div><h3>Sin señales sharp detectadas</h3><p>Toma snapshots periodicamente para detectar movimientos reales</p></div>'
+    document.getElementById('sharpCards').innerHTML=html
     loadSharpStats()
   }catch(e){document.getElementById('sharpCards').innerHTML='<div style="color:var(--red)">Error: '+e.message+'</div>'}
 }

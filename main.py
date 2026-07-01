@@ -1007,9 +1007,9 @@ def sharp_steam():
 @app.route("/api/sharp/scan")
 @login_required
 def sharp_scan():
-    """Sharp Money REAL: combina odds actuales con line movement tracking."""
+    """Sharp Money REAL: SOLO señales basadas en movimiento de líneas reales."""
     try:
-        from services.line_tracker import get_sharp_signals, snapshot_odds, get_line_movements
+        from services.line_tracker import get_sharp_signals, snapshot_odds
 
         # 1. Tomar snapshot actual
         api_key = get_any_odds_key()
@@ -1020,127 +1020,20 @@ def sharp_scan():
             except Exception:
                 pass
 
-        # 2. Obtener senales sharp de line movement
+        # 2. Obtener señales REALES de line movement
         hours = int(request.args.get("hours", 24))
         signals = get_sharp_signals(hours_back=hours)
-
-        # 3. Obtener odds actuales para contexto
-        raw = []
-        if api_key:
-            try:
-                raw = get_odds_upcoming(api_key, regions="us,uk,eu", markets="h2h") or []
-            except Exception:
-                pass
-
-        # 4. Combinar: odds actuales + movimientos detectados
-        recomendaciones = []
-        movements = get_line_movements(hours_back=hours, min_change_pct=2.0)
-        mov_by_match = {}
-        for m in movements:
-            mk = f"{m['home_team']} vs {m['away_team']}"
-            if mk not in mov_by_match:
-                mov_by_match[mk] = []
-            mov_by_match[mk].append(m)
-
-        for match in (raw if isinstance(raw, list) else []):
-            ht = match.get("home_team", "")
-            at = match.get("away_team", "")
-            if not ht or not at:
-                continue
-
-            partido = f"{ht} vs {at}"
-            bookmakers = match.get("bookmakers", [])
-            if len(bookmakers) < 2:
-                continue
-
-            # Recopilar odds por casa
-            casas = []
-            best_odds = {}
-            all_odds = {}
-            for book in bookmakers:
-                casa = book.get("title", "")
-                markets = book.get("markets", [])
-                if not markets:
-                    continue
-                outcomes = markets[0].get("outcomes", [])
-                odds_dict = {}
-                for o in outcomes:
-                    name = o.get("name", "")
-                    price = o.get("price", 0)
-                    if name and price > 1:
-                        odds_dict[name] = price
-                        if name not in all_odds:
-                            all_odds[name] = []
-                        all_odds[name].append(price)
-                        prev = best_odds.get(name)
-                        if not prev or price > prev["price"]:
-                            best_odds[name] = {"price": price, "bookmaker": casa}
-                casas.append({"casa": casa, "odds": odds_dict})
-
-            # Detectar movimientos para este partido
-            movs = mov_by_match.get(partido, [])
-
-            # Calcular mejor valor
-            best_value = None
-            best_edge = 0
-            avg_odds = {n: sum(p)/len(p) for n, p in all_odds.items() if p}
-
-            for name in best_odds:
-                bp = best_odds[name]["price"]
-                ap = avg_odds.get(name, 0)
-                if ap > 0:
-                    edge = ((bp - ap) / ap) * 100
-                    if edge > best_edge:
-                        best_edge = edge
-                        best_value = {
-                            "seleccion": name,
-                            "mejor_cuota": bp,
-                            "mejor_casa": best_odds[name]["bookmaker"],
-                            "cuota_promedio": round(ap, 2),
-                            "edge_pct": round(edge, 2),
-                        }
-
-            # Construir recomendacion
-            rec = {
-                "partido": partido,
-                "liga": match.get("sport_title", ""),
-                "n_casas": len(bookmakers),
-                "casas": casas,
-                "movimientos": len(movs),
-            }
-
-            # Agregar info de movimientos
-            if movs:
-                rec["movimientos_detalle"] = movs[:3]
-
-            # Determinar senal
-            if best_value and best_edge >= 2.0:
-                rec["recomendacion"] = f"APOSTAR en {best_value['seleccion']}"
-                rec["seleccion"] = best_value["seleccion"]
-                rec["cuota"] = best_value["mejor_cuota"]
-                rec["casa_recomendada"] = best_value["mejor_casa"]
-                rec["edge"] = best_value["edge_pct"]
-                rec["tipo_senal"] = "VALUE BET"
-                rec["confianza"] = "ALTA" if best_edge >= 5 else "MEDIA"
-            else:
-                rec["recomendacion"] = "Monitorear movimientos"
-                rec["tipo_senal"] = "WATCH"
-                rec["confianza"] = "-"
-                rec["edge"] = 0
-
-            recomendaciones.append(rec)
-
-        # Ordenar por edge y movimientos
-        recomendaciones.sort(key=lambda x: (x.get("edge", 0), x.get("movimientos", 0)), reverse=True)
+        sharp_recs = signals.get("sharp_recommendations", [])
 
         return jsonify({
             "modo": "LINE_TRACKER",
-            "total_partidos": len(recomendaciones),
-            "con_señal": len([r for r in recomendaciones if r.get("tipo_senal") == "VALUE BET"]),
-            "recomendaciones": recomendaciones[:30],
-            "sharp_signals": signals.get("sharp_recommendations", [])[:10],
+            "total_partidos": 0,
+            "con_señal": len(sharp_recs),
+            "recomendaciones": [],
+            "sharp_signals": sharp_recs[:15],
             "steam_moves": signals.get("steam_moves", 0),
             "rlm_signals": signals.get("rlm_signals", 0),
+            "line_movements": signals.get("line_movements", 0),
             "snapshot": snap_result,
             "hours_tracked": hours,
         })
