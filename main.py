@@ -506,7 +506,10 @@ def value_bets():
 
                 for book in m.get("bookmakers", []):
                     casa = book.get("title","")
-                    for o in book.get("markets", [{}])[0].get("outcomes", []):
+                    _markets = book.get("markets", [])
+                    if not _markets:
+                        continue
+                    for o in _markets[0].get("outcomes", []):
                         name = o.get("name","")
                         price = o.get("price", 0)
                         if not name or price <= 1:
@@ -666,7 +669,10 @@ def odds_arbitraje():
             bookmaker_count = 0
             for book in m.get("bookmakers", []):
                 casa = book.get("title", "")
-                for o in book.get("markets", [{}])[0].get("outcomes", []):
+                _markets = book.get("markets", [])
+                if not _markets:
+                    continue
+                for o in _markets[0].get("outcomes", []):
                     name = o.get("name", "")
                     price = o.get("price", 0)
                     if not name or price <= 1:
@@ -908,7 +914,10 @@ def odds_bookmakers():
         bookmakers = {}
         for book in match.get("bookmakers", []):
             casa = book.get("title", "")
-            for o in book.get("markets", [{}])[0].get("outcomes", []):
+            _markets = book.get("markets", [])
+            if not _markets:
+                continue
+            for o in _markets[0].get("outcomes", []):
                 if o.get("name","").lower() == match["home_team"].lower():
                     bookmakers[casa] = o["price"]
                     break
@@ -1229,7 +1238,7 @@ def nlp_scan():
 def nlp_noticias():
     from services.nlp_sentiment import fetch_noticias,detectar_lesiones
     noticias=fetch_noticias(20)
-    for n in noticias: n["alertas"]=detectar_lesiones(n["titulo"]+" "+n["desc"])
+    for n in noticias: n["alertas"]=detectar_lesiones(n.get("titulo","")+" "+n.get("desc",""))
     fuentes=list(set(n.get("fuente","") for n in noticias))
     return jsonify({"noticias":noticias,"total":len(noticias),"fuentes":fuentes})
 
@@ -3220,10 +3229,12 @@ def backtest_simulate_mc():
 def live_odds():
     """Odds en tiempo real de partidos en vivo."""
     try:
-        from services.deportes import get_odds_upcoming
+        from services.deportes import get_odds_upcoming, get_any_odds_key
         sport = request.args.get("sport", "soccer")
-        live = request.args.get("live", "true").lower() == "true"
-        result = get_odds_upcoming(sport)
+        api_key = get_any_odds_key()
+        if not api_key:
+            return jsonify({"error": "No API key available"}), 500
+        result = get_odds_upcoming(api_key, regions="us,uk,eu")
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -3359,7 +3370,14 @@ scheduler.add_job(_journal_auto_log,          "interval", hours=4,  id="journal_
 scheduler.add_job(_brain_auto_scan,          "interval", hours=2,  id="brain_scan")
 scheduler.add_job(_brain_auto_verify,        "interval", hours=4,  id="brain_verify")
 scheduler.add_job(_brain_auto_learn,         "interval", hours=12, id="brain_learn")
-scheduler.add_job(lambda: send_periodic_report("weekly"), "cron", day_of_week="mon", hour=9, id="brain_weekly_report")
+def _brain_weekly_report():
+    try:
+        from services.brain import send_periodic_report
+        send_periodic_report("weekly")
+    except Exception as e:
+        logging.error("Brain weekly report error: %s", e)
+
+scheduler.add_job(_brain_weekly_report, "cron", day_of_week="mon", hour=9, id="brain_weekly_report")
 scheduler.add_job(_hulk_auto_scan, "interval", minutes=15, id="hulk_scan")
 scheduler.add_job(_line_tracker_snapshot, "interval", minutes=15, id="line_tracker_snapshot")
 scheduler.start()

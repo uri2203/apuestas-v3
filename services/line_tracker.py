@@ -412,13 +412,13 @@ def get_sharp_signals(hours_back=24):
 
 
 def get_tracker_stats():
-    from database import db, _fetchall, _USE_PG
+    from database import db, _fetchall, _row_to_dict, _USE_PG
 
     ph = "%s" if _USE_PG else "?"
     try:
         with db() as conn:
             sql = _q(f"SELECT COUNT(*) as total, MIN(timestamp) as oldest, MAX(timestamp) as newest FROM odds_snapshots")
-            stats = db._row_to_dict(conn.execute(sql).fetchone()) if not _USE_PG else None
+            stats = _row_to_dict(conn.execute(sql).fetchone()) if not _USE_PG else None
             if _USE_PG:
                 cur = conn.cursor()
                 cur.execute("SELECT COUNT(*) as total, MIN(timestamp) as oldest, MAX(timestamp) as newest FROM odds_snapshots")

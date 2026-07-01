@@ -765,9 +765,9 @@ def _update_source_performance(trade: dict, won: bool):
                 _source_performance[src]["total"] += 1
                 if won:
                     _source_performance[src]["correct"] += 1
-                    _source_performance[src]["profit"] += trade["stake_simulado"] * (trade["cuota"] - 1)
+                    _source_performance[src]["profit"] += trade.get("stake", 0) * (trade.get("odds", 2) - 1)
                 else:
-                    _source_performance[src]["profit"] -= trade["stake_simulado"]
+                    _source_performance[src]["profit"] -= trade.get("stake", 0)
     except Exception:
         pass
 
@@ -957,12 +957,13 @@ def get_status() -> dict:
 def get_history(limit: int = 50) -> list[dict]:
     """Historial de trades simulados."""
     try:
-        from database import db, _row_to_dict
+        from database import db, _row_to_dict, _USE_PG
+        ph = "%s" if _USE_PG else "?"
         with db() as conn:
             cur = conn.cursor()
-            cur.execute("""
+            cur.execute(f"""
                 SELECT * FROM simulated_trades
-                ORDER BY id DESC LIMIT ?
+                ORDER BY id DESC LIMIT {ph}
             """, (limit,))
             return [_row_to_dict(r) for r in cur.fetchall()]
     except Exception:
@@ -1344,13 +1345,14 @@ def verificar_trades_pendientes() -> dict:
 def _check_result(match_str: str, selection: str) -> Optional[bool]:
     """Verifica si un partido ya tiene resultado en la DB."""
     try:
-        from database import db, _row_to_dict
+        from database import db, _row_to_dict, _USE_PG
+        ph = "%s" if _USE_PG else "?"
         with db() as conn:
             cur = conn.cursor()
-            cur.execute("""
+            cur.execute(f"""
                 SELECT resultado_real, correcto
                 FROM predictions
-                WHERE (home || ' vs ' || away = ? OR home = ? OR away = ?)
+                WHERE (home || ' vs ' || away = {ph} OR home = {ph} OR away = {ph})
                 AND resultado_real IS NOT NULL
                 ORDER BY id DESC LIMIT 1
             """, (match_str, selection, selection))

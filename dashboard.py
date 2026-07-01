@@ -130,6 +130,11 @@ td.num{font-variant-numeric:tabular-nums;text-align:right}
 .news-item .alert{font-size:11px;color:var(--red);font-weight:500;margin-top:4px}
 .progress-bar{background:var(--bg4);border-radius:3px;overflow:hidden;height:6px;width:100%}
 .progress-bar .fill{height:100%;border-radius:3px;transition:width .3s}
+.module-intro{margin-bottom:16px;padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)}
+.module-intro h2{font-size:16px;font-weight:700;margin:0 0 4px}
+.module-intro p{font-size:12px;color:var(--text2);margin:0}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px}
+.panel h3{font-size:13px;font-weight:600;margin-bottom:8px}
 """
 
 # ── Landing Page ─────────────────────────────────────────────────────────
@@ -749,7 +754,7 @@ async function calcKelly(){try{
   const r=await d.json()
   document.getElementById('kellyPuro').textContent=(r.kelly_puro_pct||0).toFixed(2)+'%'
   document.getElementById('kellyAjustado').textContent=(r.kelly_ajustado_pct||0).toFixed(2)+'%'
-  document.getElementById('k KellySugerida').textContent='$'+(r.apuesta_sugerida||0).toLocaleString()
+  document.getElementById('kellySugerida').textContent='$'+(r.apuesta_sugerida||0).toLocaleString()
   document.getElementById('kellyRoi').textContent=(r.roi_esperado_pct||0).toFixed(2)+'%'
   document.getElementById('kellyResult').innerHTML='<strong>Recomendacion:</strong> '+(r.recomendacion||'-')+' | <strong>Hay valor:</strong> '+(r.hay_valor?'SI':'NO')
 }catch(e){toast('Error calculando Kelly','err')}}
@@ -852,7 +857,7 @@ async function loadCopaSharp(){try{
   const d=await api('/api/sharp/scan?deporte=soccer_fifa_world_cup')
   const recs=d.recomendaciones||[]
   document.getElementById('copaCount').textContent=d.total_partidos||0
-  document.getElementById('copaValue').textContent(d.con_señal||0)
+  document.getElementById('copaValue').textContent=d.con_señal||0
   let bestE=0,html=''
   recs.forEach(v=>{
     const edge=parseFloat(v.edge)||0
@@ -1066,7 +1071,7 @@ async function loadNLP(){try{
   const d=await api('/api/nlp/noticias')
   const ns=d.noticias||[]
   document.getElementById('nlpCount').textContent=ns.length
-  const fuentes=d.fuentes||(ns.length?ns.map(n=>n.fuentes||'?').filter((v,i,a)=>a.indexOf(v)===i):[])
+  const fuentes=d.fuentes||(ns.length?ns.map(n=>n.fuente||'?').filter((v,i,a)=>a.indexOf(v)===i):[])
   document.getElementById('nlpSource').textContent=(Array.isArray(fuentes)?fuentes.join(', '):(fuentes||'?'))
   let h=''
   ns.forEach(n=>{
@@ -2115,8 +2120,8 @@ async function loadRisk(){
     document.getElementById('riskBankroll').textContent='$'+d.bankroll
     document.getElementById('riskStatus').textContent=d.status
     document.getElementById('riskStatus').className='value '+(d.status==='PAUSADO'?'red':'green')
-    document.getElementById('riskDD').textContent=d.risk_metrics?.drawdown_pct||0+'%'
-    document.getElementById('riskToday').textContent=d.today?.count||0+'/'+d.today?.limit
+    document.getElementById('riskDD').textContent=(d.risk_metrics?.drawdown_pct||0)+'%'
+    document.getElementById('riskToday').textContent=(d.today?.count||0)+'/'+d.today?.limit
     document.getElementById('riskTodayPNL').textContent='$'+(d.today?.pnl||0)
     document.getElementById('riskTodayPNL').className='value '+(d.today?.pnl>=0?'green':'red')
     document.getElementById('riskWeekPNL').textContent='$'+(d.week?.pnl||0)
@@ -2155,7 +2160,7 @@ async function checkBet(){
   const match=document.getElementById('riskCheckMatch').value
   const stake=parseFloat(document.getElementById('riskCheckStake').value)||100
   try{
-    const d=await api('/api/risk/check',{method:'POST',body:JSON.stringify({sport,match,stake})})
+    const d=await api('/api/risk/check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sport,match,stake})})
     let html='<div class="kpi-grid" style="margin-top:8px">'
     html+='<div class="kpi"><div class="label">Permitido</div><div class="value '+(d.allowed?'green':'red')+'">'+(d.allowed?'SI':'NO')+'</div></div>'
     html+='<div class="kpi"><div class="label">Stake Recomendado</div><div class="value">$'+d.recommended_stake+'</div></div>'

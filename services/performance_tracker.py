@@ -34,7 +34,7 @@ def get_performance_summary(days: int = 30) -> dict:
                         AVG(kelly_pct) as avg_kelly,
                         AVG(stake) as avg_stake
                     FROM brain_tracks 
-                    WHERE created_at >= NOW() - INTERVAL '%s days'
+                    WHERE created_at >= NOW() - INTERVAL '1 day' * %s
                 """ if _USE_PG else """
                     SELECT 
                         COUNT(*) as total,
@@ -142,7 +142,7 @@ def get_performance_by_source(days: int = 30) -> list:
                         SUM(pnl) as total_pnl,
                         AVG(confidence_score) as avg_conf
                     FROM brain_tracks 
-                    WHERE created_at >= NOW() - INTERVAL '%s days'
+                    WHERE created_at >= NOW() - INTERVAL '1 day' * %s
                     GROUP BY sources
                     ORDER BY total_pnl DESC
                 """ % days)
@@ -192,12 +192,10 @@ def get_clv_summary(days: int = 30) -> dict:
                 cur.execute("""
                     SELECT 
                         COUNT(*) as total,
-                        AVG(CASE WHEN odds > 0 AND resultado IS NOT NULL THEN 
-                            (odds - odds) * 100 ELSE 0 END) as avg_clv,
                         SUM(CASE WHEN odds > 0 AND resultado = 'ganada' THEN 1 ELSE 0 END)::float /
                             NULLIF(SUM(CASE WHEN odds > 0 AND resultado IN ('ganada','perdida') THEN 1 ELSE 0 END), 0) as implied_vs_actual
                     FROM brain_tracks 
-                    WHERE created_at >= NOW() - INTERVAL '%s days'
+                    WHERE created_at >= NOW() - INTERVAL '1 day' * %s
                 """ % days)
                 row = cur.fetchone()
                 cur.close()
@@ -205,8 +203,6 @@ def get_clv_summary(days: int = 30) -> dict:
                 row = conn.execute("""
                     SELECT 
                         COUNT(*) as total,
-                        AVG(CASE WHEN odds > 0 AND resultado IS NOT NULL THEN 
-                            (odds - odds) * 100 ELSE 0 END) as avg_clv,
                         CAST(SUM(CASE WHEN odds > 0 AND resultado = 'ganada' THEN 1 ELSE 0 END) AS REAL) /
                             NULLIF(SUM(CASE WHEN odds > 0 AND resultado IN ('ganada','perdida') THEN 1 ELSE 0 END), 0) as implied_vs_actual
                     FROM brain_tracks 
@@ -216,9 +212,9 @@ def get_clv_summary(days: int = 30) -> dict:
             total = row[0] or 0
             return {
                 "total_apuestas": total,
-                "avg_clv": round(float(row[1] or 0), 2),
-                "implied_prob_vs_real": round(float(row[2] or 0) * 100, 1),
-                "status": "POSITIVE" if (row[1] or 0) > 0 else "NEGATIVE",
+                "implied_prob_vs_real": round(float(row[1] or 0) * 100, 1),
+                "status": "DATA" if total > 0 else "NO_DATA",
+                "note": "CLV real requiere closing odds (odds al cierre del partido)",
             }
 
     except Exception as e:
@@ -246,7 +242,7 @@ def get_performance_by_confidence(days: int = 30) -> list:
                         SUM(CASE WHEN resultado = 'ganada' THEN 1 ELSE 0 END) as ganadas,
                         SUM(pnl) as total_pnl
                     FROM brain_tracks 
-                    WHERE created_at >= NOW() - INTERVAL '%s days'
+                    WHERE created_at >= NOW() - INTERVAL '1 day' * %s
                     GROUP BY nivel
                     ORDER BY nivel
                 """ % days)
@@ -298,7 +294,7 @@ def get_streak_analysis(days: int = 30) -> dict:
                 cur = conn.cursor()
                 cur.execute("""
                     SELECT resultado FROM brain_tracks 
-                    WHERE created_at >= NOW() - INTERVAL '%s days'
+                    WHERE created_at >= NOW() - INTERVAL '1 day' * %s
                     AND resultado IN ('ganada', 'perdida')
                     ORDER BY created_at
                 """ % days)

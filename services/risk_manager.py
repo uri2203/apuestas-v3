@@ -74,11 +74,10 @@ def get_risk_status() -> dict:
                 """, (today_start,))
                 match_exposure = {r[0]: float(r[1]) for r in cur.fetchall()}
 
-                # Drawdown actual
-                cur.execute("SELECT MAX.bankroll FROM (SELECT bankroll FROM brain_bankroll ORDER BY id) LIMIT 1")
-                cur.execute("SELECT bankroll FROM brain_bankroll ORDER BY id DESC LIMIT 1")
+                # Drawdown actual - obtener el máximo bankroll histórico
+                cur.execute("SELECT MAX(bankroll) FROM brain_bankroll")
                 max_bankroll_row = cur.fetchone()
-                max_bankroll = float(max_bankroll_row[0]) if max_bankroll_row else bankroll
+                max_bankroll = float(max_bankroll_row[0]) if max_bankroll_row and max_bankroll_row[0] else bankroll
                 drawdown_pct = ((max_bankroll - bankroll) / max_bankroll * 100) if max_bankroll > 0 else 0
 
                 cur.close()
@@ -118,8 +117,8 @@ def get_risk_status() -> dict:
                 """, (today_start.isoformat(),)).fetchall()
                 match_exposure = {r[0]: float(r[1]) for r in match_rows}
 
-                max_bankroll_row = conn.execute("SELECT bankroll FROM brain_bankroll ORDER BY id DESC LIMIT 1").fetchone()
-                max_bankroll = float(max_bankroll_row[0]) if max_bankroll_row else bankroll
+                max_bankroll_row = conn.execute("SELECT MAX(bankroll) FROM brain_bankroll").fetchone()
+                max_bankroll = float(max_bankroll_row[0]) if max_bankroll_row and max_bankroll_row[0] else bankroll
                 drawdown_pct = ((max_bankroll - bankroll) / max_bankroll * 100) if max_bankroll > 0 else 0
 
             # Alertas

@@ -3,6 +3,7 @@ Backtester - Prueba estrategias contra datos históricos.
 Valida si las estrategias del sistema realmente funcionan.
 """
 import logging
+import json
 from datetime import datetime, timedelta
 from typing import Optional
 import random
@@ -107,7 +108,12 @@ def run_backtest(strategy: str = "sharp_money", days: int = 30, initial_bankroll
             odds = float(row[5]) if row[5] else 0
             confidence = float(row[6]) if row[6] else 0
             edge = float(row[7]) if row[7] else 0
-            sources_count = int(row[8]) if row[8] else 0
+            sources_raw = row[8] if row[8] else "[]"
+            try:
+                sources_list = json.loads(sources_raw) if isinstance(sources_raw, str) else sources_raw
+                sources_count = len(sources_list) if isinstance(sources_list, list) else 0
+            except (json.JSONDecodeError, TypeError):
+                sources_count = 0
 
             # Aplicar filtros de la estrategia
             if confidence < strat["min_confidence"]:
