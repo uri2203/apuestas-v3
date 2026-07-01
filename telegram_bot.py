@@ -276,10 +276,9 @@ def _cmd_arbitraje() -> None:
 
 
 def _cmd_sharp() -> None:
-    """Sharp Money: muestra señales ACCIONABLES con a quién, dónde, cuánto."""
+    """Sharp Money: muestra señales reales + odds actuales con contexto."""
     from services.deportes import get_any_odds_key, get_odds_upcoming
     from services.line_tracker import get_sharp_signals, snapshot_odds
-    from main import get_bankroll_seguro
 
     api_key = get_any_odds_key()
     if not api_key:
@@ -288,29 +287,51 @@ def _cmd_sharp() -> None:
 
     try:
         # Tomar snapshot
-        telegram_send("📊 Tomando snapshot de odds...")
         snap = snapshot_odds(api_key)
 
         # Obtener señales reales
         signals = get_sharp_signals(hours_back=24)
         sharp_recs = signals.get("sharp_recommendations", [])
 
-        if not sharp_recs:
-            telegram_send("Sin señales sharp detectadas.\n\nNecesitas más snapshots históricos para detectar movimientos.")
-            return
-
         # Obtener odds actuales
         raw = get_odds_upcoming(api_key, regions="us,uk,eu", markets="h2h") or []
-        odds_by_match = {}
+
+        lines = [
+            "<b>🎯 SHARP MONEY</b>",
+            "━━━━━━━━━━━━━━━━━━━━━━━━━",
+            f"📊 Snapshots: {snap.get('saved', 0)}",
+            "",
+        ]
+
+        # Señales sharp reales
+        if sharp_recs:
+            lines.append("<b>⚡ SEÑALES SHARP REALES:</b>")
+            for i, rec in enumerate(sharp_recs[:5], 1):
+                conf = rec.get("confianza", 0)
+                emoji = "🟢" if conf >= 70 else "🟡" if conf >= 50 else "⚪"
+                lines.append(f"{emoji} <b>{rec['partido']}</b>")
+                lines.append(f"   → {rec['seleccion']}")
+                lines.append(f"   Tipo: {rec['tipo']} | Confianza: {conf}%")
+                lines.append(f"   {rec['accion']}")
+                lines.append("")
+
+        # Contexto de odds actuales (top 5 partidos)
+        lines.append("<b>📊 ODDS ACTUALES (top 5):</b>")
+        count = 0
         for match in (raw if isinstance(raw, list) else []):
+            if count >= 5:
+                break
             ht = match.get("home_team", "")
             at = match.get("away_team", "")
             if not ht or not at:
                 continue
-            key = f"{ht} vs {at}"
-            best_odds = {}
+            bookmakers = match.get("bookmakers", [])
+            if len(bookmakers) < 2:
+                continue
+
             all_odds = {}
-            for book in match.get("bookmakers", []):
+            best_per_sel = {}
+            for book in bookmakers:
                 casa = book.get("title", "")
                 for o in book.get("markets", [{}])[0].get("outcomes", []):
                     name = o.get("name", "")
@@ -319,71 +340,21 @@ def _cmd_sharp() -> None:
                         if name not in all_odds:
                             all_odds[name] = []
                         all_odds[name].append(price)
-                        prev = best_odds.get(name)
+                        prev = best_per_sel.get(name)
                         if not prev or price > prev["price"]:
-                            best_odds[name] = {"price": price, "bookmaker": casa}
-            avg_odds = {n: sum(p)/len(p) for n, p in all_odds.items() if p}
-            odds_by_match[key] = {"best_odds": best_odds, "avg_odds": avg_odds}
+                            best_per_sel[name] = {"price": price, "book": casa}
 
-        # Construir mensajes accionables
-        lines = [
-            "<b>🎯 SHARP MONEY — SEÑALES ACCIONABLES</b>",
-            "━━━━━━━━━━━━━━━━━━━━━━━━━",
-            f"📊 Snapshots: {snap.get('saved', 0)} | Señales: {len(sharp_recs)}",
-            "",
-        ]
+            if not best_per_sel:
+                continue
 
-        for i, rec in enumerate(sharp_recs[:5], 1):
-            partido = rec.get("partido", "")
-            seleccion = rec.get("seleccion", "")
-            tipo = rec.get("tipo", "")
-            confianza = rec.get("confianza", 0)
-
-            match_data = odds_by_match.get(partido, {})
-            best = match_data.get("best_odds", {}).get(seleccion, {})
-            avg = match_data.get("avg_odds", {}).get(seleccion, 0)
-
-            mejor_cuota = best.get("price", 0)
-            mejor_casa = best.get("bookmaker", "")
-
-            # Edge real
-            edge = 0
-            if avg > 0 and mejor_cuota > 0:
-                edge = ((mejor_cuota - avg) / avg) * 100
-
-            # Kelly
-            monto = 0
-            potential = 0
-            if mejor_cuota > 0 and edge > 0:
-                prob_impl = 1 / mejor_cuota
-                prob_est = prob_impl + (edge / 100 * prob_impl)
-                kelly_full = (prob_est * (mejor_cuota - 1) - (1 - prob_est)) / (mejor_cuota - 1)
-                kelly_pct = max(0, kelly_full * 25)
-                bankroll = get_bankroll_seguro()
-                monto = round(bankroll * kelly_pct / 100, 2)
-                monto = min(monto, round(bankroll * 0.03, 2))
-                potential = round(monto * (mejor_cuota - 1), 2)
-
-            conf_emoji = "🟢" if confianza >= 70 else "🟡" if confianza >= 50 else "⚪"
-            tipo_emoji = "⚡" if tipo == "STEAM_MOVE" else "🔄" if tipo == "RLM" else "💰"
-
-            lines.append(f"{tipo_emoji} <b>#{i} — {partido}</b>")
-            lines.append(f"   Tipo: {tipo} | Confianza: {conf_emoji} {confianza}%")
-
-            if seleccion and mejor_cuota > 0:
-                lines.append(f"   ✅ <b>APOSTAR: {seleccion.upper()}</b>")
-                lines.append(f"   📊 Cuota: <b>{mejor_cuota}</b> en {mejor_casa}")
-                lines.append(f"   📈 Edge: <b>{edge:.1f}%</b>")
-                if monto > 0:
-                    lines.append(f"   💰 Stake: ${monto} → Ganancia: ${potential}")
-            else:
-                lines.append(f"   {rec.get('accion', 'Monitorear')}")
-
+            lines.append(f"<b>{ht} vs {at}</b>")
+            for sel, data in best_per_sel.items():
+                avg = sum(all_odds.get(sel, [0])) / max(len(all_odds.get(sel, [1])), 1)
+                lines.append(f"   {sel}: {data['price']} @ {data['book']} (avg: {avg:.2f})")
             lines.append("")
+            count += 1
 
         lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━")
-        lines.append("⚙️ Kelly: 25% | Cap: 3% bankroll")
-
         telegram_send("\n".join(lines))
 
     except Exception as e:

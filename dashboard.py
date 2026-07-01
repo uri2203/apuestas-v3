@@ -541,22 +541,59 @@ async function loadSharp(){
   try{
     const d=await api('/api/sharp/scan?hours=24')
     const signals=d.sharp_signals||[]
+    const partidos=d.partidos||[]
     document.getElementById('sharpSteam').textContent=d.steam_moves||0
     document.getElementById('sharpRLM').textContent=d.rlm_signals||0
     let html=''
+
+    // Señales sharp reales (Steam/RLM)
     if(signals.length>0){
-      html+='<h3 style="margin:12px 0 8px;color:var(--purple)">⚡ Señales Sharp Detectadas</h3>'
+      html+='<h3 style="margin:12px 0 8px;color:var(--purple)">&#9889; SEÑALES SHARP REALES</h3>'
       signals.slice(0,10).forEach(s=>{
         html+='<div class="card" style="border-left:4px solid var(--purple);margin-bottom:8px;padding:12px">'
         html+='<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px">'
-        html+='<div><b>'+s.partido+'</b> → '+s.seleccion+'</div>'
+        html+='<div><b>'+s.partido+'</b> &#8594; '+s.seleccion+'</div>'
         html+='<span class="badge badge-purple">'+s.tipo+'</span> <span class="badge badge-green">'+s.confianza+'%</span>'
         html+='</div>'
         html+='<div style="font-size:12px;color:var(--text3);margin-top:4px">'+s.accion+'</div>'
         html+='</div>'
       })
-    }else{
-      html+='<div class="empty"><div class="icon">&#9878;</div><h3>Sin señales sharp detectadas</h3><p>Necesitas al menos 2-3 snapshots históricos para detectar movimientos reales. Los snapshots se toman cada 15 min automáticamente.</p></div>'
+    }
+
+    // Partidos actuales con contexto
+    if(partidos.length>0){
+      html+='<h3 style="margin:16px 0 8px;color:var(--text1)">&#128202; ODDS ACTUALES POR PARTIDO</h3>'
+      if(d.nota){html+='<div style="font-size:11px;color:var(--amber);margin-bottom:8px;padding:8px;background:var(--amber-bg);border-radius:6px">'+d.nota+'</div>'}
+      partidos.slice(0,20).forEach(p=>{
+        const movBadge=p.movimientos>0?'<span class="badge badge-green">'+p.movimientos+' movs</span>':''
+        html+='<div class="card" style="margin-bottom:8px;padding:12px">'
+        html+='<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px">'
+        html+='<div><b>'+p.partido+'</b></div>'
+        html+='<div><span class="badge badge-blue">'+p.liga+'</span> '+movBadge+' <span style="font-size:11px;color:var(--text3)">'+p.n_casas+' casas</span></div>'
+        html+='</div>'
+        // Selecciones
+        const sels=p.selecciones||{}
+        const selKeys=Object.keys(sels)
+        if(selKeys.length>0){
+          html+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">'
+          selKeys.forEach(sel=>{
+            const info=sels[sel]
+            const confColor=info.confianza==='ALTA'?'var(--green)':info.confianza==='BAJA'?'var(--red)':'var(--amber)'
+            html+='<div style="flex:1;min-width:140px;padding:8px;background:var(--bg3);border-radius:6px;font-size:11px">'
+            html+='<div style="font-weight:600;margin-bottom:4px">'+sel+'</div>'
+            html+='<div>Mejor: <b>'+info.mejor_cuota+'</b> @ '+info.mejor_casa+'</div>'
+            html+='<div>Promedio: '+info.cuota_promedio+' ('+info.n_bookmakers+' casas)</div>'
+            html+='<div style="color:'+confColor+';font-weight:600">Confianza: '+info.confianza+' | Prob: '+info.prob_justa+'%</div>'
+            html+='</div>'
+          })
+          html+='</div>'
+        }
+        html+='</div>'
+      })
+    }
+
+    if(!signals.length && !partidos.length){
+      html='<div class="empty"><div class="icon">&#9878;</div><h3>Sin datos disponibles</h3><p>'+((d.nota||'Necesitas snapshots históricos para detectar movimientos reales.'))+'</p></div>'
     }
     document.getElementById('sharpCards').innerHTML=html
     loadSharpStats()

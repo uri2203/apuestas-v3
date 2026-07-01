@@ -1007,11 +1007,10 @@ def sharp_steam():
 @app.route("/api/sharp/scan")
 @login_required
 def sharp_scan():
-    """Sharp Money REAL: SOLO señales basadas en movimiento de líneas reales."""
+    """Sharp Money: señales reales de line movement + contexto de odds actuales."""
     try:
-        from services.line_tracker import get_sharp_signals, snapshot_odds
+        from services.line_tracker import get_sharp_signals, snapshot_odds, get_line_movements
 
-        # 1. Tomar snapshot actual
         api_key = get_any_odds_key()
         snap_result = {}
         if api_key:
@@ -1020,29 +1019,126 @@ def sharp_scan():
             except Exception:
                 pass
 
-        # 2. Obtener señales REALES de line movement
         hours = int(request.args.get("hours", 24))
         signals = get_sharp_signals(hours_back=hours)
         sharp_recs = signals.get("sharp_recommendations", [])
 
+        # Obtener odds actuales para contexto
+        from services.deportes import get_odds_upcoming
+        raw = []
+        if api_key:
+            try:
+                raw = get_odds_upcoming(api_key, regions="us,uk,eu", markets="h2h") or []
+            except Exception:
+                pass
+
+        # Obtener movimientos reales
+        movements = get_line_movements(hours_back=hours, min_change_pct=2.0)
+        mov_by_match = {}
+        for m in movements:
+            mk = f"{m['home_team']} vs {m['away_team']}"
+            if mk not in mov_by_match:
+                mov_by_match[mk] = []
+            mov_by_match[mk].append(m)
+
+        # Construir lista de partidos con contexto
+        partidos = []
+        for match in (raw if isinstance(raw, list) else []):
+            ht = match.get("home_team", "")
+            at = match.get("away_team", "")
+            if not ht or not at:
+                continue
+
+            partido = f"{ht} vs {at}"
+            bookmakers = match.get("bookmakers", [])
+            if len(bookmakers) < 2:
+                continue
+
+            # Recopilar odds por casa
+            casas_odds = {}  # {casa: {seleccion: precio}}
+            all_odds = {}    # {seleccion: [precios]}
+            for book in bookmakers:
+                casa = book.get("title", "")
+                markets = book.get("markets", [])
+                if not markets:
+                    continue
+                outcomes = markets[0].get("outcomes", [])
+                prices = {}
+                for o in outcomes:
+                    name = o.get("name", "")
+                    price = o.get("price", 0)
+                    if name and price > 1:
+                        prices[name] = price
+                        if name not in all_odds:
+                            all_odds[name] = []
+                        all_odds[name].append(price)
+                casas_odds[casa] = prices
+
+            # Calcular promedio y mejor cuota por selección
+            info_selecciones = {}
+            for sel, precios in all_odds.items():
+                if len(precios) < 2:
+                    continue
+                avg = sum(precios) / len(precios)
+                mejor_precio = max(precios)
+                mejor_casa = ""
+                for casa, precios_casa in casas_odds.items():
+                    if precios_casa.get(sel) == mejor_precio:
+                        mejor_casa = casa
+                        break
+                # Cuota justa (sin margen)
+                sum_inv = sum(1/p for p in precios)
+                prob_justa = (1/mejor_precio) / sum_inv if sum_inv > 0 else 0
+                confianza = "MEDIA"
+                if prob_justa >= 0.55:
+                    confianza = "ALTA"
+                elif prob_justa <= 0.35:
+                    confianza = "BAJA"
+
+                info_selecciones[sel] = {
+                    "mejor_cuota": round(mejor_precio, 2),
+                    "mejor_casa": mejor_casa,
+                    "cuota_promedio": round(avg, 2),
+                    "n_bookmakers": len(precios),
+                    "prob_justa": round(prob_justa * 100, 1),
+                    "confianza": confianza,
+                }
+
+            # Detectar movimientos para este partido
+            movs = mov_by_match.get(partido, [])
+
+            partidos.append({
+                "partido": partido,
+                "liga": match.get("sport_title", ""),
+                "deporte": match.get("sport_key", ""),
+                "n_casas": len(bookmakers),
+                "selecciones": info_selecciones,
+                "movimientos": len(movs),
+                "movimientos_detalle": movs[:3] if movs else [],
+            })
+
+        # Señales sharp reales
+        steam_count = signals.get("steam_moves", 0)
+        rlm_count = signals.get("rlm_signals", 0)
+
         return jsonify({
             "modo": "LINE_TRACKER",
-            "total_partidos": 0,
-            "con_señal": len(sharp_recs),
-            "recomendaciones": [],
-            "sharp_signals": sharp_recs[:15],
-            "steam_moves": signals.get("steam_moves", 0),
-            "rlm_signals": signals.get("rlm_signals", 0),
+            "partidos": partidos[:25],
+            "sharp_signals": sharp_recs[:10],
+            "steam_moves": steam_count,
+            "rlm_signals": rlm_count,
             "line_movements": signals.get("line_movements", 0),
             "snapshot": snap_result,
             "hours_tracked": hours,
+            "total_partidos": len(partidos),
+            "nota": "Las señales sharp requieren snapshots históricos (mín. 2h). Los edges se calculan solo con movimiento real de líneas." if not sharp_recs and not steam_count and not rlm_count else "",
         })
 
     except Exception as e:
         import traceback
         tb = traceback.format_exc()
         logging.error("sharp_scan error: %s", e)
-        return jsonify({"error": str(e), "recomendaciones": [], "traceback": tb})
+        return jsonify({"error": str(e), "partidos": [], "traceback": tb})
 
 # ── LINE TRACKER (Sharp Money REAL) ─────────────────────────────────────────
 @app.route("/api/sharp/snapshot", methods=["POST"])
