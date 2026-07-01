@@ -1,0 +1,368 @@
+"""
+Performance Tracker - Rastrea resultados reales del sistema.
+CLV tracking, win rate por tipo de señal, ROI real, y métricas de calidad.
+"""
+import logging
+from datetime import datetime, timedelta
+from typing import Optional
+
+logger = logging.getLogger(__name__)
+
+
+def get_performance_summary(days: int = 30) -> dict:
+    """Resumen de performance de los últimos N días."""
+    from database import db, _fetchall, _USE_PG
+
+    try:
+        with db() as conn:
+            if _USE_PG:
+                cur = conn.cursor()
+                cur.execute("""
+                    SELECT 
+                        COUNT(*) as total,
+                        SUM(CASE WHEN resultado = 'ganada' THEN 1 ELSE 0 END) as ganadas,
+                        SUM(CASE WHEN resultado = 'perdida' THEN 1 ELSE 0 END) as perdidas,
+                        SUM(CASE WHEN resultado = 'empate' THEN 1 ELSE 0 END) as empates,
+                        SUM(CASE WHEN resultado = 'ganada' THEN pnl ELSE 0 END) as total_pnl_ganadas,
+                        SUM(CASE WHEN resultado = 'perdida' THEN pnl ELSE 0 END) as total_pnl_perdidas,
+                        SUM(pnl) as total_pnl,
+                        AVG(CASE WHEN resultado IN ('ganada','perdida') THEN 
+                            CASE WHEN resultado='ganada' THEN 1.0 ELSE 0.0 END 
+                            END) as win_rate,
+                        AVG(confidence_score) as avg_confidence,
+                        AVG(edge_pct) as avg_edge,
+                        AVG(kelly_pct) as avg_kelly,
+                        AVG(stake) as avg_stake
+                    FROM brain_tracks 
+                    WHERE created_at >= NOW() - INTERVAL '%s days'
+                """ if _USE_PG else """
+                    SELECT 
+                        COUNT(*) as total,
+                        SUM(CASE WHEN resultado = 'ganada' THEN 1 ELSE 0 END) as ganadas,
+                        SUM(CASE WHEN resultado = 'perdida' THEN 1 ELSE 0 END) as perdidas,
+                        SUM(CASE WHEN resultado = 'empate' THEN 1 ELSE 0 END) as empates,
+                        SUM(CASE WHEN resultado = 'ganada' THEN pnl ELSE 0 END) as total_pnl_ganadas,
+                        SUM(CASE WHEN resultado = 'perdida' THEN pnl ELSE 0 END) as total_pnl_perdidas,
+                        SUM(pnl) as total_pnl,
+                        AVG(CASE WHEN resultado IN ('ganada','perdida') THEN 
+                            CASE WHEN resultado='ganada' THEN 1.0 ELSE 0.0 END 
+                            END) as win_rate,
+                        AVG(confidence_score) as avg_confidence,
+                        AVG(edge_pct) as avg_edge,
+                        AVG(kelly_pct) as avg_kelly,
+                        AVG(stake) as avg_stake
+                    FROM brain_tracks 
+                    WHERE created_at >= datetime('now', '-{} days')
+                """.format(days))
+                row = cur.fetchone()
+                cur.close()
+                result = {
+                    "total": row[0] or 0,
+                    "ganadas": row[1] or 0,
+                    "perdidas": row[2] or 0,
+                    "empates": row[3] or 0,
+                    "pnl_ganadas": round(float(row[4] or 0), 2),
+                    "pnl_perdidas": round(float(row[5] or 0), 2),
+                    "total_pnl": round(float(row[6] or 0), 2),
+                    "win_rate": round(float(row[7] or 0) * 100, 1),
+                    "avg_confidence": round(float(row[8] or 0), 1),
+                    "avg_edge": round(float(row[9] or 0), 1),
+                    "avg_kelly": round(float(row[10] or 0), 1),
+                    "avg_stake": round(float(row[11] or 0), 2),
+                }
+            else:
+                cur = conn.execute("""
+                    SELECT 
+                        COUNT(*) as total,
+                        SUM(CASE WHEN resultado = 'ganada' THEN 1 ELSE 0 END) as ganadas,
+                        SUM(CASE WHEN resultado = 'perdida' THEN 1 ELSE 0 END) as perdidas,
+                        SUM(CASE WHEN resultado = 'empate' THEN 1 ELSE 0 END) as empates,
+                        SUM(CASE WHEN resultado = 'ganada' THEN pnl ELSE 0 END) as total_pnl_ganadas,
+                        SUM(CASE WHEN resultado = 'perdida' THEN pnl ELSE 0 END) as total_pnl_perdidas,
+                        SUM(pnl) as total_pnl,
+                        AVG(CASE WHEN resultado IN ('ganada','perdida') THEN 
+                            CASE WHEN resultado='ganada' THEN 1.0 ELSE 0.0 END 
+                            END) as win_rate,
+                        AVG(confidence_score) as avg_confidence,
+                        AVG(edge_pct) as avg_edge,
+                        AVG(kelly_pct) as avg_kelly,
+                        AVG(stake) as avg_stake
+                    FROM brain_tracks 
+                    WHERE created_at >= datetime('now', ?)
+                """, (f'-{days} days',))
+                row = cur.fetchone()
+                result = {
+                    "total": row[0] or 0,
+                    "ganadas": row[1] or 0,
+                    "perdidas": row[2] or 0,
+                    "empates": row[3] or 0,
+                    "pnl_ganadas": round(float(row[4] or 0), 2),
+                    "pnl_perdidas": round(float(row[5] or 0), 2),
+                    "total_pnl": round(float(row[6] or 0), 2),
+                    "win_rate": round(float(row[7] or 0) * 100, 1),
+                    "avg_confidence": round(float(row[8] or 0), 1),
+                    "avg_edge": round(float(row[9] or 0), 1),
+                    "avg_kelly": round(float(row[10] or 0), 1),
+                    "avg_stake": round(float(row[11] or 0), 2),
+                }
+
+            # ROI
+            total_staked = result["total"] * result["avg_stake"]
+            result["roi"] = round((result["total_pnl"] / total_staked * 100) if total_staked > 0 else 0, 2)
+
+            # Profit Factor
+            result["profit_factor"] = round(
+                (result["pnl_ganadas"] / abs(result["pnl_perdidas"]))
+                if result["pnl_perdidas"] != 0 else 0, 2
+            )
+
+            # Calidad de predicciones
+            result["calidad"] = _clasificar_calidad(result)
+
+            return result
+
+    except Exception as e:
+        logger.error("Error get_performance_summary: %s", e)
+        return {"total": 0, "ganadas": 0, "perdidas": 0, "total_pnl": 0, "win_rate": 0, "roi": 0}
+
+
+def get_performance_by_source(days: int = 30) -> list:
+    """Performance desglosada por fuente de señal."""
+    from database import db, _fetchall, _USE_PG
+
+    try:
+        with db() as conn:
+            if _USE_PG:
+                cur = conn.cursor()
+                cur.execute("""
+                    SELECT 
+                        COALESCE(sources, 'unknown') as source,
+                        COUNT(*) as total,
+                        SUM(CASE WHEN resultado = 'ganada' THEN 1 ELSE 0 END) as ganadas,
+                        SUM(pnl) as total_pnl,
+                        AVG(confidence_score) as avg_conf
+                    FROM brain_tracks 
+                    WHERE created_at >= NOW() - INTERVAL '%s days'
+                    GROUP BY sources
+                    ORDER BY total_pnl DESC
+                """ % days)
+                rows = cur.fetchall()
+                cur.close()
+            else:
+                rows = conn.execute("""
+                    SELECT 
+                        COALESCE(sources, 'unknown') as source,
+                        COUNT(*) as total,
+                        SUM(CASE WHEN resultado = 'ganada' THEN 1 ELSE 0 END) as ganadas,
+                        SUM(pnl) as total_pnl,
+                        AVG(confidence_score) as avg_conf
+                    FROM brain_tracks 
+                    WHERE created_at >= datetime('now', ?)
+                    GROUP BY sources
+                    ORDER BY total_pnl DESC
+                """, (f'-{days} days',)).fetchall()
+
+            results = []
+            for row in rows:
+                total = row[1] or 0
+                ganadas = row[2] or 0
+                results.append({
+                    "source": row[0] or "unknown",
+                    "total": total,
+                    "ganadas": ganadas,
+                    "win_rate": round((ganadas / total * 100) if total > 0 else 0, 1),
+                    "total_pnl": round(float(row[3] or 0), 2),
+                    "avg_confidence": round(float(row[4] or 0), 1),
+                })
+            return results
+
+    except Exception as e:
+        logger.error("Error get_performance_by_source: %s", e)
+        return []
+
+
+def get_clv_summary(days: int = 30) -> dict:
+    """Closing Line Value - mide si las apuestas vencen a la línea de cierre."""
+    from database import db, _USE_PG
+
+    try:
+        with db() as conn:
+            if _USE_PG:
+                cur = conn.cursor()
+                cur.execute("""
+                    SELECT 
+                        COUNT(*) as total,
+                        AVG(CASE WHEN odds > 0 AND resultado IS NOT NULL THEN 
+                            (odds - odds) * 100 ELSE 0 END) as avg_clv,
+                        SUM(CASE WHEN odds > 0 AND resultado = 'ganada' THEN 1 ELSE 0 END)::float /
+                            NULLIF(SUM(CASE WHEN odds > 0 AND resultado IN ('ganada','perdida') THEN 1 ELSE 0 END), 0) as implied_vs_actual
+                    FROM brain_tracks 
+                    WHERE created_at >= NOW() - INTERVAL '%s days'
+                """ % days)
+                row = cur.fetchone()
+                cur.close()
+            else:
+                row = conn.execute("""
+                    SELECT 
+                        COUNT(*) as total,
+                        AVG(CASE WHEN odds > 0 AND resultado IS NOT NULL THEN 
+                            (odds - odds) * 100 ELSE 0 END) as avg_clv,
+                        CAST(SUM(CASE WHEN odds > 0 AND resultado = 'ganada' THEN 1 ELSE 0 END) AS REAL) /
+                            NULLIF(SUM(CASE WHEN odds > 0 AND resultado IN ('ganada','perdida') THEN 1 ELSE 0 END), 0) as implied_vs_actual
+                    FROM brain_tracks 
+                    WHERE created_at >= datetime('now', ?)
+                """, (f'-{days} days',)).fetchone()
+
+            total = row[0] or 0
+            return {
+                "total_apuestas": total,
+                "avg_clv": round(float(row[1] or 0), 2),
+                "implied_prob_vs_real": round(float(row[2] or 0) * 100, 1),
+                "status": "POSITIVE" if (row[1] or 0) > 0 else "NEGATIVE",
+            }
+
+    except Exception as e:
+        logger.error("Error get_clv_summary: %s", e)
+        return {"total_apuestas": 0, "avg_clv": 0, "status": "NO_DATA"}
+
+
+def get_performance_by_confidence(days: int = 30) -> list:
+    """Win rate por nivel de confianza."""
+    from database import db, _USE_PG
+
+    try:
+        with db() as conn:
+            if _USE_PG:
+                cur = conn.cursor()
+                cur.execute("""
+                    SELECT 
+                        CASE 
+                            WHEN confidence_score >= 80 THEN 'ALTA (80+)'
+                            WHEN confidence_score >= 60 THEN 'MEDIA (60-79)'
+                            WHEN confidence_score >= 40 THEN 'BAJA (40-59)'
+                            ELSE 'MUY_BAJA (<40)'
+                        END as nivel,
+                        COUNT(*) as total,
+                        SUM(CASE WHEN resultado = 'ganada' THEN 1 ELSE 0 END) as ganadas,
+                        SUM(pnl) as total_pnl
+                    FROM brain_tracks 
+                    WHERE created_at >= NOW() - INTERVAL '%s days'
+                    GROUP BY nivel
+                    ORDER BY nivel
+                """ % days)
+                rows = cur.fetchall()
+                cur.close()
+            else:
+                rows = conn.execute("""
+                    SELECT 
+                        CASE 
+                            WHEN confidence_score >= 80 THEN 'ALTA (80+)'
+                            WHEN confidence_score >= 60 THEN 'MEDIA (60-79)'
+                            WHEN confidence_score >= 40 THEN 'BAJA (40-59)'
+                            ELSE 'MUY_BAJA (<40)'
+                        END as nivel,
+                        COUNT(*) as total,
+                        SUM(CASE WHEN resultado = 'ganada' THEN 1 ELSE 0 END) as ganadas,
+                        SUM(pnl) as total_pnl
+                    FROM brain_tracks 
+                    WHERE created_at >= datetime('now', ?)
+                    GROUP BY nivel
+                    ORDER BY nivel
+                """, (f'-{days} days',)).fetchall()
+
+            results = []
+            for row in rows:
+                total = row[1] or 0
+                ganadas = row[2] or 0
+                results.append({
+                    "nivel": row[0],
+                    "total": total,
+                    "ganadas": ganadas,
+                    "win_rate": round((ganadas / total * 100) if total > 0 else 0, 1),
+                    "total_pnl": round(float(row[3] or 0), 2),
+                })
+            return results
+
+    except Exception as e:
+        logger.error("Error get_performance_by_confidence: %s", e)
+        return []
+
+
+def get_streak_analysis(days: int = 30) -> dict:
+    """Análisis de rachas."""
+    from database import db, _USE_PG
+
+    try:
+        with db() as conn:
+            if _USE_PG:
+                cur = conn.cursor()
+                cur.execute("""
+                    SELECT resultado FROM brain_tracks 
+                    WHERE created_at >= NOW() - INTERVAL '%s days'
+                    AND resultado IN ('ganada', 'perdida')
+                    ORDER BY created_at
+                """ % days)
+                rows = [r[0] for r in cur.fetchall()]
+                cur.close()
+            else:
+                rows = [r[0] for r in conn.execute("""
+                    SELECT resultado FROM brain_tracks 
+                    WHERE created_at >= datetime('now', ?)
+                    AND resultado IN ('ganada', 'perdida')
+                    ORDER BY created_at
+                """, (f'-{days} days',)).fetchall()]
+
+            if not rows:
+                return {"max_win_streak": 0, "max_lose_streak": 0, "current_streak": 0, "current_type": "none"}
+
+            # Rachas
+            max_win = 0
+            max_lose = 0
+            current = 1
+            current_type = rows[0]
+
+            for i in range(1, len(rows)):
+                if rows[i] == rows[i-1]:
+                    current += 1
+                else:
+                    if rows[i-1] == 'ganada':
+                        max_win = max(max_win, current)
+                    else:
+                        max_lose = max(max_lose, current)
+                    current = 1
+                    current_type = rows[i]
+
+            # Última racha
+            if rows[-1] == 'ganada':
+                max_win = max(max_win, current)
+            else:
+                max_lose = max(max_lose, current)
+
+            return {
+                "max_win_streak": max_win,
+                "max_lose_streak": max_lose,
+                "current_streak": current,
+                "current_type": current_type,
+            }
+
+    except Exception as e:
+        logger.error("Error get_streak_analysis: %s", e)
+        return {"max_win_streak": 0, "max_lose_streak": 0, "current_streak": 0}
+
+
+def _clasificar_calidad(result: dict) -> str:
+    """Clasifica la calidad del sistema basado en métricas."""
+    wr = result.get("win_rate", 0)
+    roi = result.get("roi", 0)
+    pf = result.get("profit_factor", 0)
+    total = result.get("total", 0)
+
+    if total < 10:
+        return "INSUFICIENTE"
+    if wr >= 55 and roi > 5 and pf > 1.2:
+        return "EXCELENTE"
+    if wr >= 50 and roi > 0 and pf > 1.0:
+        return "BUENA"
+    if wr >= 45 and roi > -5:
+        return "REGULAR"
+    return "MALA"

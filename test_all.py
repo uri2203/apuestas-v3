@@ -801,6 +801,105 @@ def main():
     r = get("/panel/hulk")
     check_eq(r.status_code, 200, "GET /panel/hulk = 200")
 
+    # -- Performance Tracker --
+    print("\n  --- Performance Tracker ---")
+    r = get("/api/performance/summary?days=30")
+    check_eq(r.status_code, 200, "GET /api/performance/summary = 200")
+    d = r.get_json()
+    check("total" in d, "performance/summary tiene total")
+    check("win_rate" in d, "performance/summary tiene win_rate")
+    check("roi" in d, "performance/summary tiene roi")
+
+    r = get("/api/performance/by-source?days=30")
+    check_eq(r.status_code, 200, "GET /api/performance/by-source = 200")
+    d = r.get_json()
+    check("sources" in d, "performance/by-source tiene sources")
+
+    r = get("/api/performance/clv?days=30")
+    check_eq(r.status_code, 200, "GET /api/performance/clv = 200")
+    d = r.get_json()
+    check("total_apuestas" in d, "performance/clv tiene total_apuestas")
+
+    r = get("/api/performance/by-confidence?days=30")
+    check_eq(r.status_code, 200, "GET /api/performance/by-confidence = 200")
+    d = r.get_json()
+    check("levels" in d, "performance/by-confidence tiene levels")
+
+    r = get("/api/performance/streaks?days=30")
+    check_eq(r.status_code, 200, "GET /api/performance/streaks = 200")
+    d = r.get_json()
+    check("max_win_streak" in d, "performance/streaks tiene max_win_streak")
+
+    # Test: Dashboard performance module
+    r = get("/panel/performance")
+    check_eq(r.status_code, 200, "GET /panel/performance = 200")
+
+    # -- Risk Management --
+    print("\n  --- Risk Management ---")
+    r = get("/api/risk/status")
+    check_eq(r.status_code, 200, "GET /api/risk/status = 200")
+    d = r.get_json()
+    check("bankroll" in d, "risk/status tiene bankroll")
+    check("today" in d, "risk/status tiene today")
+    check("status" in d, "risk/status tiene status")
+
+    r = post("/api/risk/check", json_data={"sport": "soccer", "match": "Test vs Test", "stake": 100})
+    check_eq(r.status_code, 200, "POST /api/risk/check = 200")
+    d = r.get_json()
+    check("allowed" in d, "risk/check tiene allowed")
+    check("recommended_stake" in d, "risk/check tiene recommended_stake")
+
+    r = get("/api/risk/limits")
+    check_eq(r.status_code, 200, "GET /api/risk/limits = 200")
+    d = r.get_json()
+    check("max_apuestas_diarias" in d, "risk/limits tiene max_apuestas_diarias")
+    check("stop_loss_diario" in d, "risk/limits tiene stop_loss_diario")
+
+    r = post("/api/risk/config", json_data={"max_apuestas_diarias": 20})
+    check_eq(r.status_code, 200, "POST /api/risk/config = 200")
+
+    # Test: Dashboard risk module
+    r = get("/panel/risk")
+    check_eq(r.status_code, 200, "GET /panel/risk = 200")
+
+    # -- Backtester --
+    print("\n  --- Backtester ---")
+    r = get("/api/backtest/strategies")
+    check_eq(r.status_code, 200, "GET /api/backtest/strategies = 200")
+    d = r.get_json()
+    check("strategies" in d, "backtest/strategies tiene strategies")
+
+    r = post("/api/backtest/run", json_data={"strategy": "sharp_money", "days": 30, "bankroll": 10000})
+    check_eq(r.status_code, 200, "POST /api/backtest/run = 200")
+    d = r.get_json()
+    check("strategy" in d, "backtest/run tiene strategy")
+    check("total_bets" in d, "backtest/run tiene total_bets")
+
+    r = get("/api/backtest/all?days=30")
+    check_eq(r.status_code, 200, "GET /api/backtest/all = 200")
+
+    r = post("/api/backtest/simulate", json_data={"strategy": "sharp_money", "num_bets": 50})
+    check_eq(r.status_code, 200, "POST /api/backtest/simulate = 200")
+    d = r.get_json()
+    check("stats" in d, "backtest/simulate tiene stats")
+
+    # -- ML Enhanced --
+    print("\n  --- ML Enhanced ---")
+    r = post("/api/ml/enhanced/predict", json_data={"home_team": "Real Madrid", "away_team": "Barcelona", "sport": "soccer"})
+    check_eq(r.status_code, 200, "POST /api/ml/enhanced/predict = 200")
+    d = r.get_json()
+    check("prediction" in d, "ml/enhanced/predict tiene prediction")
+    check("models" in d, "ml/enhanced/predict tiene models")
+
+    r = get("/api/ml/enhanced/accuracy")
+    check_eq(r.status_code, 200, "GET /api/ml/enhanced/accuracy = 200")
+    d = r.get_json()
+    check("accuracy" in d, "ml/enhanced/accuracy tiene accuracy")
+
+    # Test: Dashboard ml-enhanced module
+    r = get("/panel/ml-enhanced")
+    check_eq(r.status_code, 200, "GET /panel/ml-enhanced = 200")
+
     # -- Summary --
     total = PASS + FAIL
     print("")

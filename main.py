@@ -3039,6 +3039,238 @@ def hulk_history():
 
 
 # ══════════════════════════════════════════════════════════════════════════
+# PERFORMANCE TRACKER — Rutas API
+# ══════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/performance/summary")
+@login_required
+def performance_summary():
+    """Resumen de performance del sistema."""
+    try:
+        from services.performance_tracker import get_performance_summary
+        days = request.args.get("days", 30, type=int)
+        return jsonify(get_performance_summary(days))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/performance/by-source")
+@login_required
+def performance_by_source():
+    """Performance desglosada por fuente de señal."""
+    try:
+        from services.performance_tracker import get_performance_by_source
+        days = request.args.get("days", 30, type=int)
+        return jsonify({"sources": get_performance_by_source(days)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/performance/clv")
+@login_required
+def performance_clv():
+    """Closing Line Value — mide si las apuestas vencen a la línea de cierre."""
+    try:
+        from services.performance_tracker import get_clv_summary
+        days = request.args.get("days", 30, type=int)
+        return jsonify(get_clv_summary(days))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/performance/by-confidence")
+@login_required
+def performance_by_confidence():
+    """Win rate por nivel de confianza."""
+    try:
+        from services.performance_tracker import get_performance_by_confidence
+        days = request.args.get("days", 30, type=int)
+        return jsonify({"levels": get_performance_by_confidence(days)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/performance/streaks")
+@login_required
+def performance_streaks():
+    """Análisis de rachas."""
+    try:
+        from services.performance_tracker import get_streak_analysis
+        days = request.args.get("days", 30, type=int)
+        return jsonify(get_streak_analysis(days))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# RISK MANAGEMENT — Rutas API
+# ══════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/risk/status")
+@login_required
+def risk_status():
+    """Estado del sistema de riesgo."""
+    try:
+        from services.risk_manager import get_risk_status
+        return jsonify(get_risk_status())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/risk/check", methods=["POST"])
+@login_required
+def risk_check():
+    """Verifica si se puede hacer una apuesta."""
+    try:
+        from services.risk_manager import check_can_bet
+        data = request.get_json(silent=True) or {}
+        sport = data.get("sport", "soccer")
+        match = data.get("match", "")
+        stake = data.get("stake", 100)
+        return jsonify(check_can_bet(sport, match, stake))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/risk/limits")
+@login_required
+def risk_limits():
+    """Límites diarios configurados."""
+    try:
+        from services.risk_manager import get_daily_limits
+        return jsonify(get_daily_limits())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/risk/config", methods=["POST"])
+@login_required
+def risk_config():
+    """Actualiza configuración de riesgo."""
+    try:
+        from services.risk_manager import update_risk_config
+        data = request.get_json(silent=True) or {}
+        return jsonify({"config": update_risk_config(data)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# BACKTESTER — Rutas API
+# ══════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/backtest/run", methods=["POST"])
+@login_required
+def backtest_run():
+    """Ejecuta backtest de una estrategia."""
+    try:
+        from services.backtester import run_backtest
+        data = request.get_json(silent=True) or {}
+        strategy = data.get("strategy", "sharp_money")
+        days = data.get("days", 30)
+        bankroll = data.get("bankroll", 10000)
+        return jsonify(run_backtest(strategy, days, bankroll))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/backtest/all")
+@login_required
+def backtest_all():
+    """Compara todas las estrategias."""
+    try:
+        from services.backtester import run_all_strategies_backtest
+        days = request.args.get("days", 30, type=int)
+        return jsonify(run_all_strategies_backtest(days))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/backtest/strategies")
+@login_required
+def backtest_strategies():
+    """Lista de estrategias disponibles."""
+    try:
+        from services.backtester import get_strategies
+        return jsonify({"strategies": get_strategies()})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/backtest/simulate", methods=["POST"])
+@login_required
+def backtest_simulate():
+    """Simula el futuro con Monte Carlo."""
+    try:
+        from services.backtester import simulate_future
+        data = request.get_json(silent=True) or {}
+        strategy = data.get("strategy", "sharp_money")
+        num_bets = data.get("num_bets", 100)
+        return jsonify(simulate_future(strategy, num_bets))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# LIVE BETTING — Rutas API
+# ══════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/live/odds")
+@login_required
+def live_odds():
+    """Odds en tiempo real de partidos en vivo."""
+    try:
+        from services.deportes import get_odds_upcoming
+        sport = request.args.get("sport", "soccer")
+        live = request.args.get("live", "true").lower() == "true"
+        result = get_odds_upcoming(sport)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/live/alerts")
+@login_required
+def live_alerts():
+    """Alertas de oportunidades en vivo."""
+    try:
+        from services.hulk import scan_live_opportunities
+        return jsonify({"opportunities": scan_live_opportunities()})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# ML ENHANCED — Rutas API
+# ══════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/ml/enhanced/predict", methods=["POST"])
+@login_required
+def ml_enhanced_predict():
+    """Predicción mejorada usando ensemble ML."""
+    try:
+        from services.ml_enhanced import get_ml_enhanced_prediction
+        data = request.get_json(silent=True) or {}
+        home = data.get("home_team", "")
+        away = data.get("away_team", "")
+        sport = data.get("sport", "soccer")
+        return jsonify(get_ml_enhanced_prediction(home, away, sport))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/ml/enhanced/accuracy")
+@login_required
+def ml_enhanced_accuracy():
+    """Métricas de accuracy del ensemble."""
+    try:
+        from services.ml_enhanced import get_ensemble_accuracy
+        return jsonify(get_ensemble_accuracy())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ══════════════════════════════════════════════════════════════════════════
 # BRAIN SCHEDULER — Jobs automáticos
 # ══════════════════════════════════════════════════════════════════════════
 

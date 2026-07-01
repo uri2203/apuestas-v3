@@ -1960,6 +1960,279 @@ async function maCLV(){
 }catch(e){}})()
 """)
 
+MOD_PERFORMANCE = module_page("Performance Tracker", """
+<div class="module-intro">
+  <h2>Performance Tracker</h2>
+  <p>Métricas reales del sistema: ROI, win rate, CLV, y análisis de calidad.</p>
+</div>
+
+<div class="kpi-grid" id="perfKPI">
+  <div class="kpi"><div class="label">Total Apuestas</div><div class="value" id="perfTotal">--</div></div>
+  <div class="kpi"><div class="label">Win Rate</div><div class="value" id="perfWR">--</div></div>
+  <div class="kpi"><div class="label">ROI</div><div class="value" id="perfROI">--</div></div>
+  <div class="kpi"><div class="label">P&L Total</div><div class="value" id="perfPNL">--</div></div>
+  <div class="kpi"><div class="label">Profit Factor</div><div class="value" id="perfPF">--</div></div>
+  <div class="kpi"><div class="label">Calidad</div><div class="value" id="perfCalidad">--</div></div>
+</div>
+
+<div class="panel" style="margin-top:16px">
+  <h3>Resumen de Performance</h3>
+  <button onclick="loadPerf()" class="btn btn-sm">Actualizar</button>
+  <div id="perfResult" style="margin-top:8px"></div>
+</div>
+
+<div class="panel" style="margin-top:16px">
+  <h3>Performance por Fuente</h3>
+  <div id="perfSourceResult" style="margin-top:8px"></div>
+</div>
+
+<div class="panel" style="margin-top:16px">
+  <h3>CLV (Closing Line Value)</h3>
+  <div id="perfCLVResult" style="margin-top:8px"></div>
+</div>
+
+<div class="panel" style="margin-top:16px">
+  <h3>Win Rate por Confianza</h3>
+  <div id="perfConfResult" style="margin-top:8px"></div>
+</div>
+
+<div class="panel" style="margin-top:16px">
+  <h3>Análisis de Rachas</h3>
+  <div id="perfStreakResult" style="margin-top:8px"></div>
+</div>
+
+<script>
+async function loadPerf(){
+  try{
+    const d=await api('/api/performance/summary?days=30')
+    document.getElementById('perfTotal').textContent=d.total||0
+    document.getElementById('perfWR').textContent=(d.win_rate||0)+'%'
+    document.getElementById('perfROI').textContent=(d.roi||0)+'%'
+    document.getElementById('perfPNL').textContent='$'+(d.total_pnl||0)
+    document.getElementById('perfPF').textContent=d.profit_factor||0
+    document.getElementById('perfCalidad').textContent=d.calidad||'N/A'
+    
+    let html='<div class="kpi-grid">'
+    html+='<div class="kpi"><div class="label">Ganadas</div><div class="value green">'+d.ganadas+'</div></div>'
+    html+='<div class="kpi"><div class="label">Perdidas</div><div class="value red">'+d.perdidas+'</div></div>'
+    html+='<div class="kpi"><div class="label">Empates</div><div class="value">'+d.empates+'</div></div>'
+    html+='<div class="kpi"><div class="label">P&L Ganadas</div><div class="value green">$'+d.pnl_ganadas+'</div></div>'
+    html+='<div class="kpi"><div class="label">P&L Perdidas</div><div class="value red">$'+d.pnl_perdidas+'</div></div>'
+    html+='<div class="kpi"><div class="label">Confianza Promedio</div><div class="value">'+d.avg_confidence+'</div></div>'
+    html+='<div class="kpi"><div class="label">Edge Promedio</div><div class="value">'+d.avg_edge+'%</div></div>'
+    html+='<div class="kpi"><div class="label">Stake Promedio</div><div class="value">$'+d.avg_stake+'</div></div>'
+    html+='</div>'
+    document.getElementById('perfResult').innerHTML=html
+    
+    const s=await api('/api/performance/by-source?days=30')
+    if(s.sources&&s.sources.length){
+      let h='<table><thead><tr><th>Fuente</th><th>Total</th><th>Ganadas</th><th>Win Rate</th><th>P&L</th><th>Conf Prom</th></tr></thead><tbody>'
+      s.sources.forEach(r=>{h+='<tr><td>'+r.source+'</td><td>'+r.total+'</td><td>'+r.ganadas+'</td><td class="'+(r.win_rate>=50?'green':'red')+'">'+r.win_rate+'%</td><td class="'+(r.total_pnl>=0?'green':'red')+'">$'+r.total_pnl+'</td><td>'+r.avg_confidence+'</td></tr>'})
+      h+='</tbody></table>'
+      document.getElementById('perfSourceResult').innerHTML=h
+    }
+    
+    const c=await api('/api/performance/clv?days=30')
+    let ch='<div class="kpi-grid">'
+    ch+='<div class="kpi"><div class="label">Total CLV</div><div class="value">'+c.total_apuestas+'</div></div>'
+    ch+='<div class="kpi"><div class="label">CLV Promedio</div><div class="value '+(c.status==='POSITIVE'?'green':'red')+'">'+c.avg_clv+'%</div></div>'
+    ch+='<div class="kpi"><div class="label">Status</div><div class="value">'+c.status+'</div></div>'
+    ch+='</div>'
+    document.getElementById('perfCLVResult').innerHTML=ch
+    
+    const cf=await api('/api/performance/by-confidence?days=30')
+    if(cf.levels&&cf.levels.length){
+      let h='<table><thead><tr><th>Nivel</th><th>Total</th><th>Ganadas</th><th>Win Rate</th><th>P&L</th></tr></thead><tbody>'
+      cf.levels.forEach(r=>{h+='<tr><td>'+r.nivel+'</td><td>'+r.total+'</td><td>'+r.ganadas+'</td><td class="'+(r.win_rate>=50?'green':'red')+'">'+r.win_rate+'%</td><td class="'+(r.total_pnl>=0?'green':'red')+'">$'+r.total_pnl+'</td></tr>'})
+      h+='</tbody></table>'
+      document.getElementById('perfConfResult').innerHTML=h
+    }
+    
+    const st=await api('/api/performance/streaks?days=30')
+    let sh='<div class="kpi-grid">'
+    sh+='<div class="kpi"><div class="label">Max Racha Ganar</div><div class="value green">'+st.max_win_streak+'</div></div>'
+    sh+='<div class="kpi"><div class="label">Max Racha Perder</div><div class="value red">'+st.max_lose_streak+'</div></div>'
+    sh+='<div class="kpi"><div class="label">Racha Actual</div><div class="value">'+st.current_streak+' ('+st.current_type+')</div></div>'
+    sh+='</div>'
+    document.getElementById('perfStreakResult').innerHTML=sh
+  }catch(e){document.getElementById('perfResult').innerHTML='<span class="red">Error: '+e.message+'</span>'}
+}
+loadPerf()
+</script>
+""")
+
+MOD_RISK = module_page("Risk Management", """
+<div class="module-intro">
+  <h2>Risk Management</h2>
+  <p>Control de riesgo: stop loss, max exposición, límites diarios, y diversificación.</p>
+</div>
+
+<div class="kpi-grid" id="riskKPI">
+  <div class="kpi"><div class="label">Bankroll</div><div class="value" id="riskBankroll">--</div></div>
+  <div class="kpi"><div class="label">Estado</div><div class="value" id="riskStatus">--</div></div>
+  <div class="kpi"><div class="label">Drawdown</div><div class="value" id="riskDD">--</div></div>
+  <div class="kpi"><div class="label">Apuestas Hoy</div><div class="value" id="riskToday">--</div></div>
+  <div class="kpi"><div class="label">P&L Hoy</div><div class="value" id="riskTodayPNL">--</div></div>
+  <div class="kpi"><div class="label">P&L Semana</div><div class="value" id="riskWeekPNL">--</div></div>
+</div>
+
+<div class="panel" style="margin-top:16px">
+  <h3>Alertas de Riesgo</h3>
+  <div id="riskAlerts" style="margin-top:8px"></div>
+</div>
+
+<div class="panel" style="margin-top:16px">
+  <h3>Exposición por Deporte</h3>
+  <div id="riskSportExp" style="margin-top:8px"></div>
+</div>
+
+<div class="panel" style="margin-top:16px">
+  <h3>Límites Configurados</h3>
+  <div id="riskLimits" style="margin-top:8px"></div>
+</div>
+
+<div class="panel" style="margin-top:16px">
+  <h3>Verificar Apuesta</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+    <input id="riskCheckSport" placeholder="Deporte" value="soccer">
+    <input id="riskCheckMatch" placeholder="Partido" value="">
+    <input id="riskCheckStake" type="number" placeholder="Stake" value="100">
+  </div>
+  <button onclick="checkBet()" class="btn btn-sm" style="margin-top:8px">Verificar</button>
+  <div id="riskCheckResult" style="margin-top:8px"></div>
+</div>
+
+<script>
+async function loadRisk(){
+  try{
+    const d=await api('/api/risk/status')
+    document.getElementById('riskBankroll').textContent='$'+d.bankroll
+    document.getElementById('riskStatus').textContent=d.status
+    document.getElementById('riskStatus').className='value '+(d.status==='PAUSADO'?'red':'green')
+    document.getElementById('riskDD').textContent=d.risk_metrics?.drawdown_pct||0+'%'
+    document.getElementById('riskToday').textContent=d.today?.count||0+'/'+d.today?.limit
+    document.getElementById('riskTodayPNL').textContent='$'+(d.today?.pnl||0)
+    document.getElementById('riskTodayPNL').className='value '+(d.today?.pnl>=0?'green':'red')
+    document.getElementById('riskWeekPNL').textContent='$'+(d.week?.pnl||0)
+    document.getElementById('riskWeekPNL').className='value '+(d.week?.pnl>=0?'green':'red')
+    
+    if(d.alerts&&d.alerts.length){
+      let h='<div class="red">'+d.alerts.join('<br>')+'</div>'
+      document.getElementById('riskAlerts').innerHTML=h
+    }else{
+      document.getElementById('riskAlerts').innerHTML='<span class="green">Sin alertas</span>'
+    }
+    
+    if(d.exposure?.by_sport){
+      let h='<table><thead><tr><th>Deporte</th><th>Exposición</th></tr></thead><tbody>'
+      for(const[sport,staked]of Object.entries(d.exposure.by_sport)){
+        h+='<tr><td>'+sport+'</td><td>$'+staked+'</td></tr>'
+      }
+      h+='</tbody></table>'
+      document.getElementById('riskSportExp').innerHTML=h
+    }
+    
+    const l=await api('/api/risk/limits')
+    let lh='<div class="kpi-grid">'
+    lh+='<div class="kpi"><div class="label">Max Apuestas/Día</div><div class="value">'+l.max_apuestas_diarias+'</div></div>'
+    lh+='<div class="kpi"><div class="label">Stop Loss Diario</div><div class="value red">$'+l.stop_loss_diario+'</div></div>'
+    lh+='<div class="kpi"><div class="label">Stop Loss Semanal</div><div class="value red">$'+l.stop_loss_semanal+'</div></div>'
+    lh+='<div class="kpi"><div class="label">Max Drawdown</div><div class="value">'+l.max_drawdown_pct+'%</div></div>'
+    lh+='<div class="kpi"><div class="label">Max Kelly</div><div class="value">'+(l.max_kelly_fraction*100)+'%</div></div>'
+    lh+='<div class="kpi"><div class="label">Reserva Mínima</div><div class="value">$'+l.min_bankroll_reserve+'</div></div>'
+    lh+='</div>'
+    document.getElementById('riskLimits').innerHTML=lh
+  }catch(e){document.getElementById('riskAlerts').innerHTML='<span class="red">Error: '+e.message+'</span>'}
+}
+async function checkBet(){
+  const sport=document.getElementById('riskCheckSport').value
+  const match=document.getElementById('riskCheckMatch').value
+  const stake=parseFloat(document.getElementById('riskCheckStake').value)||100
+  try{
+    const d=await api('/api/risk/check',{method:'POST',body:JSON.stringify({sport,match,stake})})
+    let html='<div class="kpi-grid" style="margin-top:8px">'
+    html+='<div class="kpi"><div class="label">Permitido</div><div class="value '+(d.allowed?'green':'red')+'">'+(d.allowed?'SI':'NO')+'</div></div>'
+    html+='<div class="kpi"><div class="label">Stake Recomendado</div><div class="value">$'+d.recommended_stake+'</div></div>'
+    html+='</div>'
+    if(d.reasons&&d.reasons.length){html+='<div class="red" style="margin-top:8px">'+d.reasons.join('<br>')+'</div>'}
+    document.getElementById('riskCheckResult').innerHTML=html
+  }catch(e){document.getElementById('riskCheckResult').innerHTML='<span class="red">Error: '+e.message+'</span>'}
+}
+loadRisk()
+</script>
+""")
+
+MOD_ML_ENHANCED = module_page("ML Enhanced", """
+<div class="module-intro">
+  <h2>ML Enhanced</h2>
+  <p>Modelos de Machine Learning avanzados: Ensemble mejorado, Feature Importance, y calibración.</p>
+</div>
+
+<div class="panel" style="margin-top:16px">
+  <h3>Predicción ML Enhanced</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+    <input id="mlHome" placeholder="Equipo Local">
+    <input id="mlAway" placeholder="Equipo Visitante">
+    <select id="mlSport"><option value="soccer">Fútbol</option><option value="basketball">Baloncesto</option><option value="american_football">NFL</option><option value="tennis">Tenis</option></select>
+  </div>
+  <button onclick="mlPredict()" class="btn btn-sm" style="margin-top:8px">Predecir</button>
+  <div id="mlPredResult" style="margin-top:8px"></div>
+</div>
+
+<div class="panel" style="margin-top:16px">
+  <h3>Métricas de Accuracy</h3>
+  <div id="mlAccResult" style="margin-top:8px"></div>
+</div>
+
+<script>
+async function mlPredict(){
+  const home=document.getElementById('mlHome').value
+  const away=document.getElementById('mlAway').value
+  const sport=document.getElementById('mlSport').value
+  try{
+    const d=await api('/api/ml/enhanced/predict',{method:'POST',body:JSON.stringify({home_team:home,away_team:away,sport:sport})})
+    if(d.error){document.getElementById('mlPredResult').innerHTML='<span class="red">'+d.error+'</span>';return}
+    let html='<div class="kpi-grid">'
+    html+='<div class="kpi"><div class="label">Local Win</div><div class="value '+(d.prediction.home_prob>50?'green':'')+'">'+d.prediction.home_prob+'%</div></div>'
+    html+='<div class="kpi"><div class="label">Visitante Win</div><div class="value '+(d.prediction.away_prob>50?'green':'')+'">'+d.prediction.away_prob+'%</div></div>'
+    html+='<div class="kpi"><div class="label">Confianza</div><div class="value">'+d.prediction.confidence+'%</div></div>'
+    html+='</div>'
+    if(d.recommendation){
+      html+='<div style="margin-top:8px"><strong>Recomendación:</strong> '+d.recommendation.action
+      if(d.recommendation.selection)html+=' - '+d.recommendation.selection
+      if(d.recommendation.kelly_pct)html+=' (Kelly: '+d.recommendation.kelly_pct+'%)'
+      html+='</div>'
+    }
+    if(d.models){
+      html+='<div style="margin-top:8px"><strong>Modelos:</strong></div>'
+      html+='<table><thead><tr><th>Modelo</th><th>Local</th><th>Visitante</th></tr></thead><tbody>'
+      for(const[name,m]of Object.entries(d.models)){
+        html+='<tr><td>'+name+'</td><td>'+(m.home_prob||m.home_elo||'-')+'</td><td>'+(m.away_prob||m.away_elo||'-')+'</td></tr>'
+      }
+      html+='</tbody></table>'
+    }
+    document.getElementById('mlPredResult').innerHTML=html
+  }catch(e){document.getElementById('mlPredResult').innerHTML='<span class="red">Error: '+e.message+'</span>'}
+}
+async function loadMLAcc(){
+  try{
+    const d=await api('/api/ml/enhanced/accuracy')
+    let html='<div class="kpi-grid">'
+    html+='<div class="kpi"><div class="label">Accuracy</div><div class="value">'+d.accuracy+'%</div></div>'
+    html+='<div class="kpi"><div class="label">Precision</div><div class="value">'+d.precision+'%</div></div>'
+    html+='<div class="kpi"><div class="label">Recall</div><div class="value">'+d.recall+'%</div></div>'
+    html+='<div class="kpi"><div class="label">F1 Score</div><div class="value">'+d.f1_score+'</div></div>'
+    html+='<div class="kpi"><div class="label">Log Loss</div><div class="value">'+d.log_loss+'</div></div>'
+    html+='<div class="kpi"><div class="label">Brier Score</div><div class="value">'+d.brier_score+'</div></div>'
+    html+='</div>'
+    if(d.notes){html+='<div style="margin-top:8px;color:var(--text2)">'+d.notes+'</div>'}
+    document.getElementById('mlAccResult').innerHTML=html
+  }catch(e){document.getElementById('mlAccResult').innerHTML='<span class="red">Error: '+e.message+'</span>'}
+}
+loadMLAcc()
+</script>
+""")
+
 # ── Module map ──────────────────────────────────────────────────────────────
 MODULES = {
     "value-bets":    ("Value Bets",          MOD_VALUE_BETS),
@@ -1987,6 +2260,9 @@ MODULES = {
     "modelos-avanzados": ("Modelos Avanzados", MOD_MODELOS_AVANZADOS),
     "brain":         ("Agente Brain",        MOD_BRAIN),
     "hulk":          ("Agente HULK",         MOD_HULK),
+    "performance":   ("Performance Tracker", MOD_PERFORMANCE),
+    "risk":          ("Risk Management",     MOD_RISK),
+    "ml-enhanced":   ("ML Enhanced",         MOD_ML_ENHANCED),
 }
 
 # ── Main export ──────────────────────────────────────────────────────────
