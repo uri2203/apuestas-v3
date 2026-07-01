@@ -370,7 +370,7 @@ document.getElementById('modLoading').style.display='none'
 document.getElementById('modContent').style.display='block'
 function theme(){{document.documentElement.classList.toggle('dark');localStorage.setItem('ap_theme',document.documentElement.classList.contains('dark')?'dark':'light')}}
 function toast(msg,type){{const t=document.createElement('div');t.className='toast '+type;t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),3e3)}}
-async function api(url,options){{const r=await fetch(url,options||{});if(!r.ok)throw new Error(await r.text());return r.json()}}
+async function api(url,options){{const r=await fetch(url,options||{{}});if(!r.ok)throw new Error(await r.text());return r.json()}}
 function edgeClass(e){{e=parseFloat(e)||0;if(e>=10)return 'edge-mega';if(e>=5)return 'edge-hot';if(e>=2)return 'edge-warm';return 'edge-cold'}}
 function edgeBadge(e){{e=parseFloat(e)||0;if(e>=10)return '<span class="badge badge-green">MEGA '+e.toFixed(1)+'%</span>';if(e>=5)return '<span class="badge badge-green">HIGH '+e.toFixed(1)+'%</span>';if(e>=2)return '<span class="badge badge-amber">MID '+e.toFixed(1)+'%</span>';return '<span class="badge badge-red">LOW '+e.toFixed(1)+'%</span>'}}
 {extra_js}
