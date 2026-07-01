@@ -298,6 +298,20 @@ def _init_pg() -> None:
         )""",
         "CREATE INDEX IF NOT EXISTS idx_bets_resultado ON bets(resultado)",
         "CREATE INDEX IF NOT EXISTS idx_pred_correcto  ON predictions(correcto)",
+        """CREATE TABLE IF NOT EXISTS odds_snapshots (
+            id SERIAL PRIMARY KEY,
+            timestamp TEXT NOT NULL,
+            home_team TEXT NOT NULL,
+            away_team TEXT NOT NULL,
+            sport_key TEXT DEFAULT '',
+            liga TEXT DEFAULT '',
+            commence_time TEXT DEFAULT '',
+            bookmaker TEXT NOT NULL,
+            selection TEXT NOT NULL,
+            odds REAL NOT NULL
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_odds_ts ON odds_snapshots(timestamp)",
+        "CREATE INDEX IF NOT EXISTS idx_odds_match ON odds_snapshots(home_team, away_team, timestamp)",
     ]
     for stmt in statements:
         cur.execute(stmt)
@@ -818,6 +832,21 @@ def _init_sqlite() -> None:
     );
     CREATE INDEX IF NOT EXISTS idx_bets_resultado ON bets(resultado);
     CREATE INDEX IF NOT EXISTS idx_pred_correcto  ON predictions(correcto);
+
+    CREATE TABLE IF NOT EXISTS odds_snapshots (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp TEXT NOT NULL,
+        home_team TEXT NOT NULL,
+        away_team TEXT NOT NULL,
+        sport_key TEXT DEFAULT '',
+        liga TEXT DEFAULT '',
+        commence_time TEXT DEFAULT '',
+        bookmaker TEXT NOT NULL,
+        selection TEXT NOT NULL,
+        odds REAL NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_odds_ts ON odds_snapshots(timestamp);
+    CREATE INDEX IF NOT EXISTS idx_odds_match ON odds_snapshots(home_team, away_team, timestamp);
     """)
     conn.commit()
     conn.close()

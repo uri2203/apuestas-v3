@@ -506,115 +506,116 @@ loadVB()
 # ════════════════════════════════════════════════════════════════════════════
 MOD_SHARP = module_page("Sharp Money", """
 <div class="kpi-grid">
-  <div class="kpi"><div class="label">Partidos Escaneados</div><div class="value" id="sharpCount">0</div></div>
-  <div class="kpi"><div class="label">Con Señal</div><div class="value green" id="sharpSignal">0</div></div>
-  <div class="kpi"><div class="label">Mejor Edge</div><div class="value amber" id="sharpBestEdge">0%</div></div>
-  <div class="kpi"><div class="label">Total Sugerido</div><div class="value green" id="sharpTotal$">$0</div></div>
+  <div class="kpi"><div class="label">Snapshots</div><div class="value" id="sharpSnapshots">0</div></div>
+  <div class="kpi"><div class="label">Partidos Trackeados</div><div class="value green" id="sharpTracked">0</div></div>
+  <div class="kpi"><div class="label">Steam Moves</div><div class="value purple" id="sharpSteam">0</div></div>
+  <div class="kpi"><div class="label">RLM Signals</div><div class="value amber" id="sharpRLM">0</div></div>
 </div>
+<div id="sharpTrackerStatus" style="margin-bottom:12px;font-size:12px;color:var(--text3)"></div>
 <div class="top-bar">
-  <select id="sharpSport"><option value="upcoming">Todos</option><option value="soccer_fifa_world_cup">Copa del Mundo</option><option value="tennis_atp_world_tour">Tenis ATP</option><option value="tennis_wta">Tenis WTA</option><option value="mma_mixed_martial_arts">MMA/UFC</option><option value="basketball_nba">NBA</option><option value="horse_racing">Caballos</option><option value="cricket_ipl">Cricket IPL</option><option value="esports_lol_lck">LoL LCK</option><option value="motorsport_f1_race_winner">F1</option></select>
-  <select id="sharpConf" onchange="filterSharpConf()">
-    <option value="all">Todas las confianzas</option>
-    <option value="ALTA">Solo ALTA (75+)</option>
-    <option value="MEDIA">Solo MEDIA (55-74)</option>
-    <option value="BAJA">BAJA / MUY BAJA (&lt;55)</option>
-  </select>
-  <button class="btn btn-primary" onclick="loadSharp()">Escanear Partidos</button>
-  <button class="btn" onclick="loadSharp()">Actualizar</button>
-  <span id="sharpStatus" style="font-size:11px;color:var(--text3)"></span>
+  <button class="btn btn-primary" onclick="sharpTakeSnapshot()">Tomar Snapshot</button>
+  <button class="btn" onclick="loadSharp()">Escanear Sharp Signals</button>
+  <button class="btn" onclick="loadSharpSteam()">Steam Moves</button>
+  <button class="btn" onclick="loadSharpRLM()">Reverse Line Movement</button>
 </div>
 <div id="sharpCards"></div>
 """, """
-function sharpBadge(conf){if(conf==='ALTA')return '<span class="badge badge-green">ALTA</span>';if(conf==='MEDIA')return '<span class="badge badge-amber">MEDIA</span>';return '<span class="badge badge-red">'+conf+'</span>'}
-function signalBadge(t){if(t==='VALUE BET')return '<span class="badge badge-green">VALUE BET</span>';if(t==='VALUE MENOR')return '<span class="badge badge-amber">VALUE</span>';if(t==='STEAM')return '<span class="badge badge-purple">STEAM</span>';return '<span class="badge badge-red">SIN SEÑAL</span>'}
-let sharpAllCards=[]
-function filterSharpConf(){
-  const f=document.getElementById('sharpConf').value
-  let totalM=0,count=0,html=''
-  sharpAllCards.forEach(c=>{
-    const conf=c.conf
-    const show=f==='all'||conf===f||(f==='BAJA'&&(conf==='BAJA'||conf==='MUY BAJA'))
-    if(show){html+=c.html;totalM+=c.monto;count++}
-  })
-  document.getElementById('sharpCards').innerHTML=html||'<div class="empty"><div class="icon">$</div><h3>Sin signals con confianza '+f+'</h3></div>'
-  document.getElementById('sharpSignal').textContent=count
-  document.getElementById('sharpTotal$').textContent='$'+totalM.toFixed(0)
+async function sharpTakeSnapshot(){
+  document.getElementById('sharpTrackerStatus').textContent='Tomando snapshot...'
+  try{
+    const d=await api('/api/sharp/snapshot',{method:'POST'})
+    document.getElementById('sharpTrackerStatus').textContent='Snapshot: '+d.saved+' odds guardadas de '+d.matches+' partidos'
+    loadSharpStats()
+  }catch(e){document.getElementById('sharpTrackerStatus').textContent='Error: '+e.message}
 }
-async function loadSharp(){try{
-  document.getElementById('sharpStatus').textContent='Escaneando...'
-  const s=document.getElementById('sharpSport').value
-  const d=await api('/api/sharp/scan?deporte='+s)
-  const recs=d.recomendaciones||[]
-  document.getElementById('sharpCount').textContent=d.total_partidos||0
-  document.getElementById('sharpSignal').textContent=d.con_señal||0
-  let bestE=0,totalMonto=0,html=''
-  sharpAllCards=[]
-  recs.forEach(v=>{
-    const edge=parseFloat(v.edge)||0
-    if(edge>bestE)bestE=edge
-    const conf=v.confianza||'-'
-    const confS=v.confianza_score||0
-    const sel=v.seleccion||''
-    const casa=v.casa_recomendada||''
-    const cuota=v.cuota||0
-    const accion=v.accion||''
-    const sig=v.tipo_senal||'SIN SEÑAL'
-    const liga=v.liga||''
-    const fecha=v.fecha||''
-    const nCasas=v.n_casas||0
-    const prob=v.probabilidad_implicita||0
-    const k=v.kelly||{}
-    const monto=k.monto_sugerido||0
-    if(monto>0)totalMonto+=monto
-    const color=edge>=5?'border-left:4px solid var(--green)':edge>=2?'border-left:4px solid var(--amber)':'border-left:4px solid var(--border)'
-    let cardHtml=''
-    cardHtml+='<div class="card" style="'+color+'margin-bottom:12px;padding:16px">'
-    cardHtml+='<div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:8px">'
-    cardHtml+='<div>'
-    cardHtml+='<div style="font-size:15px;font-weight:700;margin-bottom:4px">'+v.partido+'</div>'
-    cardHtml+='<div style="font-size:11px;color:var(--text3)">'+liga+' | '+nCasas+' casas | '+fecha+'</div>'
-    cardHtml+='</div>'
-    cardHtml+='<div>'+signalBadge(sig)+' '+sharpBadge(conf)+'</div>'
-    cardHtml+='</div>'
-    if(sig==='VALUE BET'||sig==='VALUE MENOR'){
-      const kellyPct=k.kelly_ajustado_pct||0
-      cardHtml+='<div style="margin-top:12px;padding:12px;background:var(--green-bg);border-radius:var(--radius-sm)">'
-      cardHtml+='<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'
-      cardHtml+='<div style="font-size:14px;font-weight:700;color:var(--green)">&#9650; APOSTAR: '+sel+'</div>'
-      cardHtml+='<div>'+(confS>=75?'<span class="badge badge-green">CONFIANZA '+conf+' ('+confS+')</span>':confS>=55?'<span class="badge badge-amber">CONFIANZA '+conf+' ('+confS+')</span>':'<span class="badge badge-red">CONFIANZA '+conf+' ('+confS+')</span>')+'</div>'
-      cardHtml+='</div>'
-      cardHtml+='<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;margin-top:6px">'
-      cardHtml+='<div><strong>Casa:</strong> '+casa+'</div>'
-      cardHtml+='<div><strong>Cuota:</strong> '+cuota+'</div>'
-      cardHtml+='<div><strong>Edge:</strong> <span style="color:var(--green);font-weight:700">'+edge.toFixed(1)+'%</span></div>'
-      cardHtml+='<div><strong>Kelly:</strong> '+kellyPct+'%</div>'
-      cardHtml+='<div style="font-weight:700;color:var(--green)">MONTO: $'+monto+'</div>'
-      cardHtml+='</div>'
-      cardHtml+='<div><strong>Ejemplo:</strong> '+accion+'</div>'
-      cardHtml+='</div></div>'
-      if(v.casas&&v.casas.length>0){
-        cardHtml+='<div style="margin-top:8px;font-size:11px;color:var(--text3)"><strong>Odds comparadas:</strong> '
-        v.casas.slice(0,6).forEach(c=>{
-          const odds=c.odds||{}
-          const oH=odds[sel]||'-'
-          cardHtml+='<span class="badge badge-blue" style="margin:2px">'+c.casa+': '+oH+'</span> '
-        })
-        cardHtml+='</div>'
-      }
-    }else if(sig==='STEAM'){
-      cardHtml+='<div style="margin-top:8px;font-size:12px;color:var(--purple)">Steam detectado — '+((v.nota||'').slice(0,100))+'</div>'
-    }else{
-      cardHtml+='<div style="margin-top:8px;font-size:12px;color:var(--text3)">Sin señal clara en este partido</div>'
+async function loadSharpStats(){
+  try{
+    const d=await api('/api/sharp/tracker-stats')
+    document.getElementById('sharpSnapshots').textContent=d.total_snapshots||0
+    document.getElementById('sharpTracked').textContent=d.matches_tracked_24h||0
+    document.getElementById('sharpTrackerStatus').textContent='Trackeando desde: '+(d.oldest||'N/A')+' | Ultimo: '+(d.newest||'N/A')
+  }catch(e){}
+}
+async function loadSharp(){
+  document.getElementById('sharpCards').innerHTML='<div style="color:var(--amber)">Escaneando señales sharp...</div>'
+  try{
+    const d=await api('/api/sharp/scan?hours=24')
+    const recs=d.recomendaciones||[]
+    const signals=d.sharp_signals||[]
+    document.getElementById('sharpSteam').textContent=d.steam_moves||0
+    document.getElementById('sharpRLM').textContent=d.rlm_signals||0
+    let html=''
+    if(signals.length>0){
+      html+='<h3 style="margin:12px 0 8px;color:var(--purple)">⚡ Señales Sharp Detectadas</h3>'
+      signals.slice(0,10).forEach(s=>{
+        html+='<div class="card" style="border-left:4px solid var(--purple);margin-bottom:8px;padding:12px">'
+        html+='<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px">'
+        html+='<div><b>'+s.partido+'</b> → '+s.seleccion+'</div>'
+        html+='<span class="badge badge-purple">'+s.tipo+'</span> <span class="badge badge-green">'+s.confianza+'%</span>'
+        html+='</div>'
+        html+='<div style="font-size:12px;color:var(--text3);margin-top:4px">'+s.accion+'</div>'
+        html+='</div>'
+      })
     }
-    cardHtml+='</div>'
-    html+=cardHtml
-    sharpAllCards.push({conf:conf,monto:monto,html:cardHtml})
-  })
-  document.getElementById('sharpCards').innerHTML=html||'<div class="empty"><div class="icon">$</div><h3>Sin partidos disponibles</h3><p>Escanea para encontrar value bets con análisis sharp</p></div>'
-  document.getElementById('sharpStatus').textContent=(d.con_señal||0)+' señales de '+(d.total_partidos||0)+' partidos'
-  document.getElementById('sharpTotal$').textContent='$'+totalMonto.toFixed(0)
-}catch(e){toast('Error scan: '+e.message,'err')}}
-loadSharp()
+    if(recs.length>0){
+      html+='<h3 style="margin:12px 0 8px;color:var(--text1)">📊 Partidos con Movimiento</h3>'
+      recs.slice(0,15).forEach(v=>{
+        const edge=parseFloat(v.edge)||0
+        const color=edge>=5?'var(--green)':edge>=2?'var(--amber)':'var(--border)'
+        html+='<div class="card" style="border-left:4px solid '+color+';margin-bottom:8px;padding:12px">'
+        html+='<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px">'
+        html+='<div><b>'+v.partido+'</b></div>'
+        html+='<span class="badge '+(v.tipo_senal==='VALUE BET'?'badge-green':'badge-blue')+'">'+v.tipo_senal+'</span>'
+        html+='</div>'
+        html+='<div style="font-size:11px;color:var(--text3)">'+v.liga+' | '+v.n_casas+' casas | '+v.movimientos+' movimientos</div>'
+        if(v.seleccion){html+='<div style="margin-top:4px;font-size:12px">→ <b>'+v.seleccion+'</b> @ '+v.cuota+' ('+v.casa_recomendada+') Edge: '+v.edge+'%</div>'}
+        html+='</div>'
+      })
+    }
+    document.getElementById('sharpCards').innerHTML=html||'<div class="empty"><div class="icon">$</div><h3>Sin señales sharp detectadas</h3><p>Toma snapshots periodicamente para detectar movimientos reales</p></div>'
+    loadSharpStats()
+  }catch(e){document.getElementById('sharpCards').innerHTML='<div style="color:var(--red)">Error: '+e.message+'</div>'}
+}
+async function loadSharpSteam(){
+  document.getElementById('sharpCards').innerHTML='<div style="color:var(--amber)">Buscando steam moves...</div>'
+  try{
+    const d=await api('/api/sharp/steam-moves?hours=6')
+    const moves=d.steam_moves||[]
+    let html='<h3 style="margin:12px 0 8px;color:var(--purple)">⚡ Steam Moves (últimas 6h)</h3>'
+    if(moves.length===0){html+='<div style="color:var(--text3)">Sin steam moves detectados — necesitas más snapshots históricos</div>'}
+    moves.forEach(m=>{
+      html+='<div class="card" style="border-left:4px solid var(--purple);margin-bottom:8px;padding:12px">'
+      html+='<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px">'
+      html+='<div><b>'+m.partido+'</b> → '+m.seleccion+'</div>'
+      html+='<span class="badge badge-purple">STEAM</span> <span class="badge badge-green">'+m.confianza+'%</span>'
+      html+='</div>'
+      html+='<div style="font-size:12px;margin-top:4px">'+m.direccion+' en '+m.n_casas+' casas | Cambio promedio: '+m.cambio_promedio_pct+'%</div>'
+      html+='<div style="font-size:11px;color:var(--text3)">Sharp books: '+(m.sharp_books||[]).join(', ')+'</div>'
+      html+='</div>'
+    })
+    document.getElementById('sharpCards').innerHTML=html
+  }catch(e){document.getElementById('sharpCards').innerHTML='<div style="color:var(--red)">Error: '+e.message+'</div>'}
+}
+async function loadSharpRLM(){
+  document.getElementById('sharpCards').innerHTML='<div style="color:var(--amber)">Buscando Reverse Line Movement...</div>'
+  try{
+    const d=await api('/api/sharp/rlm?hours=24')
+    const signals=d.rlm_signals||[]
+    let html='<h3 style="margin:12px 0 8px;color:var(--amber)">🔄 Reverse Line Movement (últimas 24h)</h3>'
+    if(signals.length===0){html+='<div style="color:var(--text3)">Sin RLM detectado — necesitas más snapshots históricos</div>'}
+    signals.forEach(s=>{
+      html+='<div class="card" style="border-left:4px solid var(--amber);margin-bottom:8px;padding:12px">'
+      html+='<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px">'
+      html+='<div><b>'+s.partido+'</b></div>'
+      html+='<span class="badge badge-amber">RLM</span> <span class="badge badge-green">'+s.confianza+'%</span>'
+      html+='</div>'
+      html+='<div style="font-size:12px;margin-top:4px">'+s.interpretacion+'</div>'
+      html+='</div>'
+    })
+    document.getElementById('sharpCards').innerHTML=html
+  }catch(e){document.getElementById('sharpCards').innerHTML='<div style="color:var(--red)">Error: '+e.message+'</div>'}
+}
+loadSharpStats()
 """)
 
 # ════════════════════════════════════════════════════════════════════════════
