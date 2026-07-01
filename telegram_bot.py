@@ -276,45 +276,118 @@ def _cmd_arbitraje() -> None:
 
 
 def _cmd_sharp() -> None:
-    from services.deportes import get_any_odds_key
+    """Sharp Money: muestra señales ACCIONABLES con a quién, dónde, cuánto."""
+    from services.deportes import get_any_odds_key, get_odds_upcoming
+    from services.line_tracker import get_sharp_signals, snapshot_odds
+    from main import get_bankroll_seguro
+
     api_key = get_any_odds_key()
     if not api_key:
-        telegram_send("No hay API keys configuradas. Agrega ODDS_API_KEYS=key1,key2")
+        telegram_send("No hay API keys configuradas.")
         return
+
     try:
-        from services.sharp_money import analizar_partido_sharp
-        from services.deportes import get_odds_upcoming
-        raw = get_odds_upcoming(api_key, regions="us,uk,eu")
-        alertas = []
-        for m in raw[:12] if isinstance(raw, list) else []:
-            ht = m.get("home_team", "") or ""
-            at = m.get("away_team", "") or ""
+        # Tomar snapshot
+        telegram_send("📊 Tomando snapshot de odds...")
+        snap = snapshot_odds(api_key)
+
+        # Obtener señales reales
+        signals = get_sharp_signals(hours_back=24)
+        sharp_recs = signals.get("sharp_recommendations", [])
+
+        if not sharp_recs:
+            telegram_send("Sin señales sharp detectadas.\n\nNecesitas más snapshots históricos para detectar movimientos.")
+            return
+
+        # Obtener odds actuales
+        raw = get_odds_upcoming(api_key, regions="us,uk,eu", markets="h2h") or []
+        odds_by_match = {}
+        for match in (raw if isinstance(raw, list) else []):
+            ht = match.get("home_team", "")
+            at = match.get("away_team", "")
             if not ht or not at:
                 continue
-            lineas = {}
-            for book in m.get("bookmakers", []):
+            key = f"{ht} vs {at}"
+            best_odds = {}
+            all_odds = {}
+            for book in match.get("bookmakers", []):
                 casa = book.get("title", "")
                 for o in book.get("markets", [{}])[0].get("outcomes", []):
-                    if o.get("name", "").lower() == ht.lower():
-                        lineas[casa] = o["price"]
-                        break
-            if len(lineas) < 2:
-                continue
-            vals = list(lineas.values())
-            res = analizar_partido_sharp(f"{ht} vs {at}", max(vals),
-                                         sum(vals) / len(vals), 50, 50,
-                                         lineas_por_casa=lineas, dias_antes=2)
-            score = res.get("score_sharp", {}).get("score", 0)
-            if score >= 65:
-                clasif = res.get("score_sharp", {}).get("clasificacion", "")
-                alertas.append(f"⚡ {ht} vs {at} — Score {score}/100 — {clasif}")
-        if alertas:
-            msg = "<b>⚡ Sharp Money</b>\n\n" + "\n".join(alertas[:5])
-        else:
-            msg = "Sin señales sharp significativas"
-        telegram_send(msg)
+                    name = o.get("name", "")
+                    price = o.get("price", 0)
+                    if name and price > 1:
+                        if name not in all_odds:
+                            all_odds[name] = []
+                        all_odds[name].append(price)
+                        prev = best_odds.get(name)
+                        if not prev or price > prev["price"]:
+                            best_odds[name] = {"price": price, "bookmaker": casa}
+            avg_odds = {n: sum(p)/len(p) for n, p in all_odds.items() if p}
+            odds_by_match[key] = {"best_odds": best_odds, "avg_odds": avg_odds}
+
+        # Construir mensajes accionables
+        lines = [
+            "<b>🎯 SHARP MONEY — SEÑALES ACCIONABLES</b>",
+            "━━━━━━━━━━━━━━━━━━━━━━━━━",
+            f"📊 Snapshots: {snap.get('saved', 0)} | Señales: {len(sharp_recs)}",
+            "",
+        ]
+
+        for i, rec in enumerate(sharp_recs[:5], 1):
+            partido = rec.get("partido", "")
+            seleccion = rec.get("seleccion", "")
+            tipo = rec.get("tipo", "")
+            confianza = rec.get("confianza", 0)
+
+            match_data = odds_by_match.get(partido, {})
+            best = match_data.get("best_odds", {}).get(seleccion, {})
+            avg = match_data.get("avg_odds", {}).get(seleccion, 0)
+
+            mejor_cuota = best.get("price", 0)
+            mejor_casa = best.get("bookmaker", "")
+
+            # Edge real
+            edge = 0
+            if avg > 0 and mejor_cuota > 0:
+                edge = ((mejor_cuota - avg) / avg) * 100
+
+            # Kelly
+            monto = 0
+            potential = 0
+            if mejor_cuota > 0 and edge > 0:
+                prob_impl = 1 / mejor_cuota
+                prob_est = prob_impl + (edge / 100 * prob_impl)
+                kelly_full = (prob_est * (mejor_cuota - 1) - (1 - prob_est)) / (mejor_cuota - 1)
+                kelly_pct = max(0, kelly_full * 25)
+                bankroll = get_bankroll_seguro()
+                monto = round(bankroll * kelly_pct / 100, 2)
+                monto = min(monto, round(bankroll * 0.03, 2))
+                potential = round(monto * (mejor_cuota - 1), 2)
+
+            conf_emoji = "🟢" if confianza >= 70 else "🟡" if confianza >= 50 else "⚪"
+            tipo_emoji = "⚡" if tipo == "STEAM_MOVE" else "🔄" if tipo == "RLM" else "💰"
+
+            lines.append(f"{tipo_emoji} <b>#{i} — {partido}</b>")
+            lines.append(f"   Tipo: {tipo} | Confianza: {conf_emoji} {confianza}%")
+
+            if seleccion and mejor_cuota > 0:
+                lines.append(f"   ✅ <b>APOSTAR: {seleccion.upper()}</b>")
+                lines.append(f"   📊 Cuota: <b>{mejor_cuota}</b> en {mejor_casa}")
+                lines.append(f"   📈 Edge: <b>{edge:.1f}%</b>")
+                if monto > 0:
+                    lines.append(f"   💰 Stake: ${monto} → Ganancia: ${potential}")
+            else:
+                lines.append(f"   {rec.get('accion', 'Monitorear')}")
+
+            lines.append("")
+
+        lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━")
+        lines.append("⚙️ Kelly: 25% | Cap: 3% bankroll")
+
+        telegram_send("\n".join(lines))
+
     except Exception as e:
-        telegram_send(f"Error: {e}")
+        telegram_send(f"Error sharp: {e}")
 
 
 def _cmd_predicciones() -> None:

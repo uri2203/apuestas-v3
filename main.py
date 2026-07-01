@@ -2392,58 +2392,147 @@ def _heartbeat():
     _broadcast({"tipo":"heartbeat","ts":time.time(),"jobs":[j.id for j in scheduler.get_jobs()]})
 
 def _alerta_sharp_auto():
-    """Escanea todos los deportes activos y envía alerta Telegram si detecta sharp money fuerte."""
+    """Escanea y envía alerta Telegram con información ACCIONABLE: a quién, dónde, cuánto."""
     api_key = get_any_odds_key()
     if not api_key:
         return
-    from services.sharp_money import analizar_partido_sharp, score_sharp_total
-    deportes = get_active_league_keys(api_key)
-    alertas = []
-    for skey in deportes[:6]:  # max 6 deportes para no exceder API calls
-        matches = get_odds_for_sport(skey, api_key, regions="us,uk,eu")
-        if not matches:
+
+    from services.line_tracker import get_sharp_signals, snapshot_odds
+
+    # Tomar snapshot actual primero
+    try:
+        snapshot_odds(api_key)
+    except Exception:
+        pass
+
+    # Obtener señales reales
+    signals = get_sharp_signals(hours_back=24)
+    sharp_recs = signals.get("sharp_recommendations", [])
+
+    if not sharp_recs:
+        return
+
+    # Obtener odds actuales para enriquecer las alertas
+    from services.deportes import get_odds_upcoming
+    raw = get_odds_upcoming(api_key, regions="us,uk,eu", markets="h2h") or []
+
+    # Indexar odds por partido
+    odds_by_match = {}
+    for match in (raw if isinstance(raw, list) else []):
+        ht = match.get("home_team", "")
+        at = match.get("away_team", "")
+        if not ht or not at:
             continue
-        for m in matches[:8]:  # max 8 partidos por deporte
-            ht = m.get("home_team","") or ""
-            at = m.get("away_team","") or ""
-            if not ht or not at:
+        key = f"{ht} vs {at}"
+        bookmakers = match.get("bookmakers", [])
+
+        best_odds = {}  # {seleccion: {price, bookmaker}}
+        all_odds = {}   # {seleccion: [prices]}
+
+        for book in bookmakers:
+            casa = book.get("title", "")
+            markets = book.get("markets", [])
+            if not markets:
                 continue
-            try:
-                lineas_por_casa = {}
-                for book in m.get("bookmakers", []):
-                    casa = book.get("title","")
-                    for o in book.get("markets", [{}])[0].get("outcomes", []):
-                        if o.get("name","").lower() == ht.lower():
-                            lineas_por_casa[casa] = o["price"]
-                            break
-                if len(lineas_por_casa) < 2:
-                    continue
-                cuotas = list(lineas_por_casa.values())
-                linea_actual = sum(cuotas) / len(cuotas)
-                linea_apert = max(cuotas)  # simulación de apertura
-                # Score simple sin datos de público (usamos split 50/50 por defecto)
-                res = analizar_partido_sharp(
-                    f"{ht} vs {at}",
-                    linea_apert, linea_actual,
-                    50, 50,
-                    lineas_por_casa=lineas_por_casa,
-                    dias_antes=2,
-                )
-                score = res.get("score_sharp", {}).get("score", 0)
-                if score >= 70:
-                    clasif = res.get("score_sharp", {}).get("clasificacion", "")
-                    alertas.append(
-                        f"⚡ {ht} vs {at} ({m.get('sport_title', skey)})\n"
-                        f"   Score: {score}/100 — {clasif}\n"
-                        f"   Señales: {res.get('score_sharp', {}).get('n_señales_detectadas', 0)}/{res.get('score_sharp', {}).get('n_señales_totales', 0)}"
-                    )
-            except Exception:
-                continue
+            outcomes = markets[0].get("outcomes", [])
+            for o in outcomes:
+                name = o.get("name", "")
+                price = o.get("price", 0)
+                if name and price > 1:
+                    if name not in all_odds:
+                        all_odds[name] = []
+                    all_odds[name].append(price)
+                    prev = best_odds.get(name)
+                    if not prev or price > prev["price"]:
+                        best_odds[name] = {"price": price, "bookmaker": casa}
+
+        # Calcular promedio por selección
+        avg_odds = {n: sum(p)/len(p) for n, p in all_odds.items() if p}
+
+        odds_by_match[key] = {
+            "best_odds": best_odds,
+            "avg_odds": avg_odds,
+            "n_books": len(bookmakers),
+        }
+
+    # Construir alertas ACCIONABLES
+    alertas = []
+    for rec in sharp_recs[:5]:
+        partido = rec.get("partido", "")
+        seleccion = rec.get("seleccion", "")
+        tipo = rec.get("tipo", "")
+        confianza = rec.get("confianza", 0)
+        accion = rec.get("accion", "")
+
+        # Buscar odds reales para este partido
+        match_data = odds_by_match.get(partido, {})
+        best = match_data.get("best_odds", {}).get(seleccion, {})
+        avg = match_data.get("avg_odds", {}).get(seleccion, 0)
+
+        mejor_cuota = best.get("price", 0)
+        mejor_casa = best.get("bookmaker", "")
+
+        # Calcular edge real
+        edge = 0
+        if avg > 0 and mejor_cuota > 0:
+            edge = ((mejor_cuota - avg) / avg) * 100
+
+        # Calcular Kelly
+        prob_impl = (1 / mejor_cuota) if mejor_cuota > 0 else 0
+        kelly_pct = 0
+        monto_sugerido = 0
+        if prob_impl > 0 and edge > 0:
+            prob_est = prob_impl + (edge / 100 * prob_impl)
+            kelly_full = (prob_est * (mejor_cuota - 1) - (1 - prob_est)) / (mejor_cuota - 1)
+            kelly_pct = max(0, kelly_full * 25)  # 25% fracción
+            bankroll = get_bankroll_seguro()
+            monto_sugerido = round(bankroll * kelly_pct / 100, 2)
+            monto_sugerido = min(monto_sugerido, round(bankroll * 0.03, 2))  # Cap 3%
+
+        # Construir mensaje ACCIONABLE
+        emoji = "🔴" if tipo == "STEAM_MOVE" else "🔄" if tipo == "RLM" else "💰"
+        conf_emoji = "🟢" if confianza >= 70 else "🟡" if confianza >= 50 else "⚪"
+
+        lines = [
+            f"{emoji} <b>{partido}</b>",
+            f"   Tipo: {tipo} | Confianza: {conf_emoji} {confianza}%",
+            "",
+        ]
+
+        if seleccion and mejor_cuota > 0:
+            lines.append(f"   ✅ <b>APOSTAR: {seleccion.upper()}</b>")
+            lines.append(f"   📊 Mejor cuota: <b>{mejor_cuota}</b> en {mejor_casa}")
+            lines.append(f"   📈 Edge real: <b>{edge:.1f}%</b>")
+            if monto_sugerido > 0:
+                lines.append(f"   💰 Kelly: {kelly_pct:.1f}% → <b>${monto_sugerido}</b>")
+                potential_win = round(monto_sugerido * (mejor_cuota - 1), 2)
+                lines.append(f"   🎯 Ganancia potencial: <b>${potential_win}</b>")
+            # Mostrar comparación de odds
+            all_books = match_data.get("best_odds", {})
+            if len(all_books) > 1:
+                odds_list = []
+                for sel, data in all_books.items():
+                    if sel == seleccion:
+                        odds_list.append(f"{data['bookmaker']}: {data['price']}")
+                if odds_list:
+                    lines.append(f"   📋 Casas: {' | '.join(odds_list[:4])}")
+        else:
+            lines.append(f"   {accion}")
+
+        alertas.append("\n".join(lines))
+
     if alertas:
-        msg = "<b>🔍 ALERTA SHARP MONEY — DETECCIÓN AUTOMÁTICA</b>\n\n" + "\n\n".join(alertas[:5])
+        header = (
+            "<b>🎯 SHARP MONEY — ACCIONABLE</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        )
+        msg = header + "\n\n".join(alertas)
+        msg += "\n━━━━━━━━━━━━━━━━━━━━━━━━━"
+        msg += "\n⚙️ Kelly: 25% fracción | Cap: 3% bankroll"
         telegram_send(msg)
-        logging.info("Alerta sharp automática enviada — %d detecciones", len(alertas))
-    _broadcast({"tipo":"sharp_auto","n_alertas":len(alertas),"ts":time.time()})
+        logging.info("Alerta sharp ACCIONABLE enviada — %d señales", len(alertas))
+
+    _broadcast({"tipo": "sharp_auto", "n_alertas": len(alertas), "ts": time.time()})
 
 def _resumen_diario():
     """Resumen diario real con datos de DB + envío por Telegram."""
