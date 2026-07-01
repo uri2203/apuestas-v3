@@ -352,6 +352,15 @@ def module_page(title, body_html, extra_js=""):
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 <style>{SHARED_CSS}</style>
+<script>
+if(localStorage.getItem('ap_theme')==='dark')document.documentElement.classList.add('dark')
+else if(!localStorage.getItem('ap_theme'))document.documentElement.classList.add('dark')
+function theme(){{document.documentElement.classList.toggle('dark');localStorage.setItem('ap_theme',document.documentElement.classList.contains('dark')?'dark':'light')}}
+function toast(msg,type){{const t=document.createElement('div');t.className='toast '+type;t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),3e3)}}
+async function api(url,options){{const r=await fetch(url,options||{{}});if(!r.ok)throw new Error(await r.text());return r.json()}}
+function edgeClass(e){{e=parseFloat(e)||0;if(e>=10)return 'edge-mega';if(e>=5)return 'edge-hot';if(e>=2)return 'edge-warm';return 'edge-cold'}}
+function edgeBadge(e){{e=parseFloat(e)||0;if(e>=10)return '<span class="badge badge-green">MEGA '+e.toFixed(1)+'%</span>';if(e>=5)return '<span class="badge badge-green">HIGH '+e.toFixed(1)+'%</span>';if(e>=2)return '<span class="badge badge-amber">MID '+e.toFixed(1)+'%</span>';return '<span class="badge badge-red">LOW '+e.toFixed(1)+'%</span>'}}
+</script>
 </head>
 <body>
 <div class="nav">
@@ -368,15 +377,8 @@ def module_page(title, body_html, extra_js=""):
   <div id="modContent" style="display:none">{body_html}</div>
 </div>
 <script>
-if(localStorage.getItem('ap_theme')==='dark')document.documentElement.classList.add('dark')
-else if(!localStorage.getItem('ap_theme'))document.documentElement.classList.add('dark')
 document.getElementById('modLoading').style.display='none'
 document.getElementById('modContent').style.display='block'
-function theme(){{document.documentElement.classList.toggle('dark');localStorage.setItem('ap_theme',document.documentElement.classList.contains('dark')?'dark':'light')}}
-function toast(msg,type){{const t=document.createElement('div');t.className='toast '+type;t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),3e3)}}
-async function api(url,options){{const r=await fetch(url,options||{{}});if(!r.ok)throw new Error(await r.text());return r.json()}}
-function edgeClass(e){{e=parseFloat(e)||0;if(e>=10)return 'edge-mega';if(e>=5)return 'edge-hot';if(e>=2)return 'edge-warm';return 'edge-cold'}}
-function edgeBadge(e){{e=parseFloat(e)||0;if(e>=10)return '<span class="badge badge-green">MEGA '+e.toFixed(1)+'%</span>';if(e>=5)return '<span class="badge badge-green">HIGH '+e.toFixed(1)+'%</span>';if(e>=2)return '<span class="badge badge-amber">MID '+e.toFixed(1)+'%</span>';return '<span class="badge badge-red">LOW '+e.toFixed(1)+'%</span>'}}
 {extra_js}
 </script>
 </body>
@@ -2207,11 +2209,11 @@ async function mlPredict(){
       if(d.recommendation.kelly_pct)html+=' (Kelly: '+d.recommendation.kelly_pct+'%)'
       html+='</div>'
     }
-    if(d.models){
+    if(d.models&&d.models.models){
       html+='<div style="margin-top:8px"><strong>Modelos:</strong></div>'
       html+='<table><thead><tr><th>Modelo</th><th>Local</th><th>Visitante</th></tr></thead><tbody>'
-      for(const[name,m]of Object.entries(d.models)){
-        html+='<tr><td>'+name+'</td><td>'+(m.home_prob||m.home_elo||'-')+'</td><td>'+(m.away_prob||m.away_elo||'-')+'</td></tr>'
+      for(const[name,m]of Object.entries(d.models.models)){
+        html+='<tr><td>'+name+'</td><td>'+(m.home_prob||'-')+'%</td><td>'+(m.away_prob||'-')+'%</td></tr>'
       }
       html+='</tbody></table>'
     }
