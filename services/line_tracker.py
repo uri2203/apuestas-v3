@@ -178,7 +178,7 @@ def detect_steam_moves(hours_back=6, min_books=None):
 
     groups = {}
     for r in rows:
-        key = (r["home_team"], r["away_team"], r["seleccion"])
+        key = (r["home_team"], r["away_team"], r["selection"])
         if key not in groups:
             groups[key] = {}
         casa = r["bookmaker"]
@@ -293,7 +293,7 @@ def detect_rlm(hours_back=24):
 
         by_selection = {}
         for r in snapshots:
-            sel = r["seleccion"]
+            sel = r["selection"]
             casa = r["bookmaker"]
             if sel not in by_selection:
                 by_selection[sel] = {}

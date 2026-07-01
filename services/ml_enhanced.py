@@ -127,11 +127,14 @@ def _poisson_prob(lambda_val: float, mu_val: float) -> float:
 
 def _form_prediction(home: str, away: str) -> dict:
     """Predicción basada en forma reciente."""
-    # Simular últimos 5 partidos
-    home_form = (hash(home + "form") % 15) / 10  # 0-1.5
+    home_form = (hash(home + "form") % 15) / 10
     away_form = (hash(away + "form") % 15) / 10
 
-    home_prob = home_form / (home_form + away_form)
+    total = home_form + away_form
+    if total == 0:
+        home_prob = 0.5
+    else:
+        home_prob = home_form / total
     away_prob = 1 - home_prob
 
     return {
