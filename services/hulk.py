@@ -647,16 +647,13 @@ def resolve_hulk_trade(trade_id: int, won: bool) -> dict:
     global _max_racha_ganadora
 
     try:
-        from database import db, _row_to_dict, _USE_PG
+        from database import db, _fetchone, _USE_PG
         with db() as conn:
-            cur = conn.cursor()
             ph = "%s" if _USE_PG else "?"
-            cur.execute(f"SELECT * FROM hulk_trades WHERE id = {ph}", (trade_id,))
-            row = cur.fetchone()
-            if not row:
+            trade = _fetchone(conn, f"SELECT * FROM hulk_trades WHERE id = {ph}", (trade_id,))
+            if not trade:
                 return {"error": "Trade no encontrado"}
 
-            trade = _row_to_dict(row)
             stake = trade["stake"]
             odds = trade["odds"]
             mode = trade.get("mode", "HAWK")
@@ -676,7 +673,8 @@ def resolve_hulk_trade(trade_id: int, won: bool) -> dict:
 
             # Actualizar DB
             resultado = "ganada" if won else "perdida"
-            cur.execute(f"""
+            from database import _execute
+            _execute(conn, f"""
                 UPDATE hulk_trades
                 SET resultado = {ph}, pnl = {ph}, bankroll_despues = {ph}, verified_at = {ph}
                 WHERE id = {ph}
@@ -850,14 +848,12 @@ def _load_hulk_state():
     global _total_pnl, _kill_switch, _kill_reason, _mode_stats
 
     try:
-        from database import db, _row_to_dict, _USE_PG
+        from database import db, _fetchone
         _init_hulk_db()
         with db() as conn:
-            cur = conn.cursor()
-            cur.execute("SELECT value FROM hulk_state WHERE key = 'main'")
-            row = cur.fetchone()
+            row = _fetchone(conn, "SELECT value FROM hulk_state WHERE key = 'main'")
             if row:
-                state = json.loads(_row_to_dict(row)["value"])
+                state = json.loads(row["value"])
                 _current_bankroll = state.get("bankroll", INITIAL_BANKROLL)
                 _racha = state.get("racha", 0)
                 _max_racha_ganadora = state.get("max_racha_ganadora", 0)
@@ -914,6 +910,7 @@ def scan() -> dict:
     all_signals.extend(contrarian)
 
     # 5. Brain signals (del módulo Brain)
+    brain_filtered = []
     try:
         from services.brain import collect_all_signals, aggregate_signals, filter_signals
         brain_raw = collect_all_signals()
@@ -946,7 +943,7 @@ def scan() -> dict:
         "live_opportunities": len(live),
         "arbitrage": len(arbitrage),
         "contrarian": len(contrarian),
-        "brain_signals": len(brain_filtered) if 'brain_filtered' in dir() else 0,
+        "brain_signals": len(brain_filtered),
         "total_signals": len(all_signals),
         "trades_executed": len(executed),
         "trades_verified": verified.get("verified", 0),
@@ -966,15 +963,13 @@ def verify_hulk_trades() -> dict:
     """Verifica trades pendientes Hulk."""
     stats = {"verified": 0, "won": 0, "lost": 0}
     try:
-        from database import db, _row_to_dict, _USE_PG
+        from database import db, _fetchall
         _init_hulk_db()
         with db() as conn:
-            cur = conn.cursor()
-            cur.execute("""
+            pending = _fetchall(conn, """
                 SELECT id, match, selection FROM hulk_trades
                 WHERE resultado = 'pendiente' ORDER BY id DESC LIMIT 20
             """)
-            pending = [_row_to_dict(r) for r in cur.fetchall()]
 
             for trade in pending:
                 result = _check_result(trade["match"], trade["selection"])
@@ -994,19 +989,17 @@ def verify_hulk_trades() -> dict:
 def _check_result(match_str: str, selection: str) -> Optional[bool]:
     """Verifica resultado contra DB."""
     try:
-        from database import db, _row_to_dict, _USE_PG
+        from database import db, _fetchone, _USE_PG
         with db() as conn:
-            cur = conn.cursor()
             ph = "%s" if _USE_PG else "?"
-            cur.execute(f"""
+            row = _fetchone(conn, f"""
                 SELECT correcto FROM predictions
                 WHERE (home || ' vs ' || away = {ph} OR home = {ph} OR away = {ph})
                 AND resultado_real IS NOT NULL
                 ORDER BY id DESC LIMIT 1
             """, (match_str, selection, selection))
-            row = cur.fetchone()
             if row:
-                return _row_to_dict(row).get("correcto") == 1
+                return row.get("correcto") == 1
     except Exception:
         pass
     return None

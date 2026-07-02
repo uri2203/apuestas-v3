@@ -11,7 +11,7 @@ SHARED_CSS = r"""
   --bg:#f8f9fc;--bg2:#ffffff;--bg3:#f1f3f7;--bg4:#e8ecf1;
   --surface:#ffffff;--surface-hover:#f4f5f9;
   --border:#e2e5ec;--border-hover:#cdd1da;
-  --text:#1a1d2e;--text2:#5a5e72;--text3:#9a9eb0;
+  --text:#1a1d2e;--text1:#1a1d2e;--text2:#5a5e72;--text3:#9a9eb0;
   --primary:#4f46e5;--primary-bg:rgba(79,70,229,0.06);--primary-hover:#4338ca;
   --green:#059669;--green-bg:rgba(5,150,105,0.06);
   --red:#dc2626;--red-bg:rgba(220,38,38,0.06);
@@ -26,7 +26,7 @@ SHARED_CSS = r"""
 .dark{--bg:#0f1117;--bg2:#1a1d2e;--bg3:#232738;--bg4:#2c3044;
   --surface:#1a1d2e;--surface-hover:#232738;
   --border:#2c3044;--border-hover:#3d4259;
-  --text:#e4e6ed;--text2:#8b8fa3;--text3:#535766;
+  --text:#e4e6ed;--text1:#e4e6ed;--text2:#8b8fa3;--text3:#535766;
   --primary:#6366f1;--primary-bg:rgba(99,102,241,0.1);--primary-hover:#818cf8;
   --green:#34d399;--green-bg:rgba(52,211,153,0.1);
   --red:#f87171;--red-bg:rgba(248,113,113,0.1);
@@ -347,7 +347,7 @@ def module_page(title, body_html, extra_js=""):
         ("Bankroll","/panel/bankroll"),("Cuentas","/panel/cuentas"),
         ("Progol","/panel/progol"),("Rendimiento","/panel/rendimiento"),
     ]
-    links_html = "".join(f'<a href="{u}"{" class=active" if title.lower() in t.lower() or (title=="Home" and u=="/") else ""}>{t}</a>' for t,u in nav_links)
+    links_html = "".join(f'<a href="{u}"{" class=active" if t.lower() in title.lower() or (title=="Home" and u=="/") else ""}>{t}</a>' for t,u in nav_links)
     return f"""<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -1507,7 +1507,7 @@ MOD_BRAIN = module_page("Agente Brain", """
 
 <h3 style="margin:14px 0 6px;color:var(--text1)">Acciones</h3>
 <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
-  <button class="btn primary" onclick="brainAutoSim()">Ejecutar Scan + Simular</button>
+  <button class="btn btn-primary" onclick="brainAutoSim()">Ejecutar Scan + Simular</button>
   <button class="btn" onclick="brainVerifyAll()">Verificar Pendientes</button>
   <button class="btn" onclick="brainReset()">Reset ($10,000)</button>
 </div>
@@ -1684,7 +1684,7 @@ MOD_HULK = module_page("Agente HULK", """
 
 <h3 style="margin:14px 0 6px;color:var(--text1)">Acciones</h3>
 <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
-  <button class="btn primary" onclick="hulkScan()">Ejecutar Scan Hulk</button>
+  <button class="btn btn-primary" onclick="hulkScan()">Ejecutar Scan Hulk</button>
   <button class="btn" onclick="hulkScanSteam()">Steam Moves</button>
   <button class="btn" onclick="hulkScanLive()">Live Betting</button>
   <button class="btn" onclick="hulkScanArb()">Arbitraje</button>
@@ -1859,7 +1859,7 @@ MOD_MODELOS_AVANZADOS = module_page("Modelos Avanzados", """
 <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
   <input id="maHome" placeholder="Equipo Local" style="flex:1;min-width:140px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text1)">
   <input id="maAway" placeholder="Equipo Visitante" style="flex:1;min-width:140px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text1)">
-  <button class="btn primary" onclick="maPredict()">Predecir</button>
+  <button class="btn btn-primary" onclick="maPredict()">Predecir</button>
 </div>
 <div id="maPredResult" style="margin-bottom:12px"></div>
 
@@ -1871,7 +1871,7 @@ MOD_MODELOS_AVANZADOS = module_page("Modelos Avanzados", """
     <option value="football">Football</option>
     <option value="soccer">Soccer</option>
   </select>
-  <button class="btn primary" onclick="maFatigue()">Analizar</button>
+  <button class="btn btn-primary" onclick="maFatigue()">Analizar</button>
 </div>
 <div id="maFatResult" style="margin-bottom:12px"></div>
 
@@ -1881,7 +1881,7 @@ MOD_MODELOS_AVANZADOS = module_page("Modelos Avanzados", """
   <input id="maWind" type="number" placeholder="Viento mph" value="5" style="width:80px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text1)">
   <input id="maPrecip" type="number" placeholder="Lluvia %" value="0" style="width:80px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text1)">
   <input id="maHumid" type="number" placeholder="Humedad %" value="50" style="width:80px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text1)">
-  <button class="btn primary" onclick="maWeather()">Analizar</button>
+  <button class="btn btn-primary" onclick="maWeather()">Analizar</button>
 </div>
 <div id="maWeatherResult" style="margin-bottom:12px"></div>
 
@@ -1889,7 +1889,7 @@ MOD_MODELOS_AVANZADOS = module_page("Modelos Avanzados", """
 <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
   <input id="maBetOdds" type="number" step="0.01" placeholder="Cuota apostada" value="2.10" style="width:100px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text1)">
   <input id="maCloseOdds" type="number" step="0.01" placeholder="Cuota cierre" value="1.90" style="width:100px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text1)">
-  <button class="btn primary" onclick="maCLV()">Calcular</button>
+  <button class="btn btn-primary" onclick="maCLV()">Calcular</button>
 </div>
 <div id="maCLVResult"></div>
 """, """

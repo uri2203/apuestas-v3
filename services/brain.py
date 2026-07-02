@@ -680,12 +680,10 @@ def verify_pending_trades() -> dict:
     stats = {"verified": 0, "won": 0, "lost": 0, "pending": 0, "pnl": 0.0}
 
     try:
-        from database import db, _row_to_dict, _USE_PG
+        from database import db, _fetchall, _USE_PG
         _init_simulation_db()
         with db() as conn:
-            cur = conn.cursor()
-            ph = "%s" if _USE_PG else "?"
-            cur.execute(f"""
+            pending = _fetchall(conn, """
                 SELECT id, match, selection, odds, edge_pct, stake,
                        confidence_score, sources
                 FROM brain_tracks
@@ -693,7 +691,6 @@ def verify_pending_trades() -> dict:
                 ORDER BY id DESC
                 LIMIT 50
             """)
-            pending = [_row_to_dict(r) for r in cur.fetchall()]
 
             for trade in pending:
                 # Intentar verificar contra predictions o resultados reales
@@ -733,21 +730,18 @@ def verify_pending_trades() -> dict:
 def _check_match_result(match_str: str, selection: str) -> Optional[bool]:
     """Verifica si un partido ya tiene resultado. Compatible con PostgreSQL y SQLite."""
     try:
-        from database import db, _row_to_dict, _USE_PG
+        from database import db, _fetchone, _USE_PG
         with db() as conn:
-            cur = conn.cursor()
             ph = "%s" if _USE_PG else "?"
-            cur.execute(f"""
+            row = _fetchone(conn, f"""
                 SELECT pronostico, resultado_real, correcto
                 FROM predictions
                 WHERE home || ' vs ' || away = {ph}
                 AND resultado_real IS NOT NULL
                 ORDER BY id DESC LIMIT 1
             """, (match_str,))
-            row = cur.fetchone()
             if row:
-                r = _row_to_dict(row)
-                return r.get("correcto") == 1
+                return row.get("correcto") == 1
     except Exception:
         pass
     return None
@@ -957,15 +951,13 @@ def get_status() -> dict:
 def get_history(limit: int = 50) -> list[dict]:
     """Historial de trades simulados."""
     try:
-        from database import db, _row_to_dict, _USE_PG
+        from database import db, _fetchall, _USE_PG
         ph = "%s" if _USE_PG else "?"
         with db() as conn:
-            cur = conn.cursor()
-            cur.execute(f"""
+            return _fetchall(conn, f"""
                 SELECT * FROM simulated_trades
                 ORDER BY id DESC LIMIT {ph}
             """, (limit,))
-            return [_row_to_dict(r) for r in cur.fetchall()]
     except Exception:
         return []
 
@@ -1103,14 +1095,11 @@ def _load_state():
     """Carga estado del Brain desde DB."""
     global _sim_state, _bankroll_history
     try:
-        from database import db, _row_to_dict
+        from database import db, _fetchall
         _init_simulation_db()
         with db() as conn:
-            cur = conn.cursor()
-            cur.execute("SELECT key, value FROM brain_state")
-            rows = cur.fetchall()
-            for row in rows:
-                r = _row_to_dict(row)
+            rows = _fetchall(conn, "SELECT key, value FROM brain_state")
+            for r in rows:
                 k, v = r["key"], r["value"]
                 if k == "bankroll_history":
                     _bankroll_history = json.loads(v)
@@ -1229,17 +1218,14 @@ def resolver_trade(trade_id: int, ganada: bool) -> dict:
     Actualiza P&L, bankroll, rachas. Compatible con PostgreSQL y SQLite.
     """
     try:
-        from database import db, _row_to_dict, _USE_PG
+        from database import db, _fetchone, _USE_PG
         _init_simulation_db()
         with db() as conn:
-            cur = conn.cursor()
             ph = "%s" if _USE_PG else "?"
-            cur.execute(f"SELECT * FROM brain_tracks WHERE id = {ph}", (trade_id,))
-            row = cur.fetchone()
-            if not row:
+            trade = _fetchone(conn, f"SELECT * FROM brain_tracks WHERE id = {ph}", (trade_id,))
+            if not trade:
                 return {"error": "Trade no encontrado"}
 
-            trade = _row_to_dict(row)
             stake = trade["stake"]
             odds = trade["odds"]
 
@@ -1263,7 +1249,8 @@ def resolver_trade(trade_id: int, ganada: bool) -> dict:
             _sim_state["peor_racha"] = min(_sim_state["peor_racha"], _sim_state["racha_actual"])
 
             # Actualizar DB
-            cur.execute(f"""
+            from database import _execute
+            _execute(conn, f"""
                 UPDATE brain_tracks
                 SET resultado = {ph}, pnl = {ph}, bankroll_despues = {ph}, verified_at = {ph}
                 WHERE id = {ph}
@@ -1310,16 +1297,14 @@ def verificar_trades_pendientes() -> dict:
     stats = {"verified": 0, "won": 0, "lost": 0, "pending": 0, "pnl": 0.0}
 
     try:
-        from database import db, _row_to_dict
+        from database import db, _fetchall
         _init_simulation_db()
         with db() as conn:
-            cur = conn.cursor()
-            cur.execute("""
+            pending = _fetchall(conn, """
                 SELECT * FROM brain_tracks
                 WHERE resultado = 'pendiente'
                 ORDER BY id DESC LIMIT 30
             """)
-            pending = [_row_to_dict(r) for r in cur.fetchall()]
 
             for trade in pending:
                 # Intentar verificar contra predictions
@@ -1345,21 +1330,18 @@ def verificar_trades_pendientes() -> dict:
 def _check_result(match_str: str, selection: str) -> Optional[bool]:
     """Verifica si un partido ya tiene resultado en la DB."""
     try:
-        from database import db, _row_to_dict, _USE_PG
+        from database import db, _fetchone, _USE_PG
         ph = "%s" if _USE_PG else "?"
         with db() as conn:
-            cur = conn.cursor()
-            cur.execute(f"""
+            row = _fetchone(conn, f"""
                 SELECT resultado_real, correcto
                 FROM predictions
                 WHERE (home || ' vs ' || away = {ph} OR home = {ph} OR away = {ph})
                 AND resultado_real IS NOT NULL
                 ORDER BY id DESC LIMIT 1
             """, (match_str, selection, selection))
-            row = cur.fetchone()
             if row:
-                r = _row_to_dict(row)
-                return r.get("correcto") == 1
+                return row.get("correcto") == 1
     except Exception:
         pass
     return None
@@ -1389,16 +1371,14 @@ def get_performance() -> dict:
     # Performance por fuente de señal
     source_stats = {}
     try:
-        from database import db, _row_to_dict
+        from database import db, _fetchall
         _init_simulation_db()
         with db() as conn:
-            cur = conn.cursor()
-            cur.execute("""
+            rows = _fetchall(conn, """
                 SELECT sources, resultado, pnl, odds, stake
                 FROM brain_tracks
                 WHERE resultado != 'pendiente'
             """)
-            rows = [_row_to_dict(r) for r in cur.fetchall()]
             for row in rows:
                 sources = json.loads(row.get("sources", "[]"))
                 for src in sources:
@@ -1414,15 +1394,13 @@ def get_performance() -> dict:
     # Últimos 20 trades para el gráfico
     recent_trades = []
     try:
-        from database import db, _row_to_dict
+        from database import db, _fetchall
         with db() as conn:
-            cur = conn.cursor()
-            cur.execute("""
+            recent_trades = _fetchall(conn, """
                 SELECT * FROM brain_tracks
                 WHERE resultado != 'pendiente'
                 ORDER BY id DESC LIMIT 20
             """)
-            recent_trades = [_row_to_dict(r) for r in cur.fetchall()]
     except Exception:
         pass
 
@@ -1802,17 +1780,15 @@ def generate_report(period: str = "weekly") -> dict:
     # Obtener trades del período
     trades = []
     try:
-        from database import db, _row_to_dict, _USE_PG
+        from database import db, _fetchall, _USE_PG
         _init_simulation_db()
+        ph = "%s" if _USE_PG else "?"
         with db() as conn:
-            cur = conn.cursor()
-            ph = "%s" if _USE_PG else "?"
-            cur.execute(f"""
+            trades = _fetchall(conn, f"""
                 SELECT * FROM brain_tracks
                 WHERE created_at >= {ph} AND resultado != 'pendiente'
                 ORDER BY created_at DESC
             """, (start.isoformat(),))
-            trades = [_row_to_dict(r) for r in cur.fetchall()]
     except Exception:
         pass
 
@@ -1837,7 +1813,7 @@ def generate_report(period: str = "weekly") -> dict:
     # ROI por fuente
     source_stats = {}
     for t in trades:
-        sources = t.get("sources", "[]")
+        sources = t.get("sources", [])
         if isinstance(sources, str):
             try:
                 sources = json.loads(sources)
@@ -1845,8 +1821,9 @@ def generate_report(period: str = "weekly") -> dict:
                 sources = []
         for src in sources:
             if src not in source_stats:
-                source_stats[src] = {"trades": 0, "won": 0, "pnl": 0}
+                source_stats[src] = {"trades": 0, "won": 0, "pnl": 0, "staked": 0}
             source_stats[src]["trades"] += 1
+            source_stats[src]["staked"] += t.get("stake", 0)
             if t.get("resultado") == "ganada":
                 source_stats[src]["won"] += 1
             source_stats[src]["pnl"] += t.get("pnl", 0)
@@ -1854,7 +1831,7 @@ def generate_report(period: str = "weekly") -> dict:
     for src in source_stats:
         s = source_stats[src]
         s["win_rate"] = round(s["won"] / max(1, s["trades"]) * 100, 1)
-        s["roi"] = round(s["pnl"] / max(1, s["trades"]) * 100, 1)
+        s["roi"] = round(s["pnl"] / max(1, s["staked"]) * 100, 1)
 
     # Mejores y peores trades
     best_trade = max(trades, key=lambda t: t.get("pnl", 0)) if trades else {}

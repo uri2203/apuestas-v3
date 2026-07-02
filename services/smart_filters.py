@@ -173,8 +173,9 @@ def filtrar_value_bets(value_bets: list, thresholds: dict = None) -> dict:
         # Sharp score: buscar en DB si hay alerta sharp para este partido
         sharp_score = 0
         try:
+            from database import _fetchone as _db_fetchone
             with db() as conn:
-                row = _fetchone(conn,
+                row = _db_fetchone(conn,
                     "SELECT detalle FROM alerts_log WHERE partido=? AND tipo='SHARP' ORDER BY id DESC LIMIT 1",
                     (partido,))
                 if row:
@@ -188,8 +189,9 @@ def filtrar_value_bets(value_bets: list, thresholds: dict = None) -> dict:
         # Overround: consultar rating de la casa
         overround = 5.0
         try:
+            from database import _fetchone as _db_fetchone
             with db() as conn:
-                row = _fetchone(conn,
+                row = _db_fetchone(conn,
                     "SELECT avg_overround FROM bookmaker_ratings WHERE bookmaker=? ORDER BY id DESC LIMIT 1",
                     (casa,))
                 if row:
@@ -209,8 +211,9 @@ def filtrar_value_bets(value_bets: list, thresholds: dict = None) -> dict:
         # CLV histórico de la casa
         clv = 0
         try:
+            from database import _fetchone as _db_fetchone
             with db() as conn:
-                row = _fetchone(conn,
+                row = _db_fetchone(conn,
                     "SELECT avg_clv FROM bookmaker_ratings WHERE bookmaker=? ORDER BY id DESC LIMIT 1",
                     (casa,))
                 if row:
@@ -251,15 +254,3 @@ def filtrar_value_bets(value_bets: list, thresholds: dict = None) -> dict:
         "resultados_aprobados": aprobados,
         "resultados_rechazados": rechazados[:10],
     }
-
-
-def _fetchone(conn, sql, params=None):
-    """Helper interno para no depender del módulo database."""
-    if params is None:
-        params = ()
-    if hasattr(conn, 'execute'):
-        cur = conn.execute(sql, params)
-        row = cur.fetchone()
-        cur.close()
-        return dict(row) if row else None
-    return None

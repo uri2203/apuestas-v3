@@ -46,18 +46,25 @@ def registrar_transaccion(tipo, monto, categoria="general", estrategia="",
 
 def resumen_mensual(mes=None, año=None) -> dict:
     """Resumen contable del mes."""
-    from database import db, _fetchall
+    from database import db, _fetchall, _USE_PG
     hoy = datetime.now()
     mes = mes or hoy.month
     año = año or hoy.year
 
-    sql = """SELECT * FROM accounting_transactions
-             WHERE strftime('%m', created_at) = ? AND strftime('%Y', created_at) = ?
-             ORDER BY id ASC"""
+    if _USE_PG:
+        sql = """SELECT * FROM accounting_transactions
+                 WHERE TO_CHAR(created_at, 'MM') = %s AND TO_CHAR(created_at, 'YYYY') = %s
+                 ORDER BY id ASC"""
+        params = (f"{mes:02d}", str(año))
+    else:
+        sql = """SELECT * FROM accounting_transactions
+                 WHERE strftime('%m', created_at) = ? AND strftime('%Y', created_at) = ?
+                 ORDER BY id ASC"""
+        params = (f"{mes:02d}", str(año))
 
     try:
         with db() as conn:
-            rows = _fetchall(conn, sql, (f"{mes:02d}", str(año)))
+            rows = _fetchall(conn, sql, params)
     except Exception as e:
         return {"error": str(e)}
 

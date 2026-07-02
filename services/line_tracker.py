@@ -412,36 +412,25 @@ def get_sharp_signals(hours_back=24):
 
 
 def get_tracker_stats():
-    from database import db, _fetchall, _row_to_dict, _USE_PG
+    from database import db, _fetchall, _USE_PG
 
     ph = "%s" if _USE_PG else "?"
     try:
         with db() as conn:
-            sql = _q(f"SELECT COUNT(*) as total, MIN(timestamp) as oldest, MAX(timestamp) as newest FROM odds_snapshots")
-            stats = _row_to_dict(conn.execute(sql).fetchone()) if not _USE_PG else None
-            if _USE_PG:
-                cur = conn.cursor()
-                cur.execute("SELECT COUNT(*) as total, MIN(timestamp) as oldest, MAX(timestamp) as newest FROM odds_snapshots")
-                row = cur.fetchone()
-                stats = {"total": row[0], "oldest": str(row[1]) if row[1] else None, "newest": str(row[2]) if row[2] else None}
-                cur.close()
+            rows = _fetchall(conn,
+                "SELECT COUNT(*) as total, MIN(timestamp) as oldest, MAX(timestamp) as newest FROM odds_snapshots")
+            stats = rows[0] if rows else {"total": 0, "oldest": None, "newest": None}
 
-            sql2 = _q(f"SELECT COUNT(DISTINCT home_team || away_team) as matches FROM odds_snapshots WHERE timestamp > {ph}")
             cutoff = (datetime.utcnow() - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
-            if _USE_PG:
-                cur = conn.cursor()
-                cur.execute("SELECT COUNT(DISTINCT home_team || away_team) as matches FROM odds_snapshots WHERE timestamp > %s", (cutoff,))
-                row2 = cur.fetchone()
-                matches_24h = row2[0] if row2 else 0
-                cur.close()
-            else:
-                matches_24h_row = conn.execute(sql2, (cutoff,)).fetchone()
-                matches_24h = matches_24h_row[0] if matches_24h_row else 0
+            rows2 = _fetchall(conn,
+                f"SELECT COUNT(DISTINCT home_team || away_team) as matches FROM odds_snapshots WHERE timestamp > {ph}",
+                (cutoff,))
+            matches_24h = rows2[0]["matches"] if rows2 else 0
 
             return {
                 "total_snapshots": stats["total"] if stats else 0,
-                "oldest": stats["oldest"] if stats else None,
-                "newest": stats["newest"] if stats else None,
+                "oldest": str(stats["oldest"]) if stats and stats.get("oldest") else None,
+                "newest": str(stats["newest"]) if stats and stats.get("newest") else None,
                 "matches_tracked_24h": matches_24h,
             }
     except Exception as e:

@@ -143,7 +143,7 @@ def resumen_simulacion(dias: int = 1) -> dict:
     """
     Resumen de rendimiento de la simulación.
     """
-    from database import db, _fetchall, _USE_PG
+    from database import db, _fetchall, _fetchone, _USE_PG
     dc = "created_at::date" if _USE_PG else "date(created_at)"
     ago = "CURRENT_DATE - INTERVAL '1 day' * ?" if _USE_PG else "date('now', '-' || ? || ' days')"
 
@@ -203,18 +203,4 @@ def resumen_simulacion(dias: int = 1) -> dict:
         "pnl_total": round(pnl, 2),
         "ultimos_trades": ultimos,
     }
-
-
-def _fetchone(conn, sql, params=None):
-    if params is None:
-        params = ()
-    cur = conn.cursor()
-    cur.execute(sql, params)
-    row = cur.fetchone()
-    desc = [d[0] for d in cur.description] if cur.description else None
-    cur.close()
-    if row is None:
-        return None
-    if hasattr(row, "keys"):
-        return dict(row)
     return dict(zip(desc, row)) if desc else None

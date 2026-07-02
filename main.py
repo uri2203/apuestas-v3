@@ -105,7 +105,7 @@ def health():
     """Diagnóstico completo del sistema — público, nunca falla."""
     estado = {
         "status":  "ok",
-        "version": "4.3.0",
+        "version": "5.2",
         "sse_clients": len(_sse_clients),
     }
 
@@ -208,7 +208,7 @@ def version():
         commit = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], stderr=subprocess.DEVNULL, timeout=5).decode().strip()
     except Exception:
         commit = "unknown"
-    return jsonify({"version": "4.3.4", "commit": commit, "mensaje": "Solo datos reales + boton Kelly sin emojis"})
+    return jsonify({"version": "5.2", "commit": commit, "mensaje": "Sistema completo de apuestas deportivas"})
 
 # ── PROGOL ─────────────────────────────────────────────────────────────────────
 @app.route("/api/progol/jornada")
@@ -1341,6 +1341,7 @@ def alertas_recientes():
 
 
 @app.route("/api/admin/init-db")
+@login_required
 def admin_init_db():
     """Crea/repara todas las tablas. Útil tras configurar la DB."""
     resultado = {"tablas_creadas": [], "errores": []}
@@ -1389,6 +1390,7 @@ def seed_demo():
 
 
 @app.route("/api/admin/diag-football")
+@login_required
 def diag_football():
     """Diagnostica qué devuelve API-Football exactamente."""
     api_key = os.getenv("API_FOOTBALL_KEY", "")
@@ -1448,6 +1450,7 @@ def diag_football():
 
 
 @app.route("/api/admin/diag-sportsdb")
+@login_required
 def diag_sportsdb():
     """Diagnostica TheSportsDB — fuente gratuita de datos actuales."""
     try:
@@ -1460,6 +1463,7 @@ def diag_sportsdb():
 
 
 @app.route("/api/admin/diag-espn")
+@login_required
 def diag_espn():
     """Diagnostica ESPN — fuente gratuita completa de datos actuales."""
     try:
@@ -1473,6 +1477,7 @@ def diag_espn():
 
 
 @app.route("/api/admin/optimizar-pesos")
+@login_required
 def optimizar_pesos_endpoint():
     """Encuentra los mejores pesos del ensemble probando contra datos reales."""
     try:
