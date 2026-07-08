@@ -52,7 +52,7 @@ STRATEGIES = {
 
 def run_backtest(strategy: str = "sharp_money", days: int = 30, initial_bankroll: float = 10000) -> dict:
     """Ejecuta backtest de una estrategia sobre datos históricos."""
-    from database import db, _USE_PG
+    from database import db, _fetchall, _USE_PG
 
     try:
         strat = STRATEGIES.get(strategy)
@@ -61,26 +61,23 @@ def run_backtest(strategy: str = "sharp_money", days: int = 30, initial_bankroll
 
         with db() as conn:
             if _USE_PG:
-                cur = conn.cursor()
-                cur.execute("""
-                    SELECT id, match, liga, liga, liga, odds,
+                rows = _fetchall(conn, """
+                    SELECT id, match, liga, selection, bookmaker, odds,
                            confidence_score, edge_pct, sources, stake,
                            resultado, pnl, created_at
                     FROM brain_tracks
                     WHERE created_at >= NOW() - INTERVAL '1 day' * %s
                     ORDER BY created_at
                 """, (days,))
-                rows = cur.fetchall()
-                cur.close()
             else:
-                rows = conn.execute("""
-                    SELECT id, match, liga, liga, liga, odds,
+                rows = _fetchall(conn, """
+                    SELECT id, match, liga, selection, bookmaker, odds,
                            confidence_score, edge_pct, sources, stake,
                            resultado, pnl, created_at
                     FROM brain_tracks
                     WHERE created_at >= datetime('now', ?)
                     ORDER BY created_at
-                """, (f'-{days} days',)).fetchall()
+                """, (f'-{days} days',))
 
         if not rows:
             return {
@@ -100,13 +97,13 @@ def run_backtest(strategy: str = "sharp_money", days: int = 30, initial_bankroll
         max_drawdown = 0
 
         for row in rows:
-            bet_id = row[0]
-            match_name = row[1]
-            liga = row[2]
-            odds = float(row[5]) if row[5] else 0
-            confidence = float(row[6]) if row[6] else 0
-            edge = float(row[7]) if row[7] else 0
-            sources_raw = row[8] if row[8] else "[]"
+            bet_id = row["id"]
+            match_name = row["match"]
+            liga = row["liga"]
+            odds = float(row["odds"]) if row["odds"] else 0
+            confidence = float(row["confidence_score"]) if row["confidence_score"] else 0
+            edge = float(row["edge_pct"]) if row["edge_pct"] else 0
+            sources_raw = row["sources"] if row["sources"] else "[]"
             try:
                 sources_list = json.loads(sources_raw) if isinstance(sources_raw, str) else sources_raw
                 sources_count = len(sources_list) if isinstance(sources_list, list) else 0

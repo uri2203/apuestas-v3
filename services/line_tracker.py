@@ -423,7 +423,7 @@ def get_tracker_stats():
 
             cutoff = (datetime.utcnow() - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
             rows2 = _fetchall(conn,
-                f"SELECT COUNT(DISTINCT home_team || away_team) as matches FROM odds_snapshots WHERE timestamp > {ph}",
+                f"SELECT COUNT(DISTINCT home_team || ' ' || away_team) as matches FROM odds_snapshots WHERE timestamp > {ph}",
                 (cutoff,))
             matches_24h = rows2[0]["matches"] if rows2 else 0
 

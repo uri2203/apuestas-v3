@@ -19,38 +19,26 @@ MAX_KELLY_FRACTION = 0.25
 MIN_BANKROLL_RESERVE = 2000
 
 
-def _get_bankroll(conn, _USE_PG):
+def _get_bankroll(conn):
     """Obtiene bankroll actual desde brain_state."""
     try:
-        if _USE_PG:
-            cur = conn.cursor()
-            cur.execute("SELECT value FROM brain_state WHERE key = 'sim_state'")
-            row = cur.fetchone()
-            cur.close()
-        else:
-            row = conn.execute("SELECT value FROM brain_state WHERE key = 'sim_state'").fetchone()
-
-        if row and row[0]:
-            state = json.loads(row[0])
+        from database import _fetchone
+        row = _fetchone(conn, "SELECT value FROM brain_state WHERE key = 'sim_state'")
+        if row and row["value"]:
+            state = json.loads(row["value"])
             return float(state.get("bankroll_actual", 10000))
     except Exception as e:
         logger.error("Error getting bankroll: %s", e)
     return 10000
 
 
-def _get_max_bankroll(conn, _USE_PG):
+def _get_max_bankroll(conn):
     """Obtiene el bankroll máximo histórico desde brain_state."""
     try:
-        if _USE_PG:
-            cur = conn.cursor()
-            cur.execute("SELECT value FROM brain_state WHERE key = 'sim_state'")
-            row = cur.fetchone()
-            cur.close()
-        else:
-            row = conn.execute("SELECT value FROM brain_state WHERE key = 'sim_state'").fetchone()
-
-        if row and row[0]:
-            state = json.loads(row[0])
+        from database import _fetchone
+        row = _fetchone(conn, "SELECT value FROM brain_state WHERE key = 'sim_state'")
+        if row and row["value"]:
+            state = json.loads(row["value"])
             return float(state.get("max_bankroll", state.get("bankroll_actual", 10000)))
     except Exception as e:
         logger.error("Error getting max bankroll: %s", e)
@@ -59,7 +47,7 @@ def _get_max_bankroll(conn, _USE_PG):
 
 def get_risk_status() -> dict:
     """Estado actual del sistema de riesgo."""
-    from database import db, _USE_PG
+    from database import db, _fetchone, _fetchall
 
     try:
         now = datetime.utcnow()
@@ -67,86 +55,40 @@ def get_risk_status() -> dict:
         week_start = today_start - timedelta(days=today_start.weekday())
 
         with db() as conn:
-            bankroll = _get_bankroll(conn, _USE_PG)
-            max_bankroll = _get_max_bankroll(conn, _USE_PG)
+            bankroll = _get_bankroll(conn)
+            max_bankroll = _get_max_bankroll(conn)
 
-            if _USE_PG:
-                cur = conn.cursor()
+            today_row = _fetchone(conn, """
+                SELECT COUNT(*) as cnt, COALESCE(SUM(stake), 0) as staked, COALESCE(SUM(pnl), 0) as pnl
+                FROM brain_tracks WHERE created_at >= %s
+            """, (today_start,))
+            today_count = today_row["cnt"] or 0
+            today_staked = float(today_row["staked"] or 0)
+            today_pnl = float(today_row["pnl"] or 0)
 
-                cur.execute("""
-                    SELECT COUNT(*), COALESCE(SUM(stake), 0), COALESCE(SUM(pnl), 0)
-                    FROM brain_tracks WHERE created_at >= %s
-                """, (today_start,))
-                today = cur.fetchone()
-                today_count = today[0] or 0
-                today_staked = float(today[1] or 0)
-                today_pnl = float(today[2] or 0)
+            week_row = _fetchone(conn, """
+                SELECT COUNT(*) as cnt, COALESCE(SUM(stake), 0) as staked, COALESCE(SUM(pnl), 0) as pnl
+                FROM brain_tracks WHERE created_at >= %s
+            """, (week_start,))
+            week_count = week_row["cnt"] or 0
+            week_staked = float(week_row["staked"] or 0)
+            week_pnl = float(week_row["pnl"] or 0)
 
-                cur.execute("""
-                    SELECT COUNT(*), COALESCE(SUM(stake), 0), COALESCE(SUM(pnl), 0)
-                    FROM brain_tracks WHERE created_at >= %s
-                """, (week_start,))
-                week = cur.fetchone()
-                week_count = week[0] or 0
-                week_staked = float(week[1] or 0)
-                week_pnl = float(week[2] or 0)
+            sport_rows = _fetchall(conn, """
+                SELECT liga, SUM(stake) as total_staked
+                FROM brain_tracks
+                WHERE created_at >= %s AND resultado = 'pendiente'
+                GROUP BY liga
+            """, (today_start,))
+            sport_exposure = {r["liga"]: float(r["total_staked"]) for r in sport_rows}
 
-                cur.execute("""
-                    SELECT liga, SUM(stake) as total_staked
-                    FROM brain_tracks
-                    WHERE created_at >= %s AND resultado = 'pendiente'
-                    GROUP BY liga
-                """, (today_start,))
-                sport_exposure = {r[0]: float(r[1]) for r in cur.fetchall()}
-
-                cur.execute("""
-                    SELECT match, SUM(stake) as total_staked
-                    FROM brain_tracks
-                    WHERE created_at >= %s AND resultado = 'pendiente'
-                    GROUP BY match
-                """, (today_start,))
-                match_exposure = {r[0]: float(r[1]) for r in cur.fetchall()}
-
-                cur.close()
-
-            else:
-                today_count = conn.execute(
-                    "SELECT COUNT(*) FROM brain_tracks WHERE created_at >= ?",
-                    (today_start.isoformat(),)
-                ).fetchone()[0] or 0
-                today_staked = float(conn.execute(
-                    "SELECT COALESCE(SUM(stake), 0) FROM brain_tracks WHERE created_at >= ?",
-                    (today_start.isoformat(),)
-                ).fetchone()[0] or 0)
-                today_pnl = float(conn.execute(
-                    "SELECT COALESCE(SUM(pnl), 0) FROM brain_tracks WHERE created_at >= ?",
-                    (today_start.isoformat(),)
-                ).fetchone()[0] or 0)
-
-                week_count = conn.execute(
-                    "SELECT COUNT(*) FROM brain_tracks WHERE created_at >= ?",
-                    (week_start.isoformat(),)
-                ).fetchone()[0] or 0
-                week_staked = float(conn.execute(
-                    "SELECT COALESCE(SUM(stake), 0) FROM brain_tracks WHERE created_at >= ?",
-                    (week_start.isoformat(),)
-                ).fetchone()[0] or 0)
-                week_pnl = float(conn.execute(
-                    "SELECT COALESCE(SUM(pnl), 0) FROM brain_tracks WHERE created_at >= ?",
-                    (week_start.isoformat(),)
-                ).fetchone()[0] or 0)
-
-                sport_rows = conn.execute(
-                    "SELECT liga, SUM(stake) FROM brain_tracks WHERE created_at >= ? AND resultado = 'pendiente' GROUP BY liga",
-                    (today_start.isoformat(),)
-                ).fetchall()
-                sport_exposure = {r[0]: float(r[1]) for r in sport_rows}
-
-                match_rows = conn.execute(
-                    "SELECT match, SUM(stake) FROM brain_tracks WHERE created_at >= ? AND resultado = 'pendiente' GROUP BY match",
-                    (today_start.isoformat(),)
-                ).fetchall()
-                match_exposure = {r[0]: float(r[1]) for r in match_rows}
+            match_rows = _fetchall(conn, """
+                SELECT match, SUM(stake) as total_staked
+                FROM brain_tracks
+                WHERE created_at >= %s AND resultado = 'pendiente'
+                GROUP BY match
+            """, (today_start,))
+            match_exposure = {r["match"]: float(r["total_staked"]) for r in match_rows}
 
             drawdown_pct = ((max_bankroll - bankroll) / max_bankroll * 100) if max_bankroll > 0 else 0
 
@@ -215,57 +157,30 @@ def get_risk_status() -> dict:
 
 def check_can_bet(sport: str, match: str, stake: float) -> dict:
     """Verifica si se puede hacer una apuesta según las reglas de riesgo."""
-    from database import db, _USE_PG
+    from database import db, _fetchone
 
     try:
         now = datetime.utcnow()
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        week_start = today_start - timedelta(days=today_start.weekday())
 
         with db() as conn:
-            bankroll = _get_bankroll(conn, _USE_PG)
+            bankroll = _get_bankroll(conn)
 
-            if _USE_PG:
-                cur = conn.cursor()
+            today_row = _fetchone(conn, "SELECT COUNT(*) as cnt FROM brain_tracks WHERE created_at >= %s", (today_start,))
+            today_count = today_row["cnt"] or 0
 
-                cur.execute("SELECT COUNT(*) FROM brain_tracks WHERE created_at >= %s", (today_start,))
-                today_count = cur.fetchone()[0] or 0
+            sport_row = _fetchone(conn, "SELECT COALESCE(SUM(stake), 0) as staked FROM brain_tracks WHERE created_at >= %s AND liga = %s", (today_start, sport))
+            sport_staked = float(sport_row["staked"] or 0)
 
-                cur.execute("SELECT COALESCE(SUM(stake), 0) FROM brain_tracks WHERE created_at >= %s AND liga = %s", (today_start, sport))
-                sport_staked = float(cur.fetchone()[0] or 0)
+            match_row = _fetchone(conn, "SELECT COALESCE(SUM(stake), 0) as staked FROM brain_tracks WHERE created_at >= %s AND match = %s", (today_start, match))
+            match_staked = float(match_row["staked"] or 0)
 
-                cur.execute("SELECT COALESCE(SUM(stake), 0) FROM brain_tracks WHERE created_at >= %s AND match = %s", (today_start, match))
-                match_staked = float(cur.fetchone()[0] or 0)
+            today_pnl_row = _fetchone(conn, "SELECT COALESCE(SUM(pnl), 0) as pnl FROM brain_tracks WHERE created_at >= %s", (today_start,))
+            today_pnl = float(today_pnl_row["pnl"] or 0)
 
-                cur.execute("SELECT COALESCE(SUM(pnl), 0) FROM brain_tracks WHERE created_at >= %s", (today_start,))
-                today_pnl = float(cur.fetchone()[0] or 0)
-
-                week_start = today_start - timedelta(days=today_start.weekday())
-                cur.execute("SELECT COALESCE(SUM(pnl), 0) FROM brain_tracks WHERE created_at >= %s", (week_start,))
-                week_pnl = float(cur.fetchone()[0] or 0)
-
-                cur.close()
-            else:
-                today_count = conn.execute(
-                    "SELECT COUNT(*) FROM brain_tracks WHERE created_at >= ?",
-                    (today_start.isoformat(),)
-                ).fetchone()[0] or 0
-                sport_staked = float(conn.execute(
-                    "SELECT COALESCE(SUM(stake), 0) FROM brain_tracks WHERE created_at >= ? AND liga = ?",
-                    (today_start.isoformat(), sport)
-                ).fetchone()[0] or 0)
-                match_staked = float(conn.execute(
-                    "SELECT COALESCE(SUM(stake), 0) FROM brain_tracks WHERE created_at >= ? AND match = ?",
-                    (today_start.isoformat(), match)
-                ).fetchone()[0] or 0)
-                today_pnl = float(conn.execute(
-                    "SELECT COALESCE(SUM(pnl), 0) FROM brain_tracks WHERE created_at >= ?",
-                    (today_start.isoformat(),)
-                ).fetchone()[0] or 0)
-                week_start = today_start - timedelta(days=today_start.weekday())
-                week_pnl = float(conn.execute(
-                    "SELECT COALESCE(SUM(pnl), 0) FROM brain_tracks WHERE created_at >= ?",
-                    (week_start.isoformat(),)
-                ).fetchone()[0] or 0)
+            week_pnl_row = _fetchone(conn, "SELECT COALESCE(SUM(pnl), 0) as pnl FROM brain_tracks WHERE created_at >= %s", (week_start,))
+            week_pnl = float(week_pnl_row["pnl"] or 0)
 
         reasons = []
         allowed = True

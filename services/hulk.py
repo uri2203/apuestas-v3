@@ -776,38 +776,21 @@ def _init_hulk_db():
 def _save_hulk_trade(trade: dict):
     """Guarda trade en DB."""
     try:
-        from database import db, _USE_PG
+        from database import db, _execute
         _init_hulk_db()
         with db() as conn:
-            cur = conn.cursor()
-            if _USE_PG:
-                cur.execute("""
-                    INSERT INTO hulk_trades
-                    (match, selection, odds, edge_pct, mode, kelly_pct,
-                     stake, bankroll_antes, prob_modelo, confidence)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    RETURNING id
-                """, (
-                    trade["match"], trade["selection"], trade["odds"],
-                    trade["edge_pct"], trade["mode"], trade["kelly_pct"],
-                    trade["stake"], trade["bankroll_antes"],
-                    trade["prob_modelo"], trade["confidence"],
-                ))
-                trade["id"] = cur.fetchone()[0]
-            else:
-                cur.execute("""
-                    INSERT INTO hulk_trades
-                    (match, selection, odds, edge_pct, mode, kelly_pct,
-                     stake, bankroll_antes, prob_modelo, confidence)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    trade["match"], trade["selection"], trade["odds"],
-                    trade["edge_pct"], trade["mode"], trade["kelly_pct"],
-                    trade["stake"], trade["bankroll_antes"],
-                    trade["prob_modelo"], trade["confidence"],
-                ))
-                trade["id"] = cur.lastrowid
-            conn.commit()
+            last_id = _execute(conn, """
+                INSERT INTO hulk_trades
+                (match, selection, odds, edge_pct, mode, kelly_pct,
+                 stake, bankroll_antes, prob_modelo, confidence)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                trade["match"], trade["selection"], trade["odds"],
+                trade["edge_pct"], trade["mode"], trade["kelly_pct"],
+                trade["stake"], trade["bankroll_antes"],
+                trade["prob_modelo"], trade["confidence"],
+            ))
+            trade["id"] = last_id
     except Exception as e:
         logger.warning("Error guardando trade Hulk: %s", e)
 
@@ -815,7 +798,7 @@ def _save_hulk_trade(trade: dict):
 def _save_hulk_state():
     """Guarda estado en DB."""
     try:
-        from database import db, _USE_PG
+        from database import db, _execute, _USE_PG
         _init_hulk_db()
         state = {
             "bankroll": _current_bankroll,
@@ -827,17 +810,15 @@ def _save_hulk_state():
             "mode_stats": _mode_stats,
         }
         with db() as conn:
-            cur = conn.cursor()
             if _USE_PG:
-                cur.execute("""
-                    INSERT INTO hulk_state (key, value) VALUES (%s, %s)
+                _execute(conn, """
+                    INSERT INTO hulk_state (key, value) VALUES (?, ?)
                     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
                 """, ("main", json.dumps(state)))
             else:
-                cur.execute("""
+                _execute(conn, """
                     INSERT OR REPLACE INTO hulk_state (key, value) VALUES (?, ?)
                 """, ("main", json.dumps(state)))
-            conn.commit()
     except Exception as e:
         logger.warning("Error guardando estado Hulk: %s", e)
 
@@ -895,12 +876,13 @@ def scan() -> dict:
     # 3. Arbitrage (siempre ejecutar)
     arbitrage = hunt_arbitrage()
     for arb in arbitrage:
-        # Ejecutar arbitraje directamente (confidence 99%)
+        profit_pct = arb.get("profit_pct", 0)
+        synthetic_odds = round(1 + profit_pct / 100, 2) if profit_pct > 0 else 1.50
         execute_trade({
             "match": arb["match"],
             "selection": "ARBITRAJE",
-            "odds": 1,  # Special case
-            "edge_pct": arb["profit_pct"],
+            "odds": synthetic_odds,
+            "edge_pct": profit_pct,
             "confidence": 99,
             "source_count": len(arb.get("best_books", {})),
         }, "HAWK")
@@ -1059,13 +1041,11 @@ def reset_hulk(new_bankroll: float = 10000) -> dict:
     _trade_history = []
 
     try:
-        from database import db
+        from database import db, _execute
         _init_hulk_db()
         with db() as conn:
-            cur = conn.cursor()
-            cur.execute("DELETE FROM hulk_trades")
-            cur.execute("DELETE FROM hulk_state")
-            conn.commit()
+            _execute(conn, "DELETE FROM hulk_trades")
+            _execute(conn, "DELETE FROM hulk_state")
     except Exception:
         pass
 
