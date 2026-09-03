@@ -1018,6 +1018,47 @@ loadML()
 """)
 
 # ════════════════════════════════════════════════════════════════════════════
+# MODULE: PREDICCIONES ML (auto-generadas)
+# ════════════════════════════════════════════════════════════════════════════
+MOD_PREDICCIONES = module_page("Predicciones ML", """
+<div class="kpi-grid">
+  <div class="kpi"><div class="label">Total mostradas</div><div class="value" id="pmTotal">0</div></div>
+  <div class="kpi"><div class="label">Verificadas</div><div class="value" id="pmVerif">0</div></div>
+  <div class="kpi"><div class="label">Accuracy</div><div class="value amber" id="pmAcc">0%</div></div>
+</div>
+<div class="top-bar">
+  <select id="pmLiga">
+    <option value="">Todas las ligas</option>
+    <option value="liga_mx">Liga MX</option><option value="mls">MLS</option>
+    <option value="premier_league">Premier League</option><option value="la_liga">La Liga</option>
+    <option value="serie_a">Serie A</option><option value="bundesliga">Bundesliga</option>
+    <option value="ligue_1">Ligue 1</option>
+  </select>
+  <button class="btn btn-primary" onclick="loadPM()">Actualizar</button>
+</div>
+<div class="table-wrap"><table><thead><tr><th>Liga</th><th>Local</th><th>Visitante</th><th>Fecha</th><th>Pronóstico</th><th>Confianza</th><th>Resultado</th></tr></thead><tbody id="pmBody"></tbody></table></div>
+""", """
+async function loadPM(){try{
+  const liga=document.getElementById('pmLiga').value
+  const d=await api('/api/predicciones/recientes?limit=100'+(liga?'&liga='+liga:''))
+  const preds=d.predicciones||[]
+  document.getElementById('pmTotal').textContent=d.total||0
+  const verificadas=preds.filter(p=>p.correcto!==null && p.correcto!==undefined)
+  const acertadas=verificadas.filter(p=>p.correcto===1||p.correcto==='1')
+  document.getElementById('pmVerif').textContent=verificadas.length
+  document.getElementById('pmAcc').textContent=(verificadas.length?(acertadas.length/verificadas.length*100):0).toFixed(1)+'%'
+  let h=''
+  preds.forEach(p=>{
+    const cls=p.correcto===1||p.correcto==='1'?'green':(p.correcto===0||p.correcto==='0')?'red':''
+    const res=p.resultado_real?p.resultado_real:(cls?'':'Pendiente')
+    h+='<tr><td>'+(p.liga||'-')+'</td><td>'+(p.home||'-')+'</td><td>'+(p.away||'-')+'</td><td>'+(p.fecha_partido||'-')+'</td><td><span class="badge badge-blue">'+(p.pronostico||'-')+'</span></td><td>'+(p.confianza_pct||0)+'%</td><td class="'+cls+'">'+res+'</td></tr>'
+  })
+  document.getElementById('pmBody').innerHTML=h||'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">Aún no hay predicciones generadas</td></tr>'
+}catch(e){toast('Error','err')}}
+loadPM()
+""")
+
+# ════════════════════════════════════════════════════════════════════════════
 # MODULE: BACKTESTING
 # ════════════════════════════════════════════════════════════════════════════
 MOD_BACKTESTING = module_page("Backtesting", """
@@ -2255,6 +2296,7 @@ MODULES = {
     "value-engine":  ("Value Engine",        MOD_VALUE_ENGINE),
     "copa":          ("Copa del Mundo 2026", MOD_COPA),
     "ml":            ("ML Predictivo",       MOD_ML),
+    "predicciones":  ("Predicciones ML",     MOD_PREDICCIONES),
     "backtesting":   ("Backtesting",         MOD_BACKTESTING),
     "nlp":           ("Noticias & Lesiones", MOD_NLP),
     "montecarlo":    ("Monte Carlo",         MOD_MONTECARLO),

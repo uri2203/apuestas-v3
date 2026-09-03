@@ -115,11 +115,13 @@ def auto_train_all() -> dict:
              "serie_a", "bundesliga", "ligue_1"]
     total_preds = 0
     errores = []
+    todas_predicciones = []
     for liga in ligas:
         try:
             res = auto_train(liga)
             if "error" not in res:
                 total_preds += res.get("total_predicciones", 0)
+                todas_predicciones.extend(res.get("predicciones", []))
             else:
                 errores.append(f"{liga}: {res['error']}")
         except Exception as e:
@@ -128,6 +130,7 @@ def auto_train_all() -> dict:
         "total_predicciones": total_preds,
         "ligas_procesadas": len(ligas) - len(errores),
         "errores": errores,
+        "predicciones": todas_predicciones,
     }
 
 

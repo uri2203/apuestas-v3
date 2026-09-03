@@ -1005,6 +1005,23 @@ def count_predictions_today() -> dict:
         return defaults
 
 
+def listar_predicciones_recientes(limit: int = 50, liga: str = None) -> list:
+    """Lista las predicciones más recientes con todos sus detalles (equipos, liga, pronóstico, confianza)."""
+    try:
+        sql = "SELECT * FROM predictions"
+        params = []
+        if liga:
+            sql += " WHERE liga = ?"
+            params.append(liga)
+        sql += " ORDER BY id DESC LIMIT ?"
+        params.append(limit)
+        with db() as conn:
+            return _fetchall(conn, sql, tuple(params))
+    except Exception as e:
+        logger.error("Error listando predicciones: %s", e)
+        return []
+
+
 def count_value_bets_today() -> dict:
     """Cuenta value bets detectados hoy."""
     defaults = {"total": 0, "avg_edge": 0}

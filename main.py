@@ -2591,9 +2591,18 @@ def _ml_auto_train():
     try:
         from services.ml_predictor import auto_train_all
         res = auto_train_all()
-        logging.info("ML auto-train: %d predicciones generadas", res.get("total_predicciones", 0))
-        if res.get("total_predicciones", 0) > 0:
-            telegram_send(f"<b>🤖 ML Predictor</b>\n\n{res['total_predicciones']} predicciones generadas automáticamente para {res['ligas_procesadas']} ligas.")
+        total = res.get("total_predicciones", 0)
+        logging.info("ML auto-train: %d predicciones generadas", total)
+        if total > 0:
+            preds = sorted(res.get("predicciones", []), key=lambda p: p.get("confianza_pct", 0), reverse=True)
+            lines = [f"<b>🤖 ML Predictor</b>\n\n{total} predicciones generadas para {res['ligas_procesadas']} ligas.", ""]
+            lines.append("<b>Top predicciones (mayor confianza):</b>")
+            for p in preds[:10]:
+                lines.append(f"  • [{p.get('liga','')}] {p.get('home','')} vs {p.get('away','')} "
+                             f"→ <b>{p.get('pronostico','')}</b> ({p.get('confianza_pct',0)}%)")
+            if total > 10:
+                lines.append(f"\n... y {total - 10} más. Ver todas en el dashboard → Predicciones ML.")
+            telegram_send("\n".join(lines))
     except Exception as e:
         logging.error("ML auto-train error: %s", e)
 

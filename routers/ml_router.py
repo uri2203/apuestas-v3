@@ -287,3 +287,14 @@ def estadisticas():
     """Accuracy real del modelo basado en predicciones verificadas."""
     from services.verificador import estadisticas_predicciones
     return jsonify(estadisticas_predicciones())
+
+
+@predicciones_bp.route("/recientes")
+@login_required
+def recientes():
+    """Lista las predicciones generadas más recientes (equipos, liga, pronóstico, confianza)."""
+    from database import listar_predicciones_recientes
+    limit = int(request.args.get("limit", 50))
+    liga = request.args.get("liga") or None
+    preds = listar_predicciones_recientes(limit=limit, liga=liga)
+    return jsonify({"predicciones": preds, "total": len(preds)})
