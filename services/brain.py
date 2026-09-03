@@ -305,7 +305,6 @@ def _collect_monte_carlo() -> list[dict]:
     signals = []
     try:
         from services.deportes import get_odds_upcoming, get_any_odds_key
-        from services.motor_avanzado import simulacion_monte_carlo_poisson
 
         key = get_any_odds_key()
         if not key:

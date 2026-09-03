@@ -312,6 +312,30 @@ def _init_pg() -> None:
         )""",
         "CREATE INDEX IF NOT EXISTS idx_odds_ts ON odds_snapshots(timestamp)",
         "CREATE INDEX IF NOT EXISTS idx_odds_match ON odds_snapshots(home_team, away_team, timestamp)",
+        """CREATE TABLE IF NOT EXISTS brain_tracks (
+            id               SERIAL PRIMARY KEY,
+            match            TEXT,
+            liga             TEXT,
+            selection        TEXT,
+            bookmaker        TEXT,
+            odds             REAL,
+            edge_pct         REAL,
+            confidence_score REAL,
+            stake            REAL,
+            kelly_pct        REAL,
+            prob_modelo      REAL,
+            sources          TEXT,
+            resultado        TEXT DEFAULT 'pendiente',
+            pnl              REAL DEFAULT 0,
+            bankroll_antes   REAL,
+            bankroll_despues REAL,
+            verified_at      TEXT,
+            created_at       TIMESTAMP DEFAULT NOW()
+        )""",
+        """CREATE TABLE IF NOT EXISTS brain_state (
+            key   TEXT PRIMARY KEY,
+            value TEXT
+        )""",
     ]
     for stmt in statements:
         cur.execute(stmt)
@@ -847,6 +871,31 @@ def _init_sqlite() -> None:
     );
     CREATE INDEX IF NOT EXISTS idx_odds_ts ON odds_snapshots(timestamp);
     CREATE INDEX IF NOT EXISTS idx_odds_match ON odds_snapshots(home_team, away_team, timestamp);
+
+    CREATE TABLE IF NOT EXISTS brain_tracks (
+        id               INTEGER PRIMARY KEY AUTOINCREMENT,
+        match            TEXT,
+        liga             TEXT,
+        selection        TEXT,
+        bookmaker        TEXT,
+        odds             REAL,
+        edge_pct         REAL,
+        confidence_score REAL,
+        stake            REAL,
+        kelly_pct        REAL,
+        prob_modelo      REAL,
+        sources          TEXT,
+        resultado        TEXT DEFAULT 'pendiente',
+        pnl              REAL DEFAULT 0,
+        bankroll_antes   REAL,
+        bankroll_despues REAL,
+        verified_at      TEXT,
+        created_at       TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS brain_state (
+        key   TEXT PRIMARY KEY,
+        value TEXT
+    );
     """)
     conn.commit()
     conn.close()

@@ -183,7 +183,7 @@ class DixonColesModel:
             "equipo":  equipo,
             "ataque":  round(self.ataque.get(equipo, 1.0), 3),
             "defensa": round(self.defensa.get(equipo, 1.0), 3),
-            "rating":  round(self.ataque.get(equipo, 1.0) / self.defensa.get(equipo, 1.0), 3),
+            "rating":  round(self.ataque.get(equipo, 1.0) / max(self.defensa.get(equipo, 1.0), 0.01), 3),
         }
 
     def ranking(self):

@@ -94,7 +94,7 @@ def snapshot_odds(api_key=None):
 
 
 def get_line_movements(hours_back=24, min_change_pct=3.0):
-    from database import db, _fetchall, _USE_PG
+    from database import db, _fetchall, _USE_PG, _q
 
     cutoff = (datetime.utcnow() - timedelta(hours=hours_back)).strftime("%Y-%m-%d %H:%M:%S")
     ph = "%s" if _USE_PG else "?"
@@ -152,7 +152,7 @@ def get_line_movements(hours_back=24, min_change_pct=3.0):
 
 
 def detect_steam_moves(hours_back=6, min_books=None):
-    from database import db, _fetchall, _USE_PG
+    from database import db, _fetchall, _USE_PG, _q
 
     if min_books is None:
         min_books = STEAM_MIN_BOOKS
@@ -258,7 +258,7 @@ def _steam_confidence(cambios):
 
 
 def detect_rlm(hours_back=24):
-    from database import db, _fetchall, _USE_PG
+    from database import db, _fetchall, _USE_PG, _q
 
     cutoff = (datetime.utcnow() - timedelta(hours=hours_back)).strftime("%Y-%m-%d %H:%M:%S")
     ph = "%s" if _USE_PG else "?"

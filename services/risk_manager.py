@@ -60,7 +60,7 @@ def get_risk_status() -> dict:
 
             today_row = _fetchone(conn, """
                 SELECT COUNT(*) as cnt, COALESCE(SUM(stake), 0) as staked, COALESCE(SUM(pnl), 0) as pnl
-                FROM brain_tracks WHERE created_at >= %s
+                FROM brain_tracks WHERE created_at >= ?
             """, (today_start,))
             today_count = today_row["cnt"] or 0
             today_staked = float(today_row["staked"] or 0)
@@ -68,7 +68,7 @@ def get_risk_status() -> dict:
 
             week_row = _fetchone(conn, """
                 SELECT COUNT(*) as cnt, COALESCE(SUM(stake), 0) as staked, COALESCE(SUM(pnl), 0) as pnl
-                FROM brain_tracks WHERE created_at >= %s
+                FROM brain_tracks WHERE created_at >= ?
             """, (week_start,))
             week_count = week_row["cnt"] or 0
             week_staked = float(week_row["staked"] or 0)
@@ -77,7 +77,7 @@ def get_risk_status() -> dict:
             sport_rows = _fetchall(conn, """
                 SELECT liga, SUM(stake) as total_staked
                 FROM brain_tracks
-                WHERE created_at >= %s AND resultado = 'pendiente'
+                WHERE created_at >= ? AND resultado = 'pendiente'
                 GROUP BY liga
             """, (today_start,))
             sport_exposure = {r["liga"]: float(r["total_staked"]) for r in sport_rows}
@@ -85,7 +85,7 @@ def get_risk_status() -> dict:
             match_rows = _fetchall(conn, """
                 SELECT match, SUM(stake) as total_staked
                 FROM brain_tracks
-                WHERE created_at >= %s AND resultado = 'pendiente'
+                WHERE created_at >= ? AND resultado = 'pendiente'
                 GROUP BY match
             """, (today_start,))
             match_exposure = {r["match"]: float(r["total_staked"]) for r in match_rows}
@@ -167,19 +167,19 @@ def check_can_bet(sport: str, match: str, stake: float) -> dict:
         with db() as conn:
             bankroll = _get_bankroll(conn)
 
-            today_row = _fetchone(conn, "SELECT COUNT(*) as cnt FROM brain_tracks WHERE created_at >= %s", (today_start,))
+            today_row = _fetchone(conn, "SELECT COUNT(*) as cnt FROM brain_tracks WHERE created_at >= ?", (today_start,))
             today_count = today_row["cnt"] or 0
 
-            sport_row = _fetchone(conn, "SELECT COALESCE(SUM(stake), 0) as staked FROM brain_tracks WHERE created_at >= %s AND liga = %s", (today_start, sport))
+            sport_row = _fetchone(conn, "SELECT COALESCE(SUM(stake), 0) as staked FROM brain_tracks WHERE created_at >= ? AND liga = ?", (today_start, sport))
             sport_staked = float(sport_row["staked"] or 0)
 
-            match_row = _fetchone(conn, "SELECT COALESCE(SUM(stake), 0) as staked FROM brain_tracks WHERE created_at >= %s AND match = %s", (today_start, match))
+            match_row = _fetchone(conn, "SELECT COALESCE(SUM(stake), 0) as staked FROM brain_tracks WHERE created_at >= ? AND match = ?", (today_start, match))
             match_staked = float(match_row["staked"] or 0)
 
-            today_pnl_row = _fetchone(conn, "SELECT COALESCE(SUM(pnl), 0) as pnl FROM brain_tracks WHERE created_at >= %s", (today_start,))
+            today_pnl_row = _fetchone(conn, "SELECT COALESCE(SUM(pnl), 0) as pnl FROM brain_tracks WHERE created_at >= ?", (today_start,))
             today_pnl = float(today_pnl_row["pnl"] or 0)
 
-            week_pnl_row = _fetchone(conn, "SELECT COALESCE(SUM(pnl), 0) as pnl FROM brain_tracks WHERE created_at >= %s", (week_start,))
+            week_pnl_row = _fetchone(conn, "SELECT COALESCE(SUM(pnl), 0) as pnl FROM brain_tracks WHERE created_at >= ?", (week_start,))
             week_pnl = float(week_pnl_row["pnl"] or 0)
 
         reasons = []

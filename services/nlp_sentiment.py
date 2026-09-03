@@ -277,6 +277,32 @@ def sentimiento_equipo(textos, equipo):
     }
 
 
+# ── 3b. SCAN GENERAL DE NOTICIAS (para el agente Brain) ───────────────────
+def scan_all_news(limite=25) -> list:
+    """
+    Escanea las noticias mas recientes (sin partido especifico) y devuelve,
+    por articulo, los equipos mencionados + score de lesion + sentimiento.
+    """
+    noticias = fetch_noticias(limite)
+    resultados = []
+    for n in noticias:
+        texto = f"{n.get('titulo','')} {n.get('desc','')}"
+        tn = _n(texto)
+        equipos_detectados = [eq for eq in EQUIPOS if _n(eq) in tn]
+        alertas = detectar_lesiones(texto)
+        score_lesion = sum(a["impacto"] for a in alertas) if alertas else 0.0
+        score_sent = sum(1 for p in SENT_POS if p in tn) - sum(1 for p in SENT_NEG if p in tn)
+        resultados.append({
+            "titulo":             n.get("titulo", ""),
+            "fuente":             n.get("fuente", ""),
+            "fecha":              n.get("fecha", ""),
+            "equipos_detectados": equipos_detectados,
+            "score_lesion":       round(score_lesion, 3),
+            "sentimiento":        round(max(-1.0, min(1.0, score_sent / 3)), 3),
+        })
+    return resultados
+
+
 # ── 4. SCAN COMPLETO PRE-PARTIDO ──────────────────────────────────────────
 def scan_completo(home, away):
     """
