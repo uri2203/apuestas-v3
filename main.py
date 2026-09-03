@@ -3055,15 +3055,13 @@ def hulk_modes():
 def hulk_history():
     """Historial de trades Hulk."""
     try:
-        from database import db, _row_to_dict, _USE_PG
+        from database import db, _fetchall
         from services.hulk import _init_hulk_db
         _init_hulk_db()
         limit = request.args.get("limit", 50, type=int)
         with db() as conn:
-            cur = conn.cursor()
-            cur.execute("SELECT * FROM hulk_trades ORDER BY id DESC LIMIT %s" if _USE_PG else
-                       "SELECT * FROM hulk_trades ORDER BY id DESC LIMIT ?", (limit,))
-            trades = [_row_to_dict(r) for r in cur.fetchall()]
+            trades = _fetchall(conn,
+                "SELECT * FROM hulk_trades ORDER BY id DESC LIMIT ?", (limit,))
         return jsonify({"trades": trades})
     except Exception as e:
         return jsonify({"error": str(e)}), 500

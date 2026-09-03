@@ -158,11 +158,33 @@ def filtrar_value_bets(value_bets: list, thresholds: dict = None) -> dict:
       - fecha (commence_time)
     """
     from database import db, _fetchall
+    import re
 
     t = {**DEFAULT_THRESHOLDS, **(thresholds or {})}
     aprobados = []
     rechazados = []
-    fuente = {}
+
+    # Precargar ratings de casas y alertas sharp en UNA sola conexión
+    # (antes se abrían 3 conexiones por cada value bet -> timeout con Supabase).
+    ratings = {}   # bookmaker -> {"overround":..., "clv":...}
+    sharp_por_partido = {}  # partido -> score
+    try:
+        with db() as conn:
+            for r in _fetchall(conn,
+                    "SELECT bookmaker, avg_overround, avg_clv FROM bookmaker_ratings"):
+                ratings[r.get("bookmaker", "")] = {
+                    "overround": r.get("avg_overround", 5.0) or 5.0,
+                    "clv": r.get("avg_clv", 0) or 0,
+                }
+            for r in _fetchall(conn,
+                    "SELECT partido, detalle FROM alerts_log WHERE tipo='SHARP' ORDER BY id DESC"):
+                p = r.get("partido", "")
+                if p in sharp_por_partido:
+                    continue  # ya tenemos el más reciente (ORDER BY id DESC)
+                m = re.search(r'Score\s*[:]\s*(\d+)', r.get("detalle", "") or "")
+                sharp_por_partido[p] = int(m.group(1)) if m else 0
+    except Exception:
+        pass
 
     for vb in value_bets:
         edge = vb.get("edge_porcentaje", 0) or vb.get("edge_pct", 0)
@@ -170,34 +192,10 @@ def filtrar_value_bets(value_bets: list, thresholds: dict = None) -> dict:
         partido = vb.get("partido", "")
         fecha_str = vb.get("fecha", "")
 
-        # Sharp score: buscar en DB si hay alerta sharp para este partido
-        sharp_score = 0
-        try:
-            from database import _fetchone as _db_fetchone
-            with db() as conn:
-                row = _db_fetchone(conn,
-                    "SELECT detalle FROM alerts_log WHERE partido=? AND tipo='SHARP' ORDER BY id DESC LIMIT 1",
-                    (partido,))
-                if row:
-                    import re
-                    m = re.search(r'Score\s*[:]\s*(\d+)', row.get("detalle", ""))
-                    if m:
-                        sharp_score = int(m.group(1))
-        except Exception:
-            pass
-
-        # Overround: consultar rating de la casa
-        overround = 5.0
-        try:
-            from database import _fetchone as _db_fetchone
-            with db() as conn:
-                row = _db_fetchone(conn,
-                    "SELECT avg_overround FROM bookmaker_ratings WHERE bookmaker=? ORDER BY id DESC LIMIT 1",
-                    (casa,))
-                if row:
-                    overround = row.get("avg_overround", 5.0) or 5.0
-        except Exception:
-            pass
+        sharp_score = sharp_por_partido.get(partido, 0)
+        rating = ratings.get(casa, {})
+        overround = rating.get("overround", 5.0)
+        clv = rating.get("clv", 0)
 
         # Horas antes del partido
         horas_antes = 48
@@ -207,19 +205,6 @@ def filtrar_value_bets(value_bets: list, thresholds: dict = None) -> dict:
                 horas_antes = max(0, (ct - datetime.now().astimezone()).total_seconds() / 3600)
             except Exception:
                 pass
-
-        # CLV histórico de la casa
-        clv = 0
-        try:
-            from database import _fetchone as _db_fetchone
-            with db() as conn:
-                row = _db_fetchone(conn,
-                    "SELECT avg_clv FROM bookmaker_ratings WHERE bookmaker=? ORDER BY id DESC LIMIT 1",
-                    (casa,))
-                if row:
-                    clv = row.get("avg_clv", 0) or 0
-        except Exception:
-            pass
 
         compuesto = calcular_score_compuesto(
             edge_pct=edge, sharp_score=sharp_score,

@@ -173,7 +173,6 @@ def optimizar_cobertura(
         mejor_idx  = None
         mejor_prob = -1
         for idx in disponibles:
-            candidatas = [pool_signos[i] for i in [j for j in range(len(pool_signos)) if pool_signos[j] in seleccionadas + [pool_signos[idx]]]]
             p = prob_al_menos_una(seleccionadas + [pool_signos[idx]])
             if p > mejor_prob:
                 mejor_prob = p

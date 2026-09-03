@@ -82,11 +82,21 @@ def auto_train(liga_key: str = "liga_mx") -> dict:
             "modelo": "ensemble",
         })
 
-    # Guardar en DB
+    # Guardar en DB — evitando duplicados (el job corre cada 12h sobre los
+    # mismos próximos partidos; sin dedup la tabla crece sin control).
     from database import db, _execute, _fetchall
+    guardadas = 0
     try:
         with db() as conn:
+            existentes = set()
+            for r in _fetchall(conn,
+                    "SELECT home, away, fecha_partido FROM predictions "
+                    "WHERE liga=? AND modelo=?", (liga_key, "ensemble")):
+                existentes.add((r.get("home"), r.get("away"), r.get("fecha_partido")))
             for p in predicciones:
+                clave = (p["home"], p["away"], p["fecha"])
+                if clave in existentes:
+                    continue
                 _execute(conn,
                     "INSERT INTO predictions "
                     "(home, away, liga, fecha_partido, pronostico, confianza_pct, "
@@ -96,8 +106,10 @@ def auto_train(liga_key: str = "liga_mx") -> dict:
                      p["pronostico"], p["confianza_pct"],
                      p["prob_local"], p["prob_empate"], p["prob_visitante"],
                      p["modelo"]))
-        logger.info("ML Predictor: %d predicciones guardadas para %s",
-                    len(predicciones), liga_key)
+                existentes.add(clave)
+                guardadas += 1
+        logger.info("ML Predictor: %d predicciones nuevas guardadas para %s (%d ya existían)",
+                    guardadas, liga_key, len(predicciones) - guardadas)
     except Exception as e:
         logger.error("Error guardando predicciones: %s", e)
 
