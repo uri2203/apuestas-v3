@@ -1732,6 +1732,14 @@ def ml_auto_train():
     return jsonify(auto_train_all())
 
 
+@app.route("/api/admin/test-ml-alert")
+@login_required
+def test_ml_alert():
+    """Dispara manualmente el job de ML auto-train (incluye envío real a Telegram) para pruebas."""
+    _ml_auto_train()
+    return jsonify({"ok": True, "mensaje": "Job ejecutado. Revisa Telegram."})
+
+
 @app.route("/api/ml/auto-train/<liga>")
 @login_required
 def ml_auto_train_liga(liga):
