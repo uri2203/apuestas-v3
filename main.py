@@ -1371,6 +1371,30 @@ def admin_init_db():
     return jsonify(resultado)
 
 
+@app.route("/api/admin/limpiar-predicciones-duplicadas")
+@login_required
+def admin_limpiar_predicciones():
+    """Borra predicciones duplicadas dejando 1 por (home, away, fecha_partido,
+    liga, modelo). Nunca borra predicciones ya verificadas. Idempotente."""
+    from database import db, _fetchone, _execute
+    try:
+        with db() as conn:
+            antes = (_fetchone(conn, "SELECT COUNT(*) AS n FROM predictions") or {}).get("n", 0) or 0
+            _execute(conn,
+                "DELETE FROM predictions WHERE correcto IS NULL AND id NOT IN ("
+                "SELECT MIN(id) FROM predictions "
+                "GROUP BY home, away, fecha_partido, liga, modelo)")
+            despues = (_fetchone(conn, "SELECT COUNT(*) AS n FROM predictions") or {}).get("n", 0) or 0
+        return jsonify({
+            "ok": True,
+            "antes": antes,
+            "despues": despues,
+            "eliminadas": antes - despues,
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @app.route("/api/seed-demo")
 @login_required
 def seed_demo():
