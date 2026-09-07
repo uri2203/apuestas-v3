@@ -106,7 +106,7 @@ def detect_steam_moves() -> list[dict]:
         if not key:
             return []
 
-        odds = get_odds_upcoming(api_key=key, regions="us,uk,eu")
+        odds = get_odds_upcoming(api_key=key)
         if not odds:
             return []
 
@@ -247,7 +247,7 @@ def scan_live_opportunities() -> list[dict]:
     """
     signals = []
     try:
-        from services.deportes import get_any_odds_key
+        from services.deportes import get_any_odds_key, DEFAULT_REGIONS
         import httpx
 
         key = get_any_odds_key()
@@ -257,7 +257,7 @@ def scan_live_opportunities() -> list[dict]:
         # Obtener odds en vivo
         r = httpx.get(
             "https://api.the-odds-api.com/v4/sports/soccer/odds-live",
-            params={"apiKey": key, "regions": "us,uk,eu", "markets": "h2h"},
+            params={"apiKey": key, "regions": DEFAULT_REGIONS, "markets": "h2h"},
             timeout=10,
         )
         if r.status_code != 200:
@@ -328,7 +328,7 @@ def hunt_arbitrage() -> list[dict]:
         if not key:
             return []
 
-        odds = get_odds_upcoming(api_key=key, regions="us,uk,eu")
+        odds = get_odds_upcoming(api_key=key)
         if not odds:
             return []
 
@@ -411,7 +411,7 @@ def detect_contrarian_opportunities() -> list[dict]:
         if not key:
             return []
 
-        odds = get_odds_upcoming(api_key=key, regions="us,uk,eu")
+        odds = get_odds_upcoming(api_key=key)
         if not odds:
             return []
 

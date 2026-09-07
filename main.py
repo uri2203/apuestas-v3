@@ -461,7 +461,7 @@ def value_bets():
 
         if multi:
             # upcoming cubre todos los deportes en 1 call
-            raw_data = get_odds_upcoming(api_key, regions="us,uk,eu")
+            raw_data = get_odds_upcoming(api_key)
             if raw_data:
                 # Agrupar temporalmente por sport_key para el cache_key
                 active = {}
@@ -477,7 +477,7 @@ def value_bets():
             deportes_a_escanear = [deporte]
             deportes_escaneados = 1
             try:
-                raw_batches = [get_odds_for_sport(deporte, api_key, regions="us,uk,eu")]
+                raw_batches = [get_odds_for_sport(deporte, api_key)]
             except Exception:
                 raw_batches = [[]]
 
@@ -649,9 +649,9 @@ def odds_arbitraje():
 
         # Usar upcoming (1 call) para multi-scan, o deporte específico
         if multi or deporte == "upcoming":
-            raw = get_odds_upcoming(api_key, regions="us,uk,eu")
+            raw = get_odds_upcoming(api_key)
         else:
-            raw = get_odds_for_sport(deporte, api_key, regions="us,uk,eu")
+            raw = get_odds_for_sport(deporte, api_key)
 
         api_error = None
         if not raw:
@@ -760,8 +760,9 @@ def odds_mercados():
     try:
         api_key = get_any_odds_key()
         deporte = request.args.get("deporte", "upcoming")
+        from services.deportes import DEFAULT_REGIONS
         mercados = request.args.get("mercados", "h2h,asian_handicap")
-        regions = request.args.get("regions", "us,uk,eu")
+        regions = request.args.get("regions", DEFAULT_REGIONS)
 
         if not api_key:
             return jsonify({"error": "ODDS_API_KEY no configurada"})
@@ -838,7 +839,7 @@ def odds_live():
         if not api_key:
             return jsonify({"error": "ODDS_API_KEY no configurada"})
 
-        raw = get_odds_upcoming(api_key, regions="us,uk,eu")
+        raw = get_odds_upcoming(api_key)
         if not raw:
             raw = []
 
@@ -1037,7 +1038,7 @@ def sharp_scan():
         raw = []
         if api_key:
             try:
-                raw = get_odds_upcoming(api_key, regions="us,uk,eu", markets="h2h") or []
+                raw = get_odds_upcoming(api_key, markets="h2h") or []
             except Exception:
                 pass
 
@@ -2428,6 +2429,9 @@ def _heartbeat():
 
 def _alerta_sharp_auto():
     """Escanea y envía alerta Telegram con información ACCIONABLE: a quién, dónde, cuánto."""
+    from services.deportes import quota_reservada
+    if quota_reservada():
+        return  # reservar cuota Odds API para consultas manuales del usuario
     api_key = get_any_odds_key()
     if not api_key:
         return
@@ -2449,7 +2453,7 @@ def _alerta_sharp_auto():
 
     # Obtener odds actuales para enriquecer las alertas
     from services.deportes import get_odds_upcoming
-    raw = get_odds_upcoming(api_key, regions="us,uk,eu", markets="h2h") or []
+    raw = get_odds_upcoming(api_key, markets="h2h") or []
 
     # Indexar odds por partido
     odds_by_match = {}
@@ -3278,7 +3282,7 @@ def live_odds():
         api_key = get_any_odds_key()
         if not api_key:
             return jsonify({"error": "No API key available"}), 500
-        result = get_odds_upcoming(api_key, regions="us,uk,eu")
+        result = get_odds_upcoming(api_key)
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -3332,6 +3336,9 @@ def ml_enhanced_accuracy():
 def _brain_auto_scan():
     """Auto-scan del Brain cada 2 horas."""
     try:
+        from services.deportes import quota_reservada
+        if quota_reservada():
+            return  # reservar cuota Odds API para consultas manuales del usuario
         from services.brain import auto_scan_and_simulate
         result = auto_scan_and_simulate()
         n_signals = result.get("scan_filtered", 0)
@@ -3371,8 +3378,11 @@ def _brain_auto_learn():
 
 
 def _hulk_auto_scan():
-    """Auto-scan del Hulk cada 15 minutos."""
+    """Auto-scan del Hulk."""
     try:
+        from services.deportes import quota_reservada
+        if quota_reservada():
+            return  # reservar cuota Odds API para consultas manuales del usuario
         from services.hulk import scan
         result = scan()
         trades = result.get("trades_executed", 0)
@@ -3385,8 +3395,11 @@ def _hulk_auto_scan():
 
 
 def _line_tracker_snapshot():
-    """Snapshot de odds cada 15 min para line movement tracking."""
+    """Snapshot de odds para line movement tracking."""
     try:
+        from services.deportes import quota_reservada
+        if quota_reservada():
+            return  # reservar cuota Odds API para consultas manuales del usuario
         from services.line_tracker import snapshot_odds
         api_key = get_any_odds_key()
         if api_key:
@@ -3422,8 +3435,8 @@ def _brain_weekly_report():
         logging.error("Brain weekly report error: %s", e)
 
 scheduler.add_job(_brain_weekly_report, "cron", day_of_week="mon", hour=9, id="brain_weekly_report")
-scheduler.add_job(_hulk_auto_scan, "interval", minutes=15, id="hulk_scan")
-scheduler.add_job(_line_tracker_snapshot, "interval", minutes=15, id="line_tracker_snapshot")
+scheduler.add_job(_hulk_auto_scan, "interval", hours=3, id="hulk_scan")
+scheduler.add_job(_line_tracker_snapshot, "interval", hours=3, id="line_tracker_snapshot")
 scheduler.start()
 
 register_webhook(os.getenv("RENDER_EXTERNAL_URL",""))

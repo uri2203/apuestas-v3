@@ -35,7 +35,7 @@ def snapshot_odds(api_key=None):
     if not api_key:
         return {"saved": 0, "matches": 0, "errors": 1}
 
-    raw = get_odds_upcoming(api_key, regions="us,uk,eu", markets="h2h")
+    raw = get_odds_upcoming(api_key, markets="h2h")
     if not raw:
         return {"saved": 0, "matches": 0, "errors": 1}
 

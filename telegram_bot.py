@@ -241,7 +241,7 @@ def _cmd_arbitraje() -> None:
         return
     try:
         from services.deportes import get_odds_upcoming
-        raw = get_odds_upcoming(api_key, regions="us,uk,eu")
+        raw = get_odds_upcoming(api_key)
         arbitrajes = []
         for m in raw if isinstance(raw, list) else []:
             ht = m.get("home_team", "") or ""
@@ -294,7 +294,7 @@ def _cmd_sharp() -> None:
         sharp_recs = signals.get("sharp_recommendations", [])
 
         # Obtener odds actuales
-        raw = get_odds_upcoming(api_key, regions="us,uk,eu", markets="h2h") or []
+        raw = get_odds_upcoming(api_key, markets="h2h") or []
 
         lines = [
             "<b>🎯 SHARP MONEY</b>",
@@ -685,7 +685,9 @@ def _cmd_help() -> None:
 # ── Alertas automáticas (llamadas por el scheduler) ───────────────────────────
 def alerta_value_bets() -> None:
     """Detecta value bets y los envía a Telegram (llamar desde scheduler)."""
-    from services.deportes import get_any_odds_key
+    from services.deportes import get_any_odds_key, quota_reservada
+    if quota_reservada():
+        return  # reservar cuota Odds API para consultas manuales del usuario
     api_key = get_any_odds_key()
     if not api_key or not TELEGRAM_TOKEN:
         return

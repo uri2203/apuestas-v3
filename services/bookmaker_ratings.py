@@ -29,7 +29,7 @@ def actualizar_ratings() -> dict:
     if not api_key:
         return {"error": "No hay API keys configuradas. Agrega ODDS_API_KEYS=key1,key2"}
 
-    raw = get_odds_upcoming(api_key, regions="us,uk,eu")
+    raw = get_odds_upcoming(api_key)
 
     if not raw:
         return {"error": "Sin datos de odds"}

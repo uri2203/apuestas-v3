@@ -40,7 +40,7 @@ def detectar_inconsistencias(api_key: str = None) -> dict:
         return {"error": "No hay API keys configuradas. Agrega ODDS_API_KEYS=key1,key2"}
 
     # Pedir h2h + asian_handicap + spreads en un solo call
-    raw = get_odds_upcoming(api_key, regions="us,uk,eu", markets="h2h,asian_handicap,spreads,totals")
+    raw = get_odds_upcoming(api_key, markets="h2h,asian_handicap,spreads,totals")
     if not raw:
         raw = []
 

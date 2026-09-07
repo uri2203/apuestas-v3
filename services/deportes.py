@@ -14,6 +14,27 @@ logger = logging.getLogger(__name__)
 
 ODDS_API_BASE = "https://api.the-odds-api.com/v4/sports"
 
+# The Odds API cobra 1 crédito POR CADA región solicitada. "us,uk,eu" = 3 créditos
+# por llamada. Por defecto usamos solo "us" (1 crédito) para no agotar la cuota;
+# configurable con ODDS_API_REGIONS si se quiere más cobertura.
+DEFAULT_REGIONS = os.getenv("ODDS_API_REGIONS", "us").strip() or "us"
+
+# Créditos restantes vistos en la última respuesta de la API (header
+# x-requests-remaining). Sirve para que los jobs automáticos reserven cuota.
+_last_remaining = None
+
+
+def get_estimated_remaining():
+    """Créditos restantes según la última respuesta de la API (None si aún no se sabe)."""
+    return _last_remaining
+
+
+def quota_reservada(reserva=25):
+    """True si la cuota restante conocida está por debajo de la reserva.
+    Los jobs automáticos la usan para NO consumir los últimos créditos y
+    dejarlos disponibles para las consultas manuales del usuario."""
+    return _last_remaining is not None and _last_remaining <= reserva
+
 # Deportes con mayor ROI potencial (ordenados por rentabilidad documentada)
 # 2 resultados = más predecible que fútbol (3 resultados)
 SPORTS_BY_ROI = [
@@ -124,12 +145,14 @@ def _get_working_key() -> str | None:
 
 def get_odds_upcoming(
     api_key: str = None,
-    regions: str = "us,uk,eu",
+    regions: str = None,
     markets: str = "h2h",
 ) -> list[dict]:
     """Obtiene odds de TODOS los deportes activos en un solo call (upcoming).
     Costo: len(regions) × len(markets) — mucho más barato que llamar por deporte.
     Soporta cascadeo de keys: si una falla, usa la siguiente automáticamente."""
+    if regions is None:
+        regions = DEFAULT_REGIONS
     # Construir lista de keys a intentar: la pasada primero, luego las demás
     all_keys = _get_api_keys()
     if api_key:
@@ -155,6 +178,9 @@ def get_odds_upcoming(
             )
             # Verificar si la key tiene cuota agotada
             remaining = int(r.headers.get("x-requests-remaining", "999"))
+            global _last_remaining
+            if remaining != 999:
+                _last_remaining = remaining
             if remaining <= 0 or r.status_code == 429:
                 _mark_key_exhausted(key)
                 logger.info("Key ...%s agotada (%s remaining), probando siguiente", key[-6:], remaining)
@@ -177,10 +203,12 @@ def get_odds_upcoming(
 def get_odds_for_sport(
     sport_key: str,
     api_key: str = None,
-    regions: str = "us,uk,eu",
+    regions: str = None,
     markets: str = "h2h",
 ) -> list[dict]:
     """Obtiene odds de un deporte específico. Soporta cascadeo automático de keys."""
+    if regions is None:
+        regions = DEFAULT_REGIONS
     # Construir lista de keys a intentar: la pasada primero, luego las demás
     all_keys = _get_api_keys()
     if api_key:
@@ -205,6 +233,9 @@ def get_odds_for_sport(
                 timeout=10,
             )
             remaining = int(r.headers.get("x-requests-remaining", "999"))
+            global _last_remaining
+            if remaining != 999:
+                _last_remaining = remaining
             if remaining <= 0 or r.status_code == 429:
                 _mark_key_exhausted(key)
                 logger.info("Key ...%s agotada (%s remaining), probando siguiente", key[-6:], remaining)
